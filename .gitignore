@@ -7,9 +7,11 @@
 *.RData
 *.o
 *.so
+*.DS_Store
 test/fdapde_test
 test/.cache
 test/build/
 test/CMakeFiles/
 test/_deps/
 test/libs/
+.idea/
