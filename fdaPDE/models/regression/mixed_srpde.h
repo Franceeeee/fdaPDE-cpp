@@ -45,6 +45,9 @@ class MixedSRPDE<SpaceOnly,monolithic> : public RegressionBase<MixedSRPDE<SpaceO
     SparseBlockMatrix<double, 2, 2> A_ {};         // system matrix of non-parametric problem (2N x 2N matrix)
     fdapde::SparseLU<SpMatrix<double>> invA_ {};   // factorization of matrix A
     DVector<double> b_ {};                         // right hand side of problem's linear system (1 x 2N vector)
+
+    //cambiare con DMatrix<double> per fare resize():
+    // N E P NON sono parametri template <- gestire
     SparseBlockMatrix<double, N, p> X_ {};         // dimensione: N osservazioni totali * p covariate gruppo specifiche
 
    public:
