@@ -47,14 +47,16 @@ using fdapde::testing::read_csv;
 //    BC:           no
 //    order FE:     1
 //    time penalization: separable (mass penalization)
-TEST(strpde_test, laplacian_nonparametric_samplingatnodes_separable_monolithic) {
+TEST(mixed_srpde_test, laplacian_nonparametric_samplingatnodes_separable_monolithic) {
     // define temporal and spatial domain
     Mesh<1, 1> time_mesh(0, 2, 10);
     MeshLoader<Mesh2D> domain("unit_square_coarse");
     // import data from files
-    DMatrix<double> y = read_csv<double>("../data/models/mixed_srpde/2D_test1/y.csv");
-    DMatrix<double> Wg = read_csv<double>("../data/models/mixed_srpde/2D_test2/Wg.csv"); // W: groups
-    DMatrix<double> Vp = read_csv<double>("../data/models/mixed_srpde/2D_test2/Vp.csv"); // V: patients
+    DMatrix<double> y = read_csv<double>("../data/models/srpde/2D_test1/y.csv");
+    // DMatrix<double> Wg = read_csv<double>("../data/models/mixed_srpde/2D_test1/Wg.csv"); // W: groups
+    // DMatrix<double> Vp = read_csv<double>("../data/models/mixed_srpde/2D_test1/Vp.csv"); // V: patients 
+    DMatrix<double> Wg = read_csv<double>("../data/models/srpde/2D_test1/y.csv"); 
+    DMatrix<double> Vp = read_csv<double>("../data/models/srpde/2D_test1/y.csv"); // queste due righe sono solo per provare la run
 
     // define regularizing PDE in space   
     auto Ld = -laplacian<FEM>();
@@ -63,15 +65,14 @@ TEST(strpde_test, laplacian_nonparametric_samplingatnodes_separable_monolithic) 
 
     // define model
     double lambda_D = 0.01, lambda_T = 0.01;
-    STRPDE<SpaceTimeSeparable, fdapde::monolithic> model(space_penalty, time_penalty, Sampling::mesh_nodes);
+    MixedSRPDE<SpaceOnly, fdapde::monolithic> model(space_penalty, Sampling::mesh_nodes);
     model.set_lambda_D(lambda_D);
-    model.set_lambda_T(lambda_T);
 
     // set model's data
     BlockFrame<double, int> df;
     df.stack(OBSERVATIONS_BLK, y);
-    df.stack(OBSERVATIONS_BLK, y); // aggiungere W e V
-    df.stack(OBSERVATIONS_BLK, y);
+    df.stack(DESIGN_MATRIX_BLK, Wg); 
+    df.stack(DESIGN_MATRIX_BLK, Vp); // dubbio...
     model.set_data(df);
 
     // solve smoothing problem
