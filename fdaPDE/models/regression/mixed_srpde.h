@@ -41,14 +41,14 @@ template <typename RegularizationType, typename SolutionPolicy> class MixedSRPDE
 template <>
 class MixedSRPDE<SpaceOnly,monolithic> : public RegressionBase<MixedSRPDE<SpaceOnly,monolithic>, SpaceOnly> {
    private:
-    typedef RegressionBase<SRPDE, SpaceOnly> Base;
+    typedef RegressionBase<MixedSRPDE, SpaceOnly> Base;
     SparseBlockMatrix<double, 2, 2> A_ {};         // system matrix of non-parametric problem (2N x 2N matrix)
     fdapde::SparseLU<SpMatrix<double>> invA_ {};   // factorization of matrix A
     DVector<double> b_ {};                         // right hand side of problem's linear system (1 x 2N vector)
-
-    using Base::Psi_;
-    using Base::R0_;
-    using Base::R1_;
+    
+    // using Base::Psi_;
+    // using Base::R0_;
+    // using Base::R1_;
     // cambiare con DMatrix<double> per fare resize():
     DMatrix<double> X_ {};      // dimensione: N osservazioni totali * p covariate gruppo specifiche
     // N = X_.rows()
@@ -74,6 +74,7 @@ class MixedSRPDE<SpaceOnly,monolithic> : public RegressionBase<MixedSRPDE<SpaceO
     // L: numero di pazienti
     // q: covariate paziente specifiche
 
+    // DA DICHIARARE? COME ACCEDO A Wg, Vp etc... ???
     N = Wg.rows(); // n*L
     n = Base::n_locs();
     L = N/n;
@@ -85,7 +86,7 @@ class MixedSRPDE<SpaceOnly,monolithic> : public RegressionBase<MixedSRPDE<SpaceO
     Id = DVector<double>::Ones(N).asDiagonal(); // dim: N*N
 
     // Psi, R0, R1 hanno dimensioni N*N
-    Psi = Kronecker(Id, Psi()); // forse serve dichiarare questo membro privato
+    Psi_ = Kronecker(Id, Psi()); // forse serve dichiarare questo membro privato
     R0_ = Kronecker(Id, space_pde_.mass());  // I \kron R0
     R1_ = Kronecker(Id, space_pde_.stiff()); // I \kron R1
 
@@ -93,7 +94,7 @@ class MixedSRPDE<SpaceOnly,monolithic> : public RegressionBase<MixedSRPDE<SpaceO
     // Vp dim(N=n*L, q)
 
     if (!is_empty(X_)) { // computation of X
-        X_.leftCols() = Wg; // matrix W: first column of X
+        X_.leftCols() = Wg; // matrix W: first column of X !! NO MATCHING FUNCTION !!
         for ( i = 0; i < L ; i++ ) { // j parte da p (coariate gruppo specifiche) e finisce a q*n (ogni volta aggiunge q covariate paziente specifico)
             X_.block( i*n, p+i*q, n, q ) = Vp.middleRows(i*n, n); // matrix V: block of matrices V1,V2,...,VL (L: numero di pazienti)
         }
@@ -145,13 +146,15 @@ class MixedSRPDE<SpaceOnly,monolithic> : public RegressionBase<MixedSRPDE<SpaceO
     double norm(const DMatrix<double>& op1, const DMatrix<double>& op2) const { return (op1 - op2).squaredNorm(); }
 
     // getters
-    const SparseBlockMatrix<double, >& X() const { return X_; }
-    const SparseBlockMatrix<double, >& Psi() const { return Psi_; }
-    const SparseBlockMatrix<double, >& R0() const { return R0_; }
-    const SparseBlockMatrix<double, >& R1() const { return R1_; }
+    // const SparseBlockMatrix<double, >& X() const { return X_; } TO BE FIXED
+    // const SparseBlockMatrix<double, >& Psi() const { return Psi_; }
+    // const SparseBlockMatrix<double, >& R0() const { return R0_; }
+    // const SparseBlockMatrix<double, >& R1() const { return R1_; }
 
 
     virtual ~MixedSRPDE() = default;
-}
-}
-}
+};
+}   // namespace models
+}   // namespace fdapde
+
+#endif   // __MIXED_SRPDE_H__
