@@ -14,8 +14,8 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-#ifndef __SRPDE_H__
-#define __SRPDE_H__
+#ifndef __MIXED_SRPDE_H__
+#define __MIXED_SRPDE_H__
 
 #include <fdaPDE/linear_algebra.h>
 #include <fdaPDE/pde.h>
