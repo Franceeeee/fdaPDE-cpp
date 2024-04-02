@@ -69,5 +69,6 @@
 #define INDEXES_BLK       "INDEXES"         // observation indices
 #define DESIGN_MATRIX_BLK "DESIGN_MATRIX"   // covariates
 #define WEIGHTS_BLK       "WEIGHTS"         // weights for heteroskedastic observations
+#define MIXED_EFFECTS_BLK "DESIGN_MIXED_EFFECT_MATRIX" // covariates patient specific
 
 #endif   // __MODEL_MACROS_H__

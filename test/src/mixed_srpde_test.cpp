@@ -29,7 +29,7 @@ using fdapde::core::DiscretizedVectorField;
 
 #include "../../fdaPDE/models/regression/mixed_srpde.h"
 #include "../../fdaPDE/models/sampling_design.h"
-using fdapde::models::SRPDE;
+using fdapde::models::MixedSRPDE;
 using fdapde::models::Sampling;
 
 #include "utils/constants.h"
@@ -67,6 +67,8 @@ TEST(mixed_srpde_test, laplacian_nonparametric_samplingatnodes) {
     // set model's data
     BlockFrame<double, int> df;
     df.insert(OBSERVATIONS_BLK, y);
+    df.insert(MIXED_EFFECTS_BLK, Vp); 
+    df.insert(DESIGN_MATRIX_BLK, Wg);
     model.set_data(df);
     // solve smoothing problem
     model.init();

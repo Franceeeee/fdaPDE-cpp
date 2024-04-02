@@ -18,8 +18,10 @@
 #define __MIXED_SRPDE_H__
 
 #include <fdaPDE/linear_algebra.h>
+//#include <fdaPDE/linear_algebra/kronecker_product.h>
 #include <fdaPDE/pde.h>
 #include <fdaPDE/utils.h>
+#include <Eigen/Dense> // for leftCols(p); p # of cols
 
 #include <memory>
 #include <type_traits>
@@ -30,6 +32,8 @@
 #include "regression_base.h"
 using fdapde::core::SMW;
 using fdapde::core::SparseBlockMatrix;
+using fdapde::core::pde_ptr;
+using fdapde::core::Kronecker;
 
 namespace fdapde {
 namespace models {
@@ -46,9 +50,10 @@ class MixedSRPDE<SpaceOnly,monolithic> : public RegressionBase<MixedSRPDE<SpaceO
     fdapde::SparseLU<SpMatrix<double>> invA_ {};   // factorization of matrix A
     DVector<double> b_ {};                         // right hand side of problem's linear system (1 x 2N vector)
     
-    // using Base::Psi_;
-    // using Base::R0_;
-    // using Base::R1_;
+    // using SamplingBase<Model>::Psi;
+    // using Base::R0;
+    // using Base::R1;
+
     // cambiare con DMatrix<double> per fare resize():
     DMatrix<double> X_ {};      // dimensione: N osservazioni totali * p covariate gruppo specifiche
     // N = X_.rows()
@@ -56,6 +61,15 @@ class MixedSRPDE<SpaceOnly,monolithic> : public RegressionBase<MixedSRPDE<SpaceO
 
    public:
     IMPORT_REGRESSION_SYMBOLS;
+
+    int N = Wg.rows(); // n*L
+    int n = Vp.n_locs();
+    int L = N/n;
+    int qV = Vp.cols();
+    int p = Wg.cols();
+    //DMatrix<double> Id = DVector<double>::Ones(N).asDiagonal(); // dim: N*N
+    const SpMatrix<double> Id = DVector<double>::Ones(N).asDiagonal(); // dim: N*N
+
     using Base::lambda_D;   // smoothing parameter in space
     using Base::n_basis;    // number of spatial basis
     using Base::runtime;    // runtime model status
@@ -75,28 +89,28 @@ class MixedSRPDE<SpaceOnly,monolithic> : public RegressionBase<MixedSRPDE<SpaceO
     // q: covariate paziente specifiche
 
     // DA DICHIARARE? COME ACCEDO A Wg, Vp etc... ???
-    N = Wg.rows(); // n*L
-    n = Base::n_locs();
-    L = N/n;
-    q = Vp.cols();
-    p = Wg.cols();
+    // int N = Wg.rows(); // n*L
+    // int n = Base::n_locs();
+    // int L = N/n;
+    // int q = Vp.cols();
+    // int p = Wg.cols();
     
-    X_.resize(N, p+L*q);
+    X_.resize(N, p+L*qV);
 
-    Id = DVector<double>::Ones(N).asDiagonal(); // dim: N*N
+    // DMatrix<double> Id = DVector<double>::Ones(N).asDiagonal(); // dim: N*N
 
-    // Psi, R0, R1 hanno dimensioni N*N
-    Psi_ = Kronecker(Id, Psi()); // forse serve dichiarare questo membro privato
-    R0_ = Kronecker(Id, space_pde_.mass());  // I \kron R0
-    R1_ = Kronecker(Id, space_pde_.stiff()); // I \kron R1
+    // // Psi, R0, R1 hanno dimensioni N*N
+    // Psi_ = Kronecker(Id, Psi()); // forse serve dichiarare questo membro privato
+    // R0_ = Kronecker(Id, space_pde_.mass());  // I \kron R0
+    // R1_ = Kronecker(Id, space_pde_.stiff()); // I \kron R1
 
     // Wg dim(N,p)
     // Vp dim(N=n*L, q)
 
     if (!is_empty(X_)) { // computation of X
-        X_.leftCols() = Wg; // matrix W: first column of X !! NO MATCHING FUNCTION !!
-        for ( i = 0; i < L ; i++ ) { // j parte da p (coariate gruppo specifiche) e finisce a q*n (ogni volta aggiunge q covariate paziente specifico)
-            X_.block( i*n, p+i*q, n, q ) = Vp.middleRows(i*n, n); // matrix V: block of matrices V1,V2,...,VL (L: numero di pazienti)
+        X_.leftCols(N) = Wg; // matrix W: first column of X !! NO MATCHING FUNCTION !!
+        for ( int i = 0; i < L ; i++ ) { // j parte da p (coariate gruppo specifiche) e finisce a q*n (ogni volta aggiunge q covariate paziente specifico)
+            X_.block( i*n, p+i*qV, n, qV ) = Vp.middleRows(i*n, n); // matrix V: block of matrices V1,V2,...,VL (L: numero di pazienti)
         }
     }
 
@@ -104,7 +118,7 @@ class MixedSRPDE<SpaceOnly,monolithic> : public RegressionBase<MixedSRPDE<SpaceO
 
         // assemble system matrix for nonparameteric part
         A_ = SparseBlockMatrix<double, 2, 2>(
-                -PsiTD() * W() * Psi(), lambda_D() * R1().transpose(),
+                -mPsiTD() * W() * mPsi(), lambda_D() * R1().transpose(),
                 lambda_D() * R1(),      lambda_D() * R0()            );
         invA_.compute(A_);
         
@@ -115,7 +129,7 @@ class MixedSRPDE<SpaceOnly,monolithic> : public RegressionBase<MixedSRPDE<SpaceO
     }
     if (runtime().query(runtime_status::require_W_update)) {
         // adjust north-west block of matrix A_ only
-        A_.block(0, 0) = -PsiTD() * W() * Psi();
+        A_.block(0, 0) = -mPsiTD() * W() * mPsi();
         invA_.compute(A_);
         return;
     }
@@ -127,17 +141,17 @@ class MixedSRPDE<SpaceOnly,monolithic> : public RegressionBase<MixedSRPDE<SpaceO
     
         // parametric case
         // update rhs of SR-PDE linear system
-        b_.block(0, 0, n_basis(), 1) = -PsiTD() * lmbQ(y());   // -\Psi^T*D*Q*z
+        b_.block(0, 0, n_basis(), 1) = -mPsiTD() * lmbQ(y());   // -\Psi^T*D*Q*z
         // matrices U and V for application of woodbury formula
         U_ = DMatrix<double>::Zero(2 * n_basis(), q());
-        U_.block(0, 0, n_basis(), q()) = PsiTD() * W() * X();
+        U_.block(0, 0, n_basis(), q()) = mPsiTD() * W() * X();
         V_ = DMatrix<double>::Zero(q(), 2 * n_basis());
-        V_.block(0, 0, q(), n_basis()) = X().transpose() * W() * Psi();
+        V_.block(0, 0, q(), n_basis()) = X().transpose() * W() * mPsi();
         // solve system (A_ + U_*(X^T*W_*X)*V_)x = b using woodbury formula from linear_algebra module
         sol = SMW<>().solve(invA_, U_, XtWX(), V_, b_);
         // store result of smoothing
         f_ = sol.head(n_basis());
-        beta_ = invXtWX().solve(X().transpose() * W()) * (y() - Psi() * f_);
+        beta_ = invXtWX().solve(X().transpose() * W()) * (y() - mPsi() * f_);
         // store PDE misfit
         g_ = sol.tail(n_basis());
         return;
@@ -146,11 +160,14 @@ class MixedSRPDE<SpaceOnly,monolithic> : public RegressionBase<MixedSRPDE<SpaceO
     double norm(const DMatrix<double>& op1, const DMatrix<double>& op2) const { return (op1 - op2).squaredNorm(); }
 
     // getters
-    // const SparseBlockMatrix<double, >& X() const { return X_; } TO BE FIXED
-    // const SparseBlockMatrix<double, >& Psi() const { return Psi_; }
-    // const SparseBlockMatrix<double, >& R0() const { return R0_; }
-    // const SparseBlockMatrix<double, >& R1() const { return R1_; }
-
+    //const SparseBlockMatrix<double, n, n>& X() const { return X(); } 
+    //const DMatrix<double>& X() const { return X(); } 
+    const SpMatrix<double>& mPsi() const { return fdapde::core::KroneckerTensorProduct(Id, Psi()); }
+    const SpMatrix<double>& mPsiTD() const { return KroneckerTensorProduct(Id, PsiTD()); }
+    //const SparseBlockMatrix<double, n, n>& R0() const { return Kronecker(Id, pde_.mass()); }
+    const SpMatrix<double>& R0() const { return Kronecker(Id, pde_.mass()); }
+    //const SparseBlockMatrix<double, n, n>& R1() const { return Kronecker(Id, pde_.stiff()); }
+    const SpMatrix<double>& R1() const { return Kronecker(Id, pde_.stiff()); }
 
     virtual ~MixedSRPDE() = default;
 };
