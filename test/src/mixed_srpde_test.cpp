@@ -31,6 +31,7 @@ using fdapde::core::DiscretizedVectorField;
 #include "../../fdaPDE/models/sampling_design.h"
 using fdapde::models::MixedSRPDE;
 using fdapde::models::Sampling;
+using fdapde::monolithic;
 
 #include "utils/constants.h"
 #include "utils/mesh_loader.h"
@@ -50,11 +51,10 @@ TEST(mixed_srpde_test, laplacian_nonparametric_samplingatnodes) {
     // define domain 
     MeshLoader<Mesh2D> domain("unit_square");
     // import data from files
-    DMatrix<double> y = read_csv<double>("../data/models/srpde/2D_test1/y.csv");
-    // DMatrix<double> Wg = read_csv<double>("../data/models/mixed_srpde/2D_test1/Wg.csv"); // W: groups
-    // DMatrix<double> Vp = read_csv<double>("../data/models/mixed_srpde/2D_test1/Vp.csv"); // V: patients 
-    DMatrix<double> Wg = read_csv<double>("../data/models/srpde/2D_test1/y.csv"); 
-    DMatrix<double> Vp = read_csv<double>("../data/models/srpde/2D_test1/y.csv"); // queste due righe sono solo per provare la run
+    DMatrix<double> locs = read_csv<double>("../data/models/mixed_srpde/2D_test1/100/locations_1.csv");
+    DMatrix<double> y = read_csv<double>("../data/models/mixed_srpde/2D_test1/100/observations.csv");
+    DMatrix<double> Wg = read_csv<double>("../data/models/mixed_srpde/2D_test1/100/W.csv"); 
+    DMatrix<double> Vp = read_csv<double>("../data/models/mixed_srpde/2D_test1/100/V.csv"); 
 
     // define regularizing PDE
     auto L = -laplacian<FEM>();
@@ -62,7 +62,7 @@ TEST(mixed_srpde_test, laplacian_nonparametric_samplingatnodes) {
     PDE<decltype(domain.mesh), decltype(L), DMatrix<double>, FEM, fem_order<1>> problem(domain.mesh, L, u);
     // define model
     double lambda = 5.623413 * std::pow(0.1, 5);
-    MixedSRPDE model(problem, Sampling::mesh_nodes);
+    MixedSRPDE<SpaceOnly, monolithic> model(problem, Sampling::mesh_nodes);
     model.set_lambda_D(lambda);
     // set model's data
     BlockFrame<double, int> df;
@@ -75,7 +75,7 @@ TEST(mixed_srpde_test, laplacian_nonparametric_samplingatnodes) {
     model.solve();
     // test correctness
     // std::cout << "results" << model.f() << std::endl;
-    EXPECT_TRUE(almost_equal(model.f()  , "../data/models/srpde/2D_test1/sol.mtx"));
+    EXPECT_TRUE(almost_equal(model.f(), "../data/models/srpde/2D_test1/100/f_hat.csv"));
 }
 
 // // test 2
