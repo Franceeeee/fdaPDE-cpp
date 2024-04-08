@@ -63,6 +63,9 @@ class MixedSRPDE<SpaceOnly,monolithic> : public RegressionBase<MixedSRPDE<SpaceO
     int p;
     
     SpMatrix<double> I_;   // N x N sparse identity matrix 
+    
+    SpMatrix<double> mPsi_;
+    SpMatrix<double> mPsiTD_;
 
    public:
     IMPORT_REGRESSION_SYMBOLS;
@@ -95,6 +98,9 @@ class MixedSRPDE<SpaceOnly,monolithic> : public RegressionBase<MixedSRPDE<SpaceO
     
     I_.resize(N, N);
     I_.setIdentity();
+    
+    mPsi_ = mPsi();
+    mPsiTD_ = mPsiTD();
 
     if (!is_empty(X_)) { // computation of X
         X_.leftCols(N) = Wg(); // matrix W: first column of X !! NO MATCHING FUNCTION !!
@@ -107,7 +113,7 @@ class MixedSRPDE<SpaceOnly,monolithic> : public RegressionBase<MixedSRPDE<SpaceO
 
         // assemble system matrix for nonparameteric part
         A_ = SparseBlockMatrix<double, 2, 2>(
-                -mPsiTD() * W() * mPsi(), lambda_D() * R1().transpose(),
+                -mPsiTD_ * W() * mPsi_, lambda_D() * R1().transpose(),
                 lambda_D() * R1(),      lambda_D() * R0()            );
         invA_.compute(A_);
         
@@ -118,7 +124,7 @@ class MixedSRPDE<SpaceOnly,monolithic> : public RegressionBase<MixedSRPDE<SpaceO
     }
     if (runtime().query(runtime_status::require_W_update)) {
         // adjust north-west block of matrix A_ only
-        A_.block(0, 0) = -mPsiTD() * W() * mPsi();
+        A_.block(0, 0) = -mPsiTD_ * W() * mPsi_;
         invA_.compute(A_);
         return;
     }
@@ -130,17 +136,17 @@ class MixedSRPDE<SpaceOnly,monolithic> : public RegressionBase<MixedSRPDE<SpaceO
     
         // parametric case
         // update rhs of SR-PDE linear system
-        b_.block(0, 0, n_basis(), 1) = -mPsiTD() * lmbQ(y());   // -\Psi^T*D*Q*z
+        b_.block(0, 0, n_basis(), 1) = -mPsiTD_ * lmbQ(y());   // -\Psi^T*D*Q*z
         // matrices U and V for application of woodbury formula
         U_ = DMatrix<double>::Zero(2 * n_basis(), q());
-        U_.block(0, 0, n_basis(), q()) = mPsiTD() * W() * X();
+        U_.block(0, 0, n_basis(), q()) = mPsiTD_ * W() * X();
         V_ = DMatrix<double>::Zero(q(), 2 * n_basis());
-        V_.block(0, 0, q(), n_basis()) = X().transpose() * W() * mPsi();
+        V_.block(0, 0, q(), n_basis()) = X().transpose() * W() * mPsi_;
         // solve system (A_ + U_*(X^T*W_*X)*V_)x = b using woodbury formula from linear_algebra module
         sol = SMW<>().solve(invA_, U_, XtWX(), V_, b_);
         // store result of smoothing
         f_ = sol.head(n_basis());
-        beta_ = invXtWX().solve(X().transpose() * W()) * (y() - mPsi() * f_);
+        beta_ = invXtWX().solve(X().transpose() * W()) * (y() - mPsi_ * f_);
         // store PDE misfit
         g_ = sol.tail(n_basis());
         return;
@@ -152,7 +158,7 @@ class MixedSRPDE<SpaceOnly,monolithic> : public RegressionBase<MixedSRPDE<SpaceO
     const DMatrix<double>& Wg() const { return df_.template get<double>(DESIGN_MATRIX_BLK); } 
     const DMatrix<double>& Vp() const { return df_.template get<double>(MIXED_EFFECTS_BLK); } 
     const SpMatrix<double> mPsi() const { return Kronecker(I_, Psi()); }
-    const SpMatrix<double> mPsiTD() const { return Kronecker(I_, PsiTD()); }
+    const SpMatrix<double> mPsiTD() const { return Kronecker(I_, PsiTD(not_nan())); }
     const SpMatrix<double> R0() const { return Kronecker(I_, pde_.mass()); }
     const SpMatrix<double> R1() const { return Kronecker(I_, pde_.stiff()); }
 

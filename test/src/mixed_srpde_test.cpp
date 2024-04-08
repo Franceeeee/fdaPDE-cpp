@@ -74,7 +74,7 @@ TEST(mixed_srpde_test, laplacian_nonparametric_samplingatnodes) {
     model.init();
     model.solve();
     // test correctness
-    // std::cout << "results" << model.f() << std::endl;
+    //std::cout << "results" << model.f() << std::endl;
     EXPECT_TRUE(almost_equal(model.f(), "../data/models/srpde/2D_test1/100/f_hat.csv"));
 }
 
