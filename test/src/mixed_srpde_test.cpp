@@ -60,21 +60,27 @@ TEST(mixed_srpde_test, laplacian_nonparametric_samplingatnodes) {
     auto L = -laplacian<FEM>();
     DMatrix<double> u = DMatrix<double>::Zero(domain.mesh.n_elements() * 3, 1);
     PDE<decltype(domain.mesh), decltype(L), DMatrix<double>, FEM, fem_order<1>> problem(domain.mesh, L, u);
+    
     // define model
-    double lambda = 5.623413 * std::pow(0.1, 5);
+    double lambda = 1; // 5.623413 * std::pow(0.1, 5);
     MixedSRPDE<SpaceOnly, monolithic> model(problem, Sampling::mesh_nodes);
     model.set_lambda_D(lambda);
+    
     // set model's data
     BlockFrame<double, int> df;
     df.insert(OBSERVATIONS_BLK, y);
     df.insert(MIXED_EFFECTS_BLK, Vp); 
     df.insert(DESIGN_MATRIX_BLK, Wg);
+    // std::cout << "locs test:" << locs << std::endl;
     model.set_data(df);
+    
     // solve smoothing problem
     model.init();
+    // std::cout << "Wg" << model.Wg() << std::endl;
     model.solve();
+    
     // test correctness
-    //std::cout << "results" << model.f() << std::endl;
+    // std::cout << "results" << model.f() << std::endl;
     EXPECT_TRUE(almost_equal(model.f(), "../data/models/srpde/2D_test1/100/f_hat.csv"));
 }
 

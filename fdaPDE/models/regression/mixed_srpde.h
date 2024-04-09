@@ -96,18 +96,33 @@ class MixedSRPDE<SpaceOnly,monolithic> : public RegressionBase<MixedSRPDE<SpaceO
     
     X_.resize(N, p+L*qV);
     
-    I_.resize(N, N);
+    I_.resize(n,n);
     I_.setIdentity();
     
     mPsi_ = mPsi();
+    // std::cout << "mPsi_" << sizeof(mPsi_) << std::endl;  // 72
+    
     mPsiTD_ = mPsiTD();
+    // std::cout << "mPsiTD_" << sizeof(mPsiTD_) << std::endl; // 72
+    
+    // std::cout << "X_: " << X_ << std::endl; // X is empty at this point
+    // std::cout << "X_ empty: " << is_empty(X_) << std::endl; // returns 1 -> enter the if 
 
-    if (!is_empty(X_)) { // computation of X
-        X_.leftCols(N) = Wg(); // matrix W: first column of X !! NO MATCHING FUNCTION !!
+    if (is_empty(X_)) { // computation of X
+    	// std::cout <<  "Wg: " << Wg() << std::endl;
+	// std::cout << "X_ leftcols before: " << X_.leftCols(N) << std::endl;
+        X_.leftCols(N) = Wg(); // matrix W: first column of X
+       	// std::cout << "X_ leftcols after: " << X_.leftCols(N) << std::endl;
+        
         for ( int i = 0; i < L ; i++ ) { // j parte da p (coariate gruppo specifiche) e finisce a q*n (ogni volta aggiunge q covariate paziente specifico)
             X_.block( i*n, p+i*qV, n, qV ) = Vp().middleRows(i*n, n); // matrix V: block of matrices V1,V2,...,VL (L: numero di pazienti)
         }
     }
+    
+    // std::cout << "X_ rows: " << X_.rows() << std::endl;
+    // std::cout << "X_ cols: " << X_.cols() << std::endl;
+    // std::cout << "X_: " << X_.rows() << std::endl;
+    
 
     if (runtime().query(runtime_status::is_lambda_changed)) {
 
