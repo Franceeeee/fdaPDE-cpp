@@ -79,9 +79,11 @@ TEST(mixed_srpde_test, laplacian_nonparametric_samplingatnodes) {
     df.insert(DESIGN_MATRIX_BLK, Wg);
     model.set_data(df);
     
+    std::cout << "df gia formato" << std::endl;
+    
     // solve smoothing problem
     model.init();
-    //std::cout << "Wg" << model.Wg() << std::endl;
+    std::cout << "Wg" << model.Wg() << std::endl;
     model.solve();
     
     // test correctness
