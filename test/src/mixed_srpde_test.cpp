@@ -31,6 +31,7 @@ using fdapde::core::DiscretizedVectorField;
 #include "../../fdaPDE/models/sampling_design.h"
 using fdapde::models::MixedSRPDE;
 using fdapde::models::Sampling;
+using fdapde::models::SpaceOnly;
 using fdapde::monolithic;
 
 #include "utils/constants.h"
@@ -51,36 +52,40 @@ TEST(mixed_srpde_test, laplacian_nonparametric_samplingatnodes) {
     // define domain 
     MeshLoader<Mesh2D> domain("unit_square");
     // import data from files
-    DMatrix<double> locs = read_csv<double>("../data/models/mixed_srpde/2D_test1/100/locations_1.csv");
-    DMatrix<double> y = read_csv<double>("../data/models/mixed_srpde/2D_test1/100/observations.csv");
-    DMatrix<double> Wg = read_csv<double>("../data/models/mixed_srpde/2D_test1/100/W.csv"); 
-    DMatrix<double> Vp = read_csv<double>("../data/models/mixed_srpde/2D_test1/100/V.csv"); 
+    DMatrix<double> locs = read_csv<double>("../data/models/mixed_srpde/2D_test1/100/locations_1.cvs");
+    DMatrix<double> y = read_csv<double>("../data/models/mixed_srpde/2D_test1/100/observations.cvs");
+    DMatrix<double> Wg = read_csv<double>("../data/models/mixed_srpde/2D_test1/100/W.cvs"); 
+    DMatrix<double> Vp = read_csv<double>("../data/models/mixed_srpde/2D_test1/100/V.cvs"); 
+    // std::cout << "Wg:" << Wg << std::endl; // works
+    // std::cout << "Vp:" << Vp << std::endl; // works
 
     // define regularizing PDE
     auto L = -laplacian<FEM>();
     DMatrix<double> u = DMatrix<double>::Zero(domain.mesh.n_elements() * 3, 1);
+    // std::cout << "u:" << u << std::endl;
     PDE<decltype(domain.mesh), decltype(L), DMatrix<double>, FEM, fem_order<1>> problem(domain.mesh, L, u);
     
     // define model
     double lambda = 1; // 5.623413 * std::pow(0.1, 5);
+    // std::cout << lambda << std::endl; // until here it's okay
+    
     MixedSRPDE<SpaceOnly, monolithic> model(problem, Sampling::mesh_nodes);
     model.set_lambda_D(lambda);
     
-    // set model's data
+    // set model's data - BlockFrame is defined in core/fdaPDE/utils/data_structures/block_frame.h
     BlockFrame<double, int> df;
     df.insert(OBSERVATIONS_BLK, y);
     df.insert(MIXED_EFFECTS_BLK, Vp); 
     df.insert(DESIGN_MATRIX_BLK, Wg);
-    // std::cout << "locs test:" << locs << std::endl;
     model.set_data(df);
     
     // solve smoothing problem
     model.init();
-    // std::cout << "Wg" << model.Wg() << std::endl;
+    //std::cout << "Wg" << model.Wg() << std::endl;
     model.solve();
     
     // test correctness
-    // std::cout << "results" << model.f() << std::endl;
+    //std::cout << "results" << model.f() << std::endl;
     EXPECT_TRUE(almost_equal(model.f(), "../data/models/srpde/2D_test1/100/f_hat.csv"));
 }
 
