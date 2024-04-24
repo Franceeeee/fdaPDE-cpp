@@ -150,23 +150,31 @@ class RegressionBase :
     // data dependent regression models' initialization logic
     void analyze_data() {
         // initialize empty masks
+        std::cout << "inizia analyze data" << std::endl;
         if (!y_mask_.size()) y_mask_.resize(Base::n_locs());
+        std::cout << "fine primo if" << std::endl;
         if (!nan_mask_.size()) nan_mask_.resize(Base::n_locs());
+        std::cout << "fine secondo if" << std::endl;
         // compute q x q dense matrix X^\top*W*X and its factorization
         if (has_weights() && df_.is_dirty(WEIGHTS_BLK)) {
+            std::cout << "modificando W_" << std::endl;
             W_ = df_.template get<double>(WEIGHTS_BLK).col(0).asDiagonal();
             model().runtime().set(runtime_status::require_W_update);
         } else if (is_empty(W_)) {
             // default to homoskedastic observations
+            std::cout << "inizializzando W_?" << std::endl;
             W_ = DVector<double>::Ones(Base::n_locs()).asDiagonal();
         }
         // compute q x q dense matrix X^\top*W*X and its factorization
         if (has_covariates() && (df_.is_dirty(DESIGN_MATRIX_BLK) || df_.is_dirty(WEIGHTS_BLK))) {
-            XtWX_ = X().transpose() * W_ * X();
-            invXtWX_ = XtWX_.partialPivLu();
+            std::cout << "XtWX ?" << std::endl;
+            // QUI ABBIAMO PROBLEMI DI DIMENSIONALITà PERCHè LA NOSTRA "X" NON è X()
+            // XtWX_ = X().transpose() * W_ * X(); 
+            // invXtWX_ = XtWX_.partialPivLu(); 
         }
         // derive missingness pattern from observations vector (if changed)
         if (df_.is_dirty(OBSERVATIONS_BLK)) {
+            std::cout << "OBS BLK ihih" << std::endl;
             n_nan_ = 0;
             for (std::size_t i = 0; i < df_.template get<double>(OBSERVATIONS_BLK).size(); ++i) {
                 if (std::isnan(y()(i, 0))) {   // requires -ffast-math compiler flag to be disabled

@@ -43,6 +43,7 @@ template <typename Model> class ModelBase {
         if (model().runtime().query(runtime_status::require_functional_basis_evaluation)) {
             model().init_sampling(true);   // init \Psi matrix, always force recomputation
         }
+    std::cout << "miao" << std::endl;
 	model().analyze_data();    // specific data-dependent initialization requested by the model
 	if (model().runtime().query(runtime_status::require_psi_correction)) { model().correct_psi(); }
         model().init_model();

@@ -83,7 +83,7 @@ TEST(mixed_srpde_test, laplacian_nonparametric_samplingatnodes) {
     
     // solve smoothing problem
     model.init();
-    std::cout << "Wg" << model.Wg() << std::endl;
+    // std::cout << "Wg" << model.Wg() << std::endl; // con I_(1,1) runna
     model.solve();
     
     // test correctness

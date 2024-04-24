@@ -91,7 +91,7 @@ class MixedSRPDE<SpaceOnly,monolithic> : public RegressionBase<MixedSRPDE<SpaceO
     std::cout << "init_model()" << std::endl; // the run doesn't even reach this line
     N = Wg().rows(); // n*L
     std::cout << "N: " << N << std::endl;
-    n = 3; //n_locs();
+    n = 3; //n_locs(); ?? Aggiunto manualmente
     std::cout << "n: " << n << std::endl;
     L = N/n;
     std::cout << "L: " << L << std::endl;
@@ -101,8 +101,10 @@ class MixedSRPDE<SpaceOnly,monolithic> : public RegressionBase<MixedSRPDE<SpaceO
     std::cout << "p: " << p << std::endl;
     
     I_.resize(n,n);
+    //I_.resize(n,n);
+    //I_.resize(n_locs(), n_locs());
     I_.setIdentity();
-    //std::cout << "I_: " << I_ << std::endl;
+    std::cout << "I_: " << I_ << std::endl;
     
     mPsi_ = mPsi();
     //std::cout << "mPsi_" << sizeof(mPsi_) << std::endl; 
@@ -130,26 +132,52 @@ class MixedSRPDE<SpaceOnly,monolithic> : public RegressionBase<MixedSRPDE<SpaceO
     
     std::cout << "X_ rows: " << X_.rows() << std::endl;
     std::cout << "X_ cols: " << X_.cols() << std::endl;
-    std::cout << "X_: " << X_ << std::endl;
-    // fino a qui runna
+    // std::cout << "X_: " << X_ << std::endl;
 
     if (runtime().query(runtime_status::is_lambda_changed)) {
-
+        std::cout << "entro dell'if" << std::endl;
         // assemble system matrix for nonparameteric part
+    
+        // vediamo come sono fatte ste matrici...
+        std::cout << "mPsiTD_ rows:" << mPsiTD_.rows() << std::endl;
+        std::cout << "mPsiTD_ cols:" << mPsiTD_.cols() << std::endl;
+        
+        std::cout << "W rows:" << W().rows() << std::endl;
+        std::cout << "W cols:" << W().cols() << std::endl;
+        // LA W() DERIVANTE DA ANLYZE DATA HA DIMENSIONI 3600 X 3600 
+        // QUANDO DOVREBBE ESSERE 10800 X 10800
+        // 3600 X 3 = 108000 ...INDAGARE QUESTA RELAZIONE NEL CODICE!
+
+        std::cout << "mPsi_ rows:" << mPsi_.rows() << std::endl;
+        std::cout << "mPsi_ cols:" << mPsi_.cols() << std::endl;
+
+        std::cout << "R0 rows:" << R0().rows() << std::endl;
+        std::cout << "R0 cols:" << R0().cols() << std::endl;
+
+        std::cout << "R1 rows:" << R1().rows() << std::endl;
+        std::cout << "R1 cols:" << R1().cols() << std::endl;
+
+        std::cout << "lambda_D:" << lambda_D() << std::endl;
+
         A_ = SparseBlockMatrix<double, 2, 2>(
                 -mPsiTD_ * W() * mPsi_, lambda_D() * R1().transpose(),
                 lambda_D() * R1(),      lambda_D() * R0()            );
         invA_.compute(A_);
-        
-        // prepare rhs of linear system
+        std::cout << "A assemblata" << std::endl;
+
+        // prepare rhs of linear system (Questa parte sembra andare)
         b_.resize(A_.rows());
+        std::cout << "b resized" << std::endl;
         b_.block(n_basis(), 0, n_basis(), 1) = lambda_D() * u();
+        std::cout << "b completata" << std::endl;
         return;
     }
     if (runtime().query(runtime_status::require_W_update)) {
+        std::cout << "altro if" << std::endl;
         // adjust north-west block of matrix A_ only
         A_.block(0, 0) = -mPsiTD_ * W() * mPsi_;
         invA_.compute(A_);
+        std::cout << "finito" << std::endl;
         return;
     }
     }
@@ -157,21 +185,30 @@ class MixedSRPDE<SpaceOnly,monolithic> : public RegressionBase<MixedSRPDE<SpaceO
     void solve() {
         fdapde_assert(y().rows() != 0);
         DVector<double> sol;
-    
+
+        std::cout << "b_.block" << std::endl;
         // parametric case
         // update rhs of SR-PDE linear system
         b_.block(0, 0, n_basis(), 1) = -mPsiTD_ * lmbQ(y());   // -\Psi^T*D*Q*z
         // matrices U and V for application of woodbury formula
+        std::cout << "U_" << std::endl;
         U_ = DMatrix<double>::Zero(2 * n_basis(), q());
+        std::cout << "U_.block" << std::endl;
         U_.block(0, 0, n_basis(), q()) = mPsiTD_ * W() * X();
+        std::cout << "V_" << std::endl;
         V_ = DMatrix<double>::Zero(q(), 2 * n_basis());
+        std::cout << "V_.block" << std::endl;
         V_.block(0, 0, q(), n_basis()) = X().transpose() * W() * mPsi_;
         // solve system (A_ + U_*(X^T*W_*X)*V_)x = b using woodbury formula from linear_algebra module
+        std::cout << "sol" << std::endl;
         sol = SMW<>().solve(invA_, U_, XtWX(), V_, b_);
         // store result of smoothing
+        std::cout << "f" << std::endl;
         f_ = sol.head(n_basis());
+        std::cout << "beta" << std::endl;
         beta_ = invXtWX().solve(X().transpose() * W()) * (y() - mPsi_ * f_);
         // store PDE misfit
+        std::cout << "g" << std::endl;
         g_ = sol.tail(n_basis());
         return;
     }
