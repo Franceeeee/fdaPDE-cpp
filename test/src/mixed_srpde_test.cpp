@@ -50,7 +50,7 @@ using fdapde::testing::read_csv;
 //    order FE:     1
 TEST(mixed_srpde_test, laplacian_nonparametric_samplingatnodes) {
     // define domain 
-    MeshLoader<Mesh2D> domain("unit_square");
+    MeshLoader<Mesh2D> domain("c_shaped");
     // import data from files
     DMatrix<double> locs = read_csv<double>("../data/models/mixed_srpde/2D_test1/100/locations_1.cvs");
     DMatrix<double> y = read_csv<double>("../data/models/mixed_srpde/2D_test1/100/observations.cvs");
@@ -69,7 +69,7 @@ TEST(mixed_srpde_test, laplacian_nonparametric_samplingatnodes) {
     double lambda = 1; // 5.623413 * std::pow(0.1, 5);
     // std::cout << lambda << std::endl; // until here it's okay
     
-    MixedSRPDE<SpaceOnly, monolithic> model(problem, Sampling::mesh_nodes);
+    MixedSRPDE<SpaceOnly, monolithic> model(problem, Sampling::pointwise);
     model.set_lambda_D(lambda);
     
     // set model's data - BlockFrame is defined in core/fdaPDE/utils/data_structures/block_frame.h
@@ -79,7 +79,7 @@ TEST(mixed_srpde_test, laplacian_nonparametric_samplingatnodes) {
     df.insert(DESIGN_MATRIX_BLK, Wg);
     model.set_data(df);
     
-    std::cout << "df gia formato" << std::endl;
+    // std::cout << "df gia formato" << std::endl;
     
     // solve smoothing problem
     model.init();
