@@ -13,3 +13,4 @@ test/build/
 test/CMakeFiles/
 test/_deps/
 test/libs/
+*.DS_Store
