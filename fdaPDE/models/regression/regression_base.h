@@ -112,12 +112,12 @@ class RegressionBase :
     }
     // efficient left multiplication by matrix Q = W(I - X*(X^\top*W*X)^{-1}*X^\top*W)
     DMatrix<double> lmbQ(const DMatrix<double>& x) const {
-        if (!has_covariates()) return W_ * x;
-        DMatrix<double> v = X().transpose() * W_ * x;   // X^\top*W*x
-        DMatrix<double> z = invXtWX_.solve(v);          // (X^\top*W*X)^{-1}*X^\top*W*x
-        // compute W*x - W*X*z = W*x - (W*X*(X^\top*W*X)^{-1}*X^\top*W)*x = W(I - H)*x = Q*x
-        return W_ * x - W_ * X() * z;
-    }
+       if (!has_covariates()) return W_ * x;
+       DMatrix<double> v = static_cast<const Model&>(*this).X().transpose() * W_ * x;   // X^\top*W*x
+       DMatrix<double> z = invXtWX_.solve(v);          // (X^\top*W*X)^{-1}*X^\top*W*x
+       // compute W*x - W*X*z = W*x - (W*X*(X^\top*W*X)^{-1}*X^\top*W)*x = W(I - H)*x = Q*x
+       return W_ * x - W_ * static_cast<const Model&>(*this).X() * z;
+   }
     // computes fitted values \hat y = \Psi*f_ + X*beta_
     DMatrix<double> fitted() const {
         fdapde_assert(!is_empty(f_));
