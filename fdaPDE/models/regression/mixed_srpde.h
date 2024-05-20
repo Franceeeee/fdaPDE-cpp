@@ -228,8 +228,8 @@ class MixedSRPDE<SpaceOnly,iterative> : public RegressionBase<MixedSRPDE<SpaceOn
 
 
     // iterative scheme 
-    double tol_ = 1e-4;     // tolerance (stopping criterion)
-    std::size_t max_iter_ = 30;
+    double tol_ = 1e-4;             // tolerance (stopping criterion)
+    std::size_t max_iter_ = 30;     // maximum number of iteration
 
    public:
     using RegularizationType = SpaceOnly
@@ -253,12 +253,31 @@ class MixedSRPDE<SpaceOnly,iterative> : public RegressionBase<MixedSRPDE<SpaceOn
         // check: I'm not sure about this -> see what is done in SpaceOnly
     }
 
-    // getters
-    const SpMatrix<double> R0() const { return Kronecker(I_, pde_.mass()); }     // mass matrix in space
-    const SpMatrix<double> R1() const { return Kronecker(I_, pde_.stiff()); }    // discretization of differential operator L
-    // n_basis() ??? n_basis ???? in the monolithic model as well: we defined n_basis but we never use it
-
     void init_model() { return; };// ?
+
+    // the functional minimized by the iterative scheme
+    // J(f,g) =  ...?
+    double J(const DMatrix<double>& f, const DMatrix<double>& g) const {
+        
+        // SSE = \sum_{k=1}^m (z^k - \Psi*f^k)^T*(z^k - \Psi*f^k)
+        
+        return SSE + lambda_D() * g.squaredNorm();
+    }
+    // internal solve routine used by the iterative method
+    void solve(BlockVector<double>& f_new, BlockVector<double>& g_new) const {
+        DVector<double> x = invA_.solve(b_);
+        f_new = x.topRows(n_spatial_basis());
+        g_new = x.bottomRows(n_spatial_basis());
+        // f prende le prime n righe della soluzione x di Ax=b
+        // g prende le ultime n righe della soluzione 
+        // è quello che vogliamo ? [controllare la dimensionalità]
+        return;
+    }
+
+    // internal utilities -- non sono sicura che servano
+    DMatrix<double> y(std::size_t k) const { return y().block(n_spatial_locs() * k, 0, n_spatial_locs(), 1); }
+    DMatrix<double> u(std::size_t k) const { return u_.block(n_basis() * k, 0, n_basis(), 1); }
+
 
     void solve() { 
         fdapde_assert(y().rows() != 0); // what is this?
@@ -270,14 +289,59 @@ class MixedSRPDE<SpaceOnly,iterative> : public RegressionBase<MixedSRPDE<SpaceOn
         A_ = SparseBlockMatrix<double,2,2>(
             -mPsiTD()*W()*mPsi(), lambda_D()*R1().transpose(),
             lambda_D()*R1(), lambda_D()*R0()
-        );
-        invA_.compute(A_); // do we need this?
+        ); // domanda: W() sarebbe definito come Q? cioè I-X(X^T*X)^{-1}*X^T
+        invA_.compute(A_); 
         b_.resize(A_.rows());
 
-        // the solution is in the form 
-        // compute 
+        // the solution is in the form x^{k+1} = (f_hat^{k+1}, g^{k+1})^T
+        // cosa cristo è z ?
 
+        // qui dovremmo calcolare f e g
+
+        
+        // initialize the functional to minimize...
+        // ...
+
+        // Note:
+        // - f_ e g_ sono già definite in model_macros.h, vanno aggiornate a ogni iterazione
+        // - serve popolare la design matrix X (?)
+        // - importante: inizializzare x0 = (f_hat0, g0)
+        
+
+        std::size_t i = 1;   // iteration number
+
+        // iterative scheme for minimization of functional 
+        while (i < max_iter_ && std::abs(r_new) > tol_ /*qual è la condizione di stop ??*/) {
+            
+            // r_new = b_ - A_*x_old;
+
+            
+            // r_old = r_new;
+            i++;
+        }
+
+        return;
     }
+
+    // GCV support
+    double norm(const DMatrix<double>& op1, const DMatrix<double>& op2) const { return (op1 - op2).squaredNorm(); }
+
+    // setters
+    void set_tolerance(double tol) { tol_ = tol; }
+    void set_max_iter(std::size_t max_iter) { max_iter_ = max_iter; }
+
+    // getters
+    const DiagMatrix<double>& W() const { return W_; }
+    const DMatrix<double>& X() const { return X_; }  
+    const DMatrix<double>& Wg() const { return df_.template get<double>(DESIGN_MATRIX_BLK); } 
+    const DMatrix<double>& Vp() const { return df_.template get<double>(MIXED_EFFECTS_BLK); } 
+    const SpMatrix<double> mPsi() const { return Kronecker(I_, Psi()); }
+    const SpMatrix<double> mPsiTD() const { return Kronecker(I_, PsiTD(not_nan())); }
+    const SpMatrix<double> R0() const { return Kronecker(I_, pde_.mass()); }
+    const SpMatrix<double> R1() const { return Kronecker(I_, pde_.stiff()); }
+    // n_basis() ??? n_basis ???? in the monolithic model as well: we defined n_basis but we never use it
+
+    virtual ~MixedSRPDE() = default;
 
 }; // iterative
 
