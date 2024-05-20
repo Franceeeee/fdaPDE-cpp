@@ -156,7 +156,7 @@ class MixedSRPDE<SpaceOnly,monolithic> : public RegressionBase<MixedSRPDE<SpaceO
                  lambda_D() * R1(),        lambda_D() * R0()            );
         invA_.compute(A_);
 
-        // prepare rhs of linear system (Questa parte sembra andare)
+        // prepare rhs of linear system 
         b_.resize(A_.rows());
         
         for( int i=0; i < L; ++i){
@@ -213,7 +213,75 @@ class MixedSRPDE<SpaceOnly,monolithic> : public RegressionBase<MixedSRPDE<SpaceO
     const SpMatrix<double> R1() const { return Kronecker(I_, pde_.stiff()); }
     
     virtual ~MixedSRPDE() = default;
-};
+}; // monolithic
+
+template <>
+class MixedSRPDE<SpaceOnly,iterative> : public RegressionBase<MixedSRPDE<SpaceOnly,iterative>, SpaceOnly> {
+   private:
+    // typedef RegressionBase<MixedSRPDE, SpaceOnly> Base;
+    SparseBlockMatrix<double, 2, 2> A_ {};         // system matrix of non-parametric problem (2N x 2N matrix)
+    fdapde::SparseLU<SpMatrix<double>> invA_ {};   // factorization of matrix A
+    DVector<double> b_ {};                         // right hand side of problem's linear system (1 x 2N vector)
+
+    // construction of the functional minimized by the iterative scheme
+    // ... eq.(4) file aldo
+
+
+    // iterative scheme 
+    double tol_ = 1e-4;     // tolerance (stopping criterion)
+    std::size_t max_iter_ = 30;
+
+   public:
+    using RegularizationType = SpaceOnly
+    using Base = RegressionBase<MixedSRPDE<RegularizationType, iterative>, RegularizationType>;
+    IMPORT_REGRESSION_SYMBOLS;
+    using Base::lambda_D;      // smoothing parameter in space
+    using Base::n_basis;       // number of spatial basis
+    using Base::runtime:       // runtime model status
+    static constexpr int n_lambda = 1;
+
+    // constructors
+    MixedSRPDE() = default;
+    MixedSRPDE(const pde_ptr& pde, Sampling s) : Base(pde, s) { };
+
+    // check: if SpaceOnly tensorizes \Psi matrix -> if yes uncomment the following line
+    // void tensorize_psi() { return; }   // avoid tensorization of \Psi matrix
+    void init_regularization(){
+        pde_.init();
+        s_ = pde_.initial_condition();
+        u_ = pde_.force()   // forcing term
+        // check: I'm not sure about this -> see what is done in SpaceOnly
+    }
+
+    // getters
+    const SpMatrix<double> R0() const { return Kronecker(I_, pde_.mass()); }     // mass matrix in space
+    const SpMatrix<double> R1() const { return Kronecker(I_, pde_.stiff()); }    // discretization of differential operator L
+    // n_basis() ??? n_basis ???? in the monolithic model as well: we defined n_basis but we never use it
+
+    void init_model() { return; };// ?
+
+    void solve() { 
+        fdapde_assert(y().rows() != 0); // what is this?
+
+        // compute the starting point for iterative minimization of functional 
+        // should it be something like x^0 = (f_hat^0, g^0) ...?
+
+        // eq.(6) file aldo:
+        A_ = SparseBlockMatrix<double,2,2>(
+            -mPsiTD()*W()*mPsi(), lambda_D()*R1().transpose(),
+            lambda_D()*R1(), lambda_D()*R0()
+        );
+        invA_.compute(A_); // do we need this?
+        b_.resize(A_.rows());
+
+        // the solution is in the form 
+        // compute 
+
+    }
+
+}; // iterative
+
+
 }   // namespace models
 }   // namespace fdapde
 
