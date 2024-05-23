@@ -278,6 +278,29 @@ class MixedSRPDE<SpaceOnly,iterative> : public RegressionBase<MixedSRPDE<SpaceOn
     DMatrix<double> y(std::size_t k) const { return y().block(n_spatial_locs() * k, 0, n_spatial_locs(), 1); }
     DMatrix<double> u(std::size_t k) const { return u_.block(n_basis() * k, 0, n_basis(), 1); }
 
+    // functional minimized by the iterative scheme
+    // J(f)=norm(y-X\nu-f_n)+\lambda\sum_{i=1}^m norm(\nabla f_i)
+    double J(const DMatrix<double>& f) const{
+    // non mi ricordo cosa mi avevi spiegato sul laplaciano
+    double term = 0; // this is the sum of the L2-squared norms of the Laplace-Beltrami operator
+
+    for (std::size_t i = 1; i <= n_locs; i++) {
+        // non sono sicura di n_locs, i = 1,...,m cicla sul numero di statistical units
+        term += ;
+    }
+    return (norm(y()-X_*nu-f)+lambda*term) // lambda_S?
+    // here I'm using X_ constructed as in the monolithic model: need to copy
+    // ritorna norm()
+    // qui  va completato definendo tutte le parti: nu, X, lambda
+    }
+
+    // internal solve -> useful for the iterations
+    void solve(std::size_t t, BlockVector<double>& f_new, BlockVector<double>& g_new) const {
+        DVector<double> x = invA_.solve(b_);
+        f_new(t) = x.topRows(n_spatial_basis());
+        g_new(t) = x.bottomRows(n_spatial_basis());
+        return;
+    } // come è definito g? da controllare questo
 
     void solve() { 
         fdapde_assert(y().rows() != 0); // what is this?
@@ -300,7 +323,7 @@ class MixedSRPDE<SpaceOnly,iterative> : public RegressionBase<MixedSRPDE<SpaceOn
 
         
         // initialize the functional to minimize...
-        // ...
+
 
         // Note:
         // - f_ e g_ sono già definite in model_macros.h, vanno aggiornate a ogni iterazione
