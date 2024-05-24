@@ -256,13 +256,7 @@ class MixedSRPDE<SpaceOnly,iterative> : public RegressionBase<MixedSRPDE<SpaceOn
     void init_model() { return; };// ?
 
     // the functional minimized by the iterative scheme
-    // J(f,g) =  ...?
-    double J(const DMatrix<double>& f, const DMatrix<double>& g) const {
-        
-        // SSE = \sum_{k=1}^m (z^k - \Psi*f^k)^T*(z^k - \Psi*f^k)
-        
-        return SSE + lambda_D() * g.squaredNorm();
-    }
+
     // internal solve routine used by the iterative method
     void solve(BlockVector<double>& f_new, BlockVector<double>& g_new) const {
         DVector<double> x = invA_.solve(b_);
@@ -281,13 +275,13 @@ class MixedSRPDE<SpaceOnly,iterative> : public RegressionBase<MixedSRPDE<SpaceOn
     // functional minimized by the iterative scheme
     // J(f)=norm(y-X\nu-f_n)+\lambda\sum_{i=1}^m norm(\nabla f_i)
     double J(const DMatrix<double>& f) const{
-    // non mi ricordo cosa mi avevi spiegato sul laplaciano
-    double term = 0; // this is the sum of the L2-squared norms of the Laplace-Beltrami operator
+        // non mi ricordo cosa mi avevi spiegato sul laplaciano
+        double term = 0; // this is the sum of the L2-squared norms of the Laplace-Beltrami operator
 
-    for (std::size_t i = 1; i <= n_locs; i++) {
-        // non sono sicura di n_locs, i = 1,...,m cicla sul numero di statistical units
-        term += ;
-    }
+        for (std::size_t i = 1; i <= n_locs; i++) {
+            // non sono sicura di n_locs, i = 1,...,m cicla sul numero di statistical units
+            term += ;
+        }
     return (norm(y()-X_*nu-f)+lambda*term) // lambda_S?
     // here I'm using X_ constructed as in the monolithic model: need to copy
     // ritorna norm()
@@ -334,7 +328,7 @@ class MixedSRPDE<SpaceOnly,iterative> : public RegressionBase<MixedSRPDE<SpaceOn
         std::size_t i = 1;   // iteration number
 
         // iterative scheme for minimization of functional 
-        while (i < max_iter_ && std::abs(r_new) > tol_ /*qual è la condizione di stop ??*/) {
+        while (i < max_iter_ && std::abs(r_new) > tol_ /*qual è la condizione di stop ?? - ischia pag 25*/) {
             
             // r_new = b_ - A_*x_old;
 
