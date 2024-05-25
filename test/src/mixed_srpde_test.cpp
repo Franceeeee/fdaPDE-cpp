@@ -16,6 +16,7 @@
 
 #include <cstddef>
 #include <gtest/gtest.h>   // testing framework
+#include <fstream>
 
 #include <fdaPDE/core.h>
 using fdapde::core::advection;
@@ -83,9 +84,17 @@ TEST(mixed_srpde_test, cento) {
     // test correctness
     // std::cout <<  (f_true - f_estimate).lpNorm<Eigen::Infinity>() << std::endl;
     // std::cout <<  (model.f() - f_true).lpNorm<Eigen::Infinity>() << std::endl;
+    std::ofstream output("f_100.csv");
+    output << "Results for test with 100 observations\n";
+    data = model.f();
+    for(std::size_t i = 0; i < data.size(); ++i){
+        output << data.at(i) << "\n";
+    }
+    output.close();
     
     EXPECT_TRUE(almost_equal(model.f(), f_estimate));
 }
+
 
 // test 2
 TEST(mixed_srpde_test, duecentocinquanta) {

@@ -49,18 +49,14 @@ class MixedSRPDE<SpaceOnly,monolithic> : public RegressionBase<MixedSRPDE<SpaceO
     SparseBlockMatrix<double, 2, 2> A_ {};         // system matrix of non-parametric problem (2N x 2N matrix)
     fdapde::SparseLU<SpMatrix<double>> invA_ {};   // factorization of matrix A
     DVector<double> b_ {};                         // right hand side of problem's linear system (1 x 2N vector)
-    
-    // using SamplingBase<Model>::Psi;
-    // using Base::R0;
-    // using Base::R1;
 
     DMatrix<double> X_ {};      // dimensione: N osservazioni totali * p covariate gruppo specifiche
 	
-    int N;
-    int n;
-    int L;
-    int qV;
-    int p;
+    int N;          // N: total observations (N=n*L)
+    int n;          // n: observations for each statistical unit (patient)
+    int L;          // L: number of patients
+    int qV;         // qV: patient-specific covariatess
+    int p;          // p: group-specific covariates
     
     SpMatrix<double> I_;   // N x N sparse identity matrix 
     
@@ -68,20 +64,21 @@ class MixedSRPDE<SpaceOnly,monolithic> : public RegressionBase<MixedSRPDE<SpaceO
     SpMatrix<double> mPsiTD_;
     
     void init_X() {
-    
-    N = Wg().rows(); // n*L
-    n = n_locs(); 
-    L = N/n;
-    qV = Vp().cols();
-    p = Wg().cols();
-     
-    X_ = DMatrix<double>::Zero(N, q());
-    X_.leftCols(p) = Wg(); // matrix W: first column of X
-    
-    for ( int i = 0; i < L ; i++ ) { // j parte da p (coariate gruppo specifiche) e finisce a q*L (ogni volta aggiunge q covariate paziente specifico)
-        X_.block( i*n_locs(), p+i*qV, n_locs(), qV ) = Vp().middleRows(i*n_locs(), n_locs()); // matrix V: block of matrices V1,V2,...,Vn (n: numero di pazienti))
+
+        N = Wg().rows();        // N: total observations (N=n*L)
+        n = n_locs();           // n: observations for each statistical unit (patient)
+        L = N/n;                // L: number of patients
+        qV = Vp().cols();       // qV: patient-specific covariatess
+        p = Wg().cols();        // p: group-specific covariates
+        
+        X_ = DMatrix<double>::Zero(N, q()); // q = p+L*qV
+        X_.leftCols(p) = Wg(); // matrix W: first column of X
+        
+        for ( int i = 0; i < L ; i++ ) { // cycle over the number of patients that adds q patient-specific covariates to X_ at each loop
+            X_.block( i*n_locs(), p+i*qV, n_locs(), qV ) = Vp().middleRows(i*n_locs(), n_locs()); // matrix V: diagonal block matrix with V1,V2,...,VL on the diagonal
+        }
+
     }
-   }
    
    public:
     IMPORT_REGRESSION_SYMBOLS;
@@ -91,16 +88,20 @@ class MixedSRPDE<SpaceOnly,monolithic> : public RegressionBase<MixedSRPDE<SpaceO
     using Base::runtime;    // runtime model status
     using RegularizationType = SpaceOnly;
     static constexpr int n_lambda = 1;
-    // constructor
+
+    // constructors
     MixedSRPDE() = default;
     MixedSRPDE(const pde_ptr& pde, Sampling s) : Base(pde, s) { };
     
     void analyze_data() {
+
     	// build multi-domain model design matrix 
     	init_X();
+
         // initialize empty masks
         if (!y_mask_.size()) y_mask_.resize(Base::n_locs()); // da sostituire N 
         if (!nan_mask_.size()) nan_mask_.resize(Base::n_locs()); // da sostiture N
+
         // compute q x q dense matrix X^\top*W*X and its factorization
         if (has_weights() && df_.is_dirty(WEIGHTS_BLK)) {
             W_ = df_.template get<double>(WEIGHTS_BLK).col(0).asDiagonal(); // !!! da modificare !!!
@@ -108,7 +109,6 @@ class MixedSRPDE<SpaceOnly,monolithic> : public RegressionBase<MixedSRPDE<SpaceO
         } else if (is_empty(W_)) {
             W_ = DVector<double>::Ones(N).asDiagonal(); // W_ in R^{N times N}
         }
-       
     	
         // compute q x q dense matrix X^\top*W*X and its factorization
         if (has_covariates() && (df_.is_dirty(DESIGN_MATRIX_BLK) || df_.is_dirty(WEIGHTS_BLK))) {
@@ -134,42 +134,37 @@ class MixedSRPDE<SpaceOnly,monolithic> : public RegressionBase<MixedSRPDE<SpaceO
     
     void init_model() { 
 
-    // Notazione:
-    // N: numero di osservazioni totali
-    // p: covariate gruppo specifiche
-    // n: numero di osservazioni per paziente
-    // L: numero di pazienti
-    // q: covariate paziente specifiche
-    
-    I_.resize(L,L);
-    I_.setIdentity();
-    
-    mPsi_ = mPsi();
-    
-    mPsiTD_ = mPsiTD();
-   
-
-    if (runtime().query(runtime_status::is_lambda_changed)) {
+        // I_ is a NxN sparse identity matrix
+        I_.resize(L,L);
+        I_.setIdentity();
         
-        A_ = SparseBlockMatrix<double, 2, 2>(
-                -mPsiTD()  * W() * mPsi(), lambda_D() * R1().transpose(), // 
-                 lambda_D() * R1(),        lambda_D() * R0()            );
-        invA_.compute(A_);
+        // Kronecker products with the identity
+        mPsi_ = mPsi();    
+        mPsiTD_ = mPsiTD();
+    
+        if (runtime().query(runtime_status::is_lambda_changed)) {
+            
+            A_ = SparseBlockMatrix<double, 2, 2>(
+                    -mPsiTD()  * W() * mPsi(), lambda_D() * R1().transpose(),
+                    lambda_D() * R1(),        lambda_D() * R0()            );
+            invA_.compute(A_);
 
-        // prepare rhs of linear system 
-        b_.resize(A_.rows());
-        
-        for( int i=0; i < L; ++i){
-        	b_.block((L+i)*n_basis(), 0, n_basis(), 1) = lambda_D() * u(); // !!!! n_basis() * L
+            // prepare rhs of linear system 
+            b_.resize(A_.rows());
+            
+            for( int i=0; i < L; ++i){
+                b_.block((L+i)*n_basis(), 0, n_basis(), 1) = lambda_D() * u(); // !!!! n_basis() * L
+            }
+            return;
         }
-        return;
-    }
-    if (runtime().query(runtime_status::require_W_update)) {
-        // adjust north-west block of matrix A_ only
-        A_.block(0, 0) = -mPsiTD() * mPsi(); // W() problemi . 
-        invA_.compute(A_);
-        return;
-    }
+
+        if (runtime().query(runtime_status::require_W_update)) {
+
+            // adjust north-west block of matrix A_ only
+            A_.block(0, 0) = -mPsiTD() * mPsi(); // W() problemi . 
+            invA_.compute(A_);
+            return;
+        }
     }
 
     void solve() {
@@ -180,16 +175,20 @@ class MixedSRPDE<SpaceOnly,monolithic> : public RegressionBase<MixedSRPDE<SpaceO
         // update rhs of SR-PDE linear system
 
         b_.block(0, 0, L*n_basis(), 1) = -mPsiTD() * lmbQ(y());   // -\Psi^T*D*Q*z
+
         // matrices U and V for application of woodbury formula
         U_ = DMatrix<double>::Zero(2 * L * n_basis(), q());
         U_.block(0, 0, L* n_basis(), q()) = mPsiTD_  * X(); // * W() * X();
         V_ = DMatrix<double>::Zero(q(), 2 * L * n_basis());
         V_.block(0, 0, q(), L * n_basis()) = X().transpose() * mPsi(); // W() * mPsi()
+
         // solve system (A_ + U_*(X^T*W_*X)*V_)x = b using woodbury formula from linear_algebra module
         sol = SMW<>().solve(invA_, U_, XtWX(), V_, b_);
+
         // store result of smoothing
         f_ = sol.head(L*n_basis());
         beta_ = invXtWX().solve(X().transpose() ) * (y() - mPsi_ * f_); // X().transpose() * W()
+
         // store PDE misfit
         g_ = sol.tail(L*n_basis());
         return;
@@ -198,11 +197,7 @@ class MixedSRPDE<SpaceOnly,monolithic> : public RegressionBase<MixedSRPDE<SpaceO
     double norm(const DMatrix<double>& op1, const DMatrix<double>& op2) const { return (op1 - op2).squaredNorm(); }
 
     // getters
-    
-    std::size_t q() const {
-        return p+L*qV;
-    }
-    
+    std::size_t q() const { return p+L*qV; }
     const DiagMatrix<double>& W() const { return W_; }
     const DMatrix<double>& X() const { return X_; }  
     const DMatrix<double>& Wg() const { return df_.template get<double>(DESIGN_MATRIX_BLK); } 
@@ -213,6 +208,7 @@ class MixedSRPDE<SpaceOnly,monolithic> : public RegressionBase<MixedSRPDE<SpaceO
     const SpMatrix<double> R1() const { return Kronecker(I_, pde_.stiff()); }
     
     virtual ~MixedSRPDE() = default;
+
 }; // monolithic
 
 template <>
@@ -222,6 +218,40 @@ class MixedSRPDE<SpaceOnly,iterative> : public RegressionBase<MixedSRPDE<SpaceOn
     SparseBlockMatrix<double, 2, 2> A_ {};         // system matrix of non-parametric problem (2N x 2N matrix)
     fdapde::SparseLU<SpMatrix<double>> invA_ {};   // factorization of matrix A
     DVector<double> b_ {};                         // right hand side of problem's linear system (1 x 2N vector)
+    DMatrix<double> X_ {};                         // design matrix
+    int N;                                         // N: total observations (N=n*L)
+    int n;                                         // n: observations for each statistical unit (patient)
+    int L;                                         // L: number of patients
+    int qV;                                        // qV: patient-specific covariatess
+    int p;                                         // p: group-specific covariates
+    SparseBlockMatrix<double,2,2> P_ {};                        // preconditioning matrix of the Richardson scheme
+
+    // construction of the design matrix X_
+    void init_X() {
+
+        N = Wg().rows();        // N: total observations (N=n*L)
+        n = n_locs();           // n: observations for each statistical unit (patient)
+        L = N/n;                // L: number of patients
+        qV = Vp().cols();       // qV: patient-specific covariatess
+        p = Wg().cols();        // p: group-specific covariates
+        
+        X_ = DMatrix<double>::Zero(N, q());
+        X_.leftCols(p) = Wg(); // matrix W: first column of X
+        
+        for ( int i = 0; i < L ; i++ ) { // cycle over the number of patients that adds q patient-specific covariates to X_ at each loop
+            X_.block( i*n_locs(), p+i*qV, n_locs(), qV ) = Vp().middleRows(i*n_locs(), n_locs()); // matrix V: diagonal block matrix with V1,V2,...,VL on the diagonal
+        }
+
+    }
+
+    // construction of the preconditioning matrix P_
+    void init_P() {
+
+        P_ = SparseBlockMatrix<double, 2, 2>(
+            -mPsiTD()  * W() * mPsi(), lambda_D() * R1().transpose(),
+            lambda_D() * R1(),        lambda_D() * R0()            );
+
+    }
 
     // construction of the functional minimized by the iterative scheme
     // ... eq.(4) file aldo
@@ -253,7 +283,16 @@ class MixedSRPDE<SpaceOnly,iterative> : public RegressionBase<MixedSRPDE<SpaceOn
         // check: I'm not sure about this -> see what is done in SpaceOnly
     }
 
-    void init_model() { return; };// ?
+    void init_model() { 
+        
+        // build multi-domain model design matrix 
+    	init_X();
+
+        // build preconditioning matrix 
+        init_P();
+        
+        return; 
+    }
 
     // the functional minimized by the iterative scheme
 
@@ -275,17 +314,18 @@ class MixedSRPDE<SpaceOnly,iterative> : public RegressionBase<MixedSRPDE<SpaceOn
     // functional minimized by the iterative scheme
     // J(f)=norm(y-X\nu-f_n)+\lambda\sum_{i=1}^m norm(\nabla f_i)
     double J(const DMatrix<double>& f) const{
-        // non mi ricordo cosa mi avevi spiegato sul laplaciano
-        double term = 0; // this is the sum of the L2-squared norms of the Laplace-Beltrami operator
+    // non mi ricordo cosa mi avevi spiegato sul laplaciano
+    //     double term = 0; // this is the sum of the L2-squared norms of the Laplace-Beltrami operator
 
-        for (std::size_t i = 1; i <= n_locs; i++) {
-            // non sono sicura di n_locs, i = 1,...,m cicla sul numero di statistical units
-            term += ;
-        }
-    return (norm(y()-X_*nu-f)+lambda*term) // lambda_S?
+    //     for (std::size_t i = 1; i <= n_locs; i++) {
+    //         // non sono sicura di n_locs, i = 1,...,m cicla sul numero di statistical units
+    //         term += ;
+    //     }
+    // return (norm(y()-X_*nu-f)+lambda*term) // lambda_S?
     // here I'm using X_ constructed as in the monolithic model: need to copy
     // ritorna norm()
     // qui  va completato definendo tutte le parti: nu, X, lambda
+        return;
     }
 
     // internal solve -> useful for the iterations
