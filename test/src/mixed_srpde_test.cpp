@@ -86,9 +86,9 @@ TEST(mixed_srpde_test, cento) {
     // std::cout <<  (model.f() - f_true).lpNorm<Eigen::Infinity>() << std::endl;
     std::ofstream output("f_100.csv");
     output << "Results for test with 100 observations\n";
-    data = model.f();
+    DMatrix<double> data = model.f();
     for(std::size_t i = 0; i < data.size(); ++i){
-        output << data.at(i) << "\n";
+        output << data(i) << "\n";
     }
     output.close();
     
@@ -131,6 +131,14 @@ TEST(mixed_srpde_test, duecentocinquanta) {
     DMatrix<double> f_estimate = read_csv<double>("../data/models/mixed_srpde/2D_test1/250/f_hat.csv");
     // DMatrix<double> f_true = read_csv<double>("../data/models/mixed_srpde/2D_test1/250/f.csv");
 
+    std::ofstream output("f_250.csv");
+    output << "Results for test with 250 observations\n";
+    DMatrix<double> data = model.f();
+    for(std::size_t i = 0; i < data.size(); ++i){
+        output << data(i) << "\n";
+    }
+    output.close();
+
     EXPECT_TRUE(almost_equal(model.f(), f_estimate));
 }
 
@@ -169,6 +177,14 @@ TEST(mixed_srpde_test, cinquecento) {
     DMatrix<double> f_estimate = read_csv<double>("../data/models/mixed_srpde/2D_test1/500/f_hat.csv");
     // DMatrix<double> f_true = read_csv<double>("../data/models/mixed_srpde/2D_test1/500/f.csv");
 
+    std::ofstream output("f_500.csv");
+    output << "Results for test with 500 observations\n";
+    DMatrix<double> data = model.f();
+    for(std::size_t i = 0; i < data.size(); ++i){
+        output << data(i) << "\n";
+    }
+    output.close();
+
     EXPECT_TRUE(almost_equal(model.f(), f_estimate));
 }
 
@@ -206,6 +222,14 @@ TEST(mixed_srpde_test, mille) {
     
     DMatrix<double> f_estimate = read_csv<double>("../data/models/mixed_srpde/2D_test1/1000/f_hat.csv");
     // DMatrix<double> f_true = read_csv<double>("../data/models/mixed_srpde/2D_test1/1000/f.csv");
+
+    std::ofstream output("f_1000.csv");
+    output << "Results for test with 1000 observations\n";
+    DMatrix<double> data = model.f();
+    for(std::size_t i = 0; i < data.size(); ++i){
+        output << data(i) << "\n";
+    }
+    output.close();
 
     EXPECT_TRUE(almost_equal(model.f(), f_estimate));
 }

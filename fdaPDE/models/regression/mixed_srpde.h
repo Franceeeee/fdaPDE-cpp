@@ -34,6 +34,7 @@ using fdapde::core::SMW;
 using fdapde::core::SparseBlockMatrix;
 using fdapde::core::pde_ptr;
 using fdapde::core::Kronecker;
+using fdapde::core::BlockVector;
 
 namespace fdapde {
 namespace models {
@@ -211,6 +212,7 @@ class MixedSRPDE<SpaceOnly,monolithic> : public RegressionBase<MixedSRPDE<SpaceO
 
 }; // monolithic
 
+/*
 template <>
 class MixedSRPDE<SpaceOnly,iterative> : public RegressionBase<MixedSRPDE<SpaceOnly,iterative>, SpaceOnly> {
    private:
@@ -262,12 +264,12 @@ class MixedSRPDE<SpaceOnly,iterative> : public RegressionBase<MixedSRPDE<SpaceOn
     std::size_t max_iter_ = 30;     // maximum number of iteration
 
    public:
-    using RegularizationType = SpaceOnly
+    using RegularizationType = SpaceOnly;
     using Base = RegressionBase<MixedSRPDE<RegularizationType, iterative>, RegularizationType>;
     IMPORT_REGRESSION_SYMBOLS;
     using Base::lambda_D;      // smoothing parameter in space
     using Base::n_basis;       // number of spatial basis
-    using Base::runtime:       // runtime model status
+    using Base::runtime;       // runtime model status
     static constexpr int n_lambda = 1;
 
     // constructors
@@ -368,7 +370,7 @@ class MixedSRPDE<SpaceOnly,iterative> : public RegressionBase<MixedSRPDE<SpaceOn
         std::size_t i = 1;   // iteration number
 
         // iterative scheme for minimization of functional 
-        while (i < max_iter_ && std::abs(r_new) > tol_ /*qual è la condizione di stop ?? - ischia pag 25*/) {
+        while (i < max_iter_ && std::abs(r_new) > tol_ // Qual è la condizione di stop ?? - ischia pag 25) {
             
             // r_new = b_ - A_*x_old;
 
@@ -400,7 +402,7 @@ class MixedSRPDE<SpaceOnly,iterative> : public RegressionBase<MixedSRPDE<SpaceOn
 
     virtual ~MixedSRPDE() = default;
 
-}; // iterative
+}; // iterative */
 
 
 }   // namespace models
