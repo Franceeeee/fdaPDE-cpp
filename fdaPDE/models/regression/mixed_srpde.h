@@ -212,7 +212,7 @@ class MixedSRPDE<SpaceOnly,monolithic> : public RegressionBase<MixedSRPDE<SpaceO
 
 }; // monolithic
 
-/*
+
 template <>
 class MixedSRPDE<SpaceOnly,iterative> : public RegressionBase<MixedSRPDE<SpaceOnly,iterative>, SpaceOnly> {
    private:
@@ -226,7 +226,7 @@ class MixedSRPDE<SpaceOnly,iterative> : public RegressionBase<MixedSRPDE<SpaceOn
     int L;                                         // L: number of patients
     int qV;                                        // qV: patient-specific covariatess
     int p;                                         // p: group-specific covariates
-    SparseBlockMatrix<double,2,2> P_ {};                        // preconditioning matrix of the Richardson scheme
+    SparseBlockMatrix<double,2,2> P_ {};           // preconditioning matrix of the Richardson scheme
 
     // construction of the design matrix X_
     void init_X() {
@@ -292,6 +292,15 @@ class MixedSRPDE<SpaceOnly,iterative> : public RegressionBase<MixedSRPDE<SpaceOn
 
         // build preconditioning matrix 
         init_P();
+
+        // computation of x^{0} = [f^{0}; g^{0}]
+
+        // computation of r^{0} = b - Ax^{0} (residual at k=0)
+        
+
+        // computation of z^{1} as solution of the linear system Pz^{1} = r^{0}
+
+
         
         return; 
     }
@@ -402,7 +411,7 @@ class MixedSRPDE<SpaceOnly,iterative> : public RegressionBase<MixedSRPDE<SpaceOn
 
     virtual ~MixedSRPDE() = default;
 
-}; // iterative */
+}; // iterative 
 
 
 }   // namespace models
