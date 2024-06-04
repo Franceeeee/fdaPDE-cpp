@@ -221,12 +221,14 @@ class MixedSRPDE<SpaceOnly,iterative> : public RegressionBase<MixedSRPDE<SpaceOn
     fdapde::SparseLU<SpMatrix<double>> invA_ {};   // factorization of matrix A
     DVector<double> b_ {};                         // right hand side of problem's linear system (1 x 2N vector)
     DMatrix<double> X_ {};                         // design matrix
+    DMatrix<double> Q_ {};                         // Q = I - X(X^T X)^{-1}X^T
     int N;                                         // N: total observations (N=n*L)
     int n;                                         // n: observations for each statistical unit (patient)
     int L;                                         // L: number of patients
     int qV;                                        // qV: patient-specific covariatess
     int p;                                         // p: group-specific covariates
-    SparseBlockMatrix<double,2,2> P_ {};           // preconditioning matrix of the Richardson scheme
+    SparseBlockMatrix<double, 2, 2> P_ {};         // preconditioning matrix of the Richardson scheme
+    SpMatrix<double> Gamma_ {};       // approximation of the north-east block of the matrix A
 
     // construction of the design matrix X_
     void init_X() {
@@ -246,18 +248,28 @@ class MixedSRPDE<SpaceOnly,iterative> : public RegressionBase<MixedSRPDE<SpaceOn
 
     }
 
+    // construction of Gamma (approxiamtion of \Psi^T Q \Psi)
+    void init_Gamma() {
+
+        for(std::size_t i = 0; i < L; i++){
+            DMatrix<double> I = {};
+            I.resize(n(i),n(i));
+            I.setIdentity();
+            DMatrix<double> Qi = I - X(i)*invXtWX()*X(i).transpose();       // dimension of Qi: n*n
+            Q_.block((i-1)*n,(i-1)*n,n,n) = Qi;         // dimension of Q: N*N
+        }
+        Gamma_ = mPsiTD()*Q()*mPsi();   // dimension of Gamma: NL*NL
+
+    }
+
     // construction of the preconditioning matrix P_
     void init_P() {
 
         P_ = SparseBlockMatrix<double, 2, 2>(
-            -mPsiTD()  * W() * mPsi(), lambda_D() * R1().transpose(),
-            lambda_D() * R1(),        lambda_D() * R0()            );
+            Gamma(),                  lambda_D() * R1().transpose(),
+            lambda_D() * R1(),        lambda_D() * R0()                 );
 
     }
-
-    // construction of the functional minimized by the iterative scheme
-    // ... eq.(4) file aldo
-
 
     // iterative scheme 
     double tol_ = 1e-4;             // tolerance (stopping criterion)
@@ -290,6 +302,9 @@ class MixedSRPDE<SpaceOnly,iterative> : public RegressionBase<MixedSRPDE<SpaceOn
         // build multi-domain model design matrix 
     	init_X();
 
+        // build Gamma
+        init_Gamma();
+
         // build preconditioning matrix 
         init_P();
 
@@ -297,7 +312,6 @@ class MixedSRPDE<SpaceOnly,iterative> : public RegressionBase<MixedSRPDE<SpaceOn
 
         // computation of r^{0} = b - Ax^{0} (residual at k=0)
         
-
         // computation of z^{1} as solution of the linear system Pz^{1} = r^{0}
 
 
@@ -318,7 +332,9 @@ class MixedSRPDE<SpaceOnly,iterative> : public RegressionBase<MixedSRPDE<SpaceOn
         return;
     }
 
-    // internal utilities -- non sono sicura che servano
+    // internal utilities
+    DMatrix<double> n(std::size_t k) const { return n_; } // at this point n is assumed to be the same for everyone (?)
+    DMatrix<double> X(std::size_t k) const { return X().block((k-1)*n, 0, n, p+qV*L); }
     DMatrix<double> y(std::size_t k) const { return y().block(n_spatial_locs() * k, 0, n_spatial_locs(), 1); }
     DMatrix<double> u(std::size_t k) const { return u_.block(n_basis() * k, 0, n_basis(), 1); }
 
@@ -379,7 +395,7 @@ class MixedSRPDE<SpaceOnly,iterative> : public RegressionBase<MixedSRPDE<SpaceOn
         std::size_t i = 1;   // iteration number
 
         // iterative scheme for minimization of functional 
-        while (i < max_iter_ && std::abs(r_new) > tol_ // Qual è la condizione di stop ?? - ischia pag 25) {
+        while (i < max_iter_ && std::abs(r_new-r_old) > tol_ && std::abs(Jnew-Jold) > tol_) /* ischia pag 25 */ {
             
             // r_new = b_ - A_*x_old;
 
@@ -399,8 +415,11 @@ class MixedSRPDE<SpaceOnly,iterative> : public RegressionBase<MixedSRPDE<SpaceOn
     void set_max_iter(std::size_t max_iter) { max_iter_ = max_iter; }
 
     // getters
+    const int n() const { return n_; }
     const DiagMatrix<double>& W() const { return W_; }
     const DMatrix<double>& X() const { return X_; }  
+    const DMatrix<double>& Q() const { return Q_; }  
+    const SparseBlockMatrix<double> Gamma() const { return Gamma_; }  
     const DMatrix<double>& Wg() const { return df_.template get<double>(DESIGN_MATRIX_BLK); } 
     const DMatrix<double>& Vp() const { return df_.template get<double>(MIXED_EFFECTS_BLK); } 
     const SpMatrix<double> mPsi() const { return Kronecker(I_, Psi()); }
@@ -412,7 +431,6 @@ class MixedSRPDE<SpaceOnly,iterative> : public RegressionBase<MixedSRPDE<SpaceOn
     virtual ~MixedSRPDE() = default;
 
 }; // iterative 
-
 
 }   // namespace models
 }   // namespace fdapde

@@ -92,7 +92,7 @@ TEST(mixed_srpde_test, cento) {
     }
     output.close();
     
-    EXPECT_TRUE(almost_equal(model.f(), f_estimate));
+    EXPECT_TRUE(  (model.f() - f_estimate ).array().abs().maxCoeff() < 1e-6 );
 }
 
 
@@ -139,7 +139,8 @@ TEST(mixed_srpde_test, duecentocinquanta) {
     }
     output.close();
 
-    EXPECT_TRUE(almost_equal(model.f(), f_estimate));
+    //EXPECT_TRUE(almost_equal(model.f(), f_estimate));
+    EXPECT_TRUE(  (model.f() - f_estimate ).array().abs().maxCoeff() < 1e-6 );
 }
 
 // test 3
@@ -185,7 +186,8 @@ TEST(mixed_srpde_test, cinquecento) {
     }
     output.close();
 
-    EXPECT_TRUE(almost_equal(model.f(), f_estimate));
+    //EXPECT_TRUE(almost_equal(model.f(), f_estimate));
+    EXPECT_TRUE(  (model.f() - f_estimate ).array().abs().maxCoeff() < 1e-6 );
 }
 
 // test 4
@@ -231,5 +233,6 @@ TEST(mixed_srpde_test, mille) {
     }
     output.close();
 
-    EXPECT_TRUE(almost_equal(model.f(), f_estimate));
+    //EXPECT_TRUE(almost_equal(model.f(), f_estimate));
+    EXPECT_TRUE(  (model.f() - f_estimate ).array().abs().maxCoeff() < 1e-6 );
 }
