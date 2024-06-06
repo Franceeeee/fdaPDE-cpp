@@ -227,8 +227,10 @@ class MixedSRPDE<SpaceOnly,iterative> : public RegressionBase<MixedSRPDE<SpaceOn
     int L;                                         // L: number of patients
     int qV;                                        // qV: patient-specific covariatess
     int p;                                         // p: group-specific covariates
+    int alpha_ = 1;                                    // alpha: acceleration parameter
     SparseBlockMatrix<double, 2, 2> P_ {};         // preconditioning matrix of the Richardson scheme
-    SpMatrix<double> Gamma_ {};       // approximation of the north-east block of the matrix A
+    fdapde::SparseLU<SpMatrix<double>> invP_ {};   // factorization of matrix P
+    SpMatrix<double> Gamma_ {};                    // approximation of the north-east block of the matrix A
 
     // construction of the design matrix X_
     void init_X() {
@@ -245,12 +247,10 @@ class MixedSRPDE<SpaceOnly,iterative> : public RegressionBase<MixedSRPDE<SpaceOn
         for ( int i = 0; i < L ; i++ ) { // cycle over the number of patients that adds q patient-specific covariates to X_ at each loop
             X_.block( i*n_locs(), p+i*qV, n_locs(), qV ) = Vp().middleRows(i*n_locs(), n_locs()); // matrix V: diagonal block matrix with V1,V2,...,VL on the diagonal
         }
-
     }
 
     // construction of Gamma (approxiamtion of \Psi^T Q \Psi)
     void init_Gamma() {
-
         for(std::size_t i = 0; i < L; i++){
             DMatrix<double> I = {};
             I.resize(n(i),n(i));
@@ -259,16 +259,13 @@ class MixedSRPDE<SpaceOnly,iterative> : public RegressionBase<MixedSRPDE<SpaceOn
             Q_.block((i-1)*n,(i-1)*n,n,n) = Qi;         // dimension of Q: N*N
         }
         Gamma_ = mPsiTD()*Q()*mPsi();   // dimension of Gamma: NL*NL
-
     }
 
     // construction of the preconditioning matrix P_
     void init_P() {
-
         P_ = SparseBlockMatrix<double, 2, 2>(
             Gamma(),                  lambda_D() * R1().transpose(),
             lambda_D() * R1(),        lambda_D() * R0()                 );
-
     }
 
     // iterative scheme 
@@ -307,29 +304,17 @@ class MixedSRPDE<SpaceOnly,iterative> : public RegressionBase<MixedSRPDE<SpaceOn
 
         // build preconditioning matrix 
         init_P();
+        invP_.compute(P_);
 
-        // computation of x^{0} = [f^{0}; g^{0}]
+        // build A_ and initialize b_        
+        A_ = SparseBlockMatrix<double,2,2>(
+            -mPsiTD()*W()*mPsi(), lambda_D()*R1().transpose(),
+            lambda_D()*R1(), lambda_D()*R0()
+        ); // domanda: W() sarebbe definito come Q? cioè I-X(X^T*X)^{-1}*X^T
+        invA_.compute(A_); 
+        b_.resize(A_.rows());
 
-        // computation of r^{0} = b - Ax^{0} (residual at k=0)
-        
-        // computation of z^{1} as solution of the linear system Pz^{1} = r^{0}
-
-
-        
         return; 
-    }
-
-    // the functional minimized by the iterative scheme
-
-    // internal solve routine used by the iterative method
-    void solve(BlockVector<double>& f_new, BlockVector<double>& g_new) const {
-        DVector<double> x = invA_.solve(b_);
-        f_new = x.topRows(n_spatial_basis());
-        g_new = x.bottomRows(n_spatial_basis());
-        // f prende le prime n righe della soluzione x di Ax=b
-        // g prende le ultime n righe della soluzione 
-        // è quello che vogliamo ? [controllare la dimensionalità]
-        return;
     }
 
     // internal utilities
@@ -337,22 +322,23 @@ class MixedSRPDE<SpaceOnly,iterative> : public RegressionBase<MixedSRPDE<SpaceOn
     DMatrix<double> X(std::size_t k) const { return X().block((k-1)*n, 0, n, p+qV*L); }
     DMatrix<double> y(std::size_t k) const { return y().block(n_spatial_locs() * k, 0, n_spatial_locs(), 1); }
     DMatrix<double> u(std::size_t k) const { return u_.block(n_basis() * k, 0, n_basis(), 1); }
+    double alpha(std::size_t k) const { return alpha_; } // fixed to 1 
 
     // functional minimized by the iterative scheme
     // J(f)=norm(y-X\nu-f_n)+\lambda\sum_{i=1}^m norm(\nabla f_i)
-    double J(const DMatrix<double>& f) const{
-    // non mi ricordo cosa mi avevi spiegato sul laplaciano
-    //     double term = 0; // this is the sum of the L2-squared norms of the Laplace-Beltrami operator
+    double J(const DMatrix<double>& f, const DMatrix<double>& g) const{
+        
+        DMatrix<double> fhat = // f valutata in ...
+        DMatrix<double> nu = invXtWX()*X().transpose()*(y() - fhat)
 
-    //     for (std::size_t i = 1; i <= n_locs; i++) {
-    //         // non sono sicura di n_locs, i = 1,...,m cicla sul numero di statistical units
-    //         term += ;
-    //     }
-    // return (norm(y()-X_*nu-f)+lambda*term) // lambda_S?
-    // here I'm using X_ constructed as in the monolithic model: need to copy
-    // ritorna norm()
-    // qui  va completato definendo tutte le parti: nu, X, lambda
-        return;
+        double term1 = y() - X() * nu - mPsi() * f; 
+        double term2 = 0;
+
+        for (std::size_t i = 1; i <= n; i++){
+            term2 += g(i).squaredNorm();
+        }
+
+        return term1.squaredNorm() + lambda_D()*term2;
     }
 
     // internal solve -> useful for the iterations
@@ -361,47 +347,69 @@ class MixedSRPDE<SpaceOnly,iterative> : public RegressionBase<MixedSRPDE<SpaceOn
         f_new(t) = x.topRows(n_spatial_basis());
         g_new(t) = x.bottomRows(n_spatial_basis());
         return;
+        // f prende le prime n righe della soluzione x di Ax=b
+        // g prende le ultime n righe della soluzione 
+        // è quello che vogliamo ? [controllare la dimensionalità]
     } // come è definito g? da controllare questo
 
     void solve() { 
         fdapde_assert(y().rows() != 0); // what is this?
+        DVector<double> x_new; 
 
-        // compute the starting point for iterative minimization of functional 
-        // should it be something like x^0 = (f_hat^0, g^0) ...?
+        b_.block(0, 0, L*n, 1) = -mPsiTD() * Q() * mPsi();   // Q() viene aggiornata nelle iterazioni? in teoria no
 
-        // eq.(6) file aldo:
-        A_ = SparseBlockMatrix<double,2,2>(
-            -mPsiTD()*W()*mPsi(), lambda_D()*R1().transpose(),
-            lambda_D()*R1(), lambda_D()*R0()
-        ); // domanda: W() sarebbe definito come Q? cioè I-X(X^T*X)^{-1}*X^T
-        invA_.compute(A_); 
-        b_.resize(A_.rows());
+        // matrices U and V for application of woodbury formula
+        U_ = DMatrix<double>::Zero(2 * L * n_basis(), q());
+        U_.block(0, 0, L* n_basis(), q()) = mPsiTD_  * X(); // * W() * X();
+        V_ = DMatrix<double>::Zero(q(), 2 * L * n_basis());
+        V_.block(0, 0, q(), L * n_basis()) = X().transpose() * mPsi(); // W() * mPsi()
+        // n_basis() sarebbe n??
 
-        // the solution is in the form x^{k+1} = (f_hat^{k+1}, g^{k+1})^T
-        // cosa cristo è z ?
+        // computation of x^{0} = [f^{0}; g^{0}]
+        // solve system (A_ + U_*(X^T*W_*X)*V_)x = b using woodbury formula from linear_algebra module
+        x_new = SMW<>().solve(invA_, U_, XtWX(), V_, b_); // x0 = [f0; g0]
 
-        // qui dovremmo calcolare f e g
+        // store result of smoothing
+        f_ = x_new.head(L*n_basis()); // f0
+        beta_ = invXtWX().solve(X().transpose() ) * (y() - mPsi_ * f_); // X().transpose() * W()
 
+        // store PDE misfit
+        g_ = x_new.tail(L*n_basis()); // g0
+
+        // computation of r^{0} = b - Ax^{0} (residual at k=0)
+        r_new = b_ - A_*x_new;
+
+        // computation of z^{1} as solution of the linear system Pz^{1} = r^{0}
+        // questo forse va come prima cosa del loop
+        DVector<double> z;
         
-        // initialize the functional to minimize...
+        // Nota: f_ e g_ sono già definite in model_macros.h, vanno aggiornate a ogni iterazione
 
-
-        // Note:
-        // - f_ e g_ sono già definite in model_macros.h, vanno aggiornate a ogni iterazione
-        // - serve popolare la design matrix X (?)
-        // - importante: inizializzare x0 = (f_hat0, g0)
+        x_old = x_new;
+        r_old = r_new + 10*tol_; // in this way I can enter the loop the first time... maybe there is a better idea
+        Jnew = J(f_,g_);
+        Jold = Jnew + 10*tol_;
         
-
-        std::size_t i = 1;   // iteration number
+        // iteration loop
+        std::size_t k = 1;   // iteration number
 
         // iterative scheme for minimization of functional 
-        while (i < max_iter_ && std::abs(r_new-r_old) > tol_ && std::abs(Jnew-Jold) > tol_) /* ischia pag 25 */ {
+        while (k < max_iter_ && std::abs(r_new-r_old) > tol_ && std::abs(Jnew-Jold) > tol_) /* ischia pag 25 */ {
             
-            // r_new = b_ - A_*x_old;
+            z = invP_.solve(r_new);
 
+            x_new = x_old + alpha(k)*z;
+            f_ = x_new.topRows(n_spatial_basis());
+            g_ = x_new.bottomRows(n_spatial_basis());
+            Jnew = J(f_,g_);
+
+            r_new = r_old + alpha(k)*A_*z;
+
+            r_old = r_new;
+            Jold = Jnew;
+            x_old = x_new;
             
-            // r_old = r_new;
-            i++;
+            k++;
         }
 
         return;
