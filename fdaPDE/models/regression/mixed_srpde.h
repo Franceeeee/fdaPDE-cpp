@@ -222,9 +222,9 @@ class MixedSRPDE<SpaceOnly,iterative> : public RegressionBase<MixedSRPDE<SpaceOn
     fdapde::SparseLU<SpMatrix<double>> invA_ {};   // factorization of matrix A
     DVector<double> b_ {};                         // right hand side of problem's linear system (1 x 2N vector)
     DMatrix<double> X_ {};                         // design matrix
-    SpMatrix<double> Q_ {};                         // Q = I - X(X^T X)^{-1}X^T
+    SpMatrix<double> Q_ {};                        // Q = I - X(X^T X)^{-1}X^T
     int N;                                         // N: total observations (N=n*L)
-    int n_;                                         // n: observations for each statistical unit (patient)
+    int n_;                                        // n: observations for each statistical unit (patient)
     int L;                                         // L: number of patients
     int qV;                                        // qV: patient-specific covariatess
     int p;                                         // p: group-specific covariates
@@ -239,11 +239,11 @@ class MixedSRPDE<SpaceOnly,iterative> : public RegressionBase<MixedSRPDE<SpaceOn
     // construction of the design matrix X_
     void init_X() {
 
-        N = Wg().rows();        // N: total observations (N=n*L)
-        n_ = n_locs();           // n: observations for each statistical unit (patient)
-        L = N/n_;                // L: number of patients
-        qV = Vp().cols();       // qV: patient-specific covariatess
-        p = Wg().cols();        // p: group-specific covariates
+        N = Wg().rows();          // N: total observations (N=n*L)
+        n_ = n_locs();            // n: observations for each statistical unit (patient)
+        L = N/n_;                 // L: number of patients
+        qV = Vp().cols();         // qV: patient-specific covariatess
+        p = Wg().cols();          // p: group-specific covariates
         
         X_ = DMatrix<double>::Zero(N, q());
         X_.leftCols(p) = Wg(); // matrix W: first column of X
@@ -257,12 +257,13 @@ class MixedSRPDE<SpaceOnly,iterative> : public RegressionBase<MixedSRPDE<SpaceOn
     void init_Gamma() {
         Q_.resize(N,N);
         for(std::size_t i = 0; i < L; i++){
-            SpMatrix<double> I = {};
+            DMatrix<double> I = {};
             I.resize(n(i),n(i));
             I.setIdentity();
-            SpMatrix<double> Qi = I - X(i)*invXtWX().solve(X(i).transpose());       // dimension of Qi: n*n
-            Qi.resize(n(i),n(i));
-            Q_.block(i*n(i),i*n(i),n(i),n(i)) = Qi;         // dimension of Q: N*N
+            DMatrix<double> Qi = I - X(i)*invXtWX().solve(X(i).transpose());       // dimension of Qi: n*n
+            SpMatrix<double> QiSparse = Qi.sparseView();
+            QiSparse.resize(n(i),n(i));
+            Q_.block(i*n(i),i*n(i),n(i),n(i)) = QiSparse;         // dimension of Q: N*N
         }
         Gamma_ = mPsiTD()*Q()*mPsi();   // dimension of Gamma: NL*NL
     }
@@ -360,7 +361,7 @@ class MixedSRPDE<SpaceOnly,iterative> : public RegressionBase<MixedSRPDE<SpaceOn
         for (std::size_t l = 0; l <= i; l++){
             end += n(l);
         }
-        //end -= 1; // controlare
+        //end -= 1; // controllare
 
         return X().block(init, 0, end-init, qV-p+L*p);
     }; // reference: pag.26 thesis Ischia (dettaglio da controllare: l'indice di partenza nella tesi è 1, in questo codice è 0)
@@ -372,9 +373,9 @@ class MixedSRPDE<SpaceOnly,iterative> : public RegressionBase<MixedSRPDE<SpaceOn
         DMatrix<double> fhat = f * mPsi(); // f valutata in ...
         DMatrix<double> nu = invXtWX().solve(X().transpose()*(y() - fhat));
 
-        DMatrix<double> term2 = g.transpose()*R0()*g; // this should be done "component-wise" (for each statistical unit)
+        DMatrix<double> term2 = g.transpose()*R0()*g; // this should be done "component-wise" (for each statistical unit) - pag.25 ischia
 
-        return (y() - X() * nu - mPsi() * f).squaredNorm() + lambda_D()*term2.squaredNorm();
+        return (y() - X() * nu - f).squaredNorm() + lambda_D()*term2.squaredNorm();
     }
 
     // // internal solve -> useful for the iterations ???
@@ -390,6 +391,7 @@ class MixedSRPDE<SpaceOnly,iterative> : public RegressionBase<MixedSRPDE<SpaceOn
 
     void solve() { 
         fdapde_assert(y().rows() != 0); // what is this?
+
         DVector<double> x_new;
         DVector<double> x_old;  
         DVector<double> r_new; 
@@ -447,9 +449,9 @@ class MixedSRPDE<SpaceOnly,iterative> : public RegressionBase<MixedSRPDE<SpaceOn
             g_ = x_new.bottomRows(n_spatial_basis());
             Jnew = J(f_,g_);
 
+            r_old = r_new;
             r_new = r_old + alpha(k)*A_*z;
 
-            r_old = r_new;
             Jold = Jnew;
             x_old = x_new;
             
