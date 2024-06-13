@@ -244,28 +244,45 @@ class MixedSRPDE<SpaceOnly,iterative> : public RegressionBase<MixedSRPDE<SpaceOn
         L = N/n_;                 // L: number of patients
         qV = Vp().cols();         // qV: patient-specific covariatess
         p = Wg().cols();          // p: group-specific covariates
+        std::cout << "N,n,L,qV,p populated" << std::endl;
         
         X_ = DMatrix<double>::Zero(N, q());
+        std::cout << "X_ initialized to 0" << std::endl;
         X_.leftCols(p) = Wg(); // matrix W: first column of X
-        
+        std::cout << "Wg added to X_" << std::endl;
         for ( int i = 0; i < L ; i++ ) { // cycle over the number of patients that adds q patient-specific covariates to X_ at each loop
             X_.block( i*n_locs(), p+i*qV, n_locs(), qV ) = Vp().middleRows(i*n_locs(), n_locs()); // matrix V: diagonal block matrix with V1,V2,...,VL on the diagonal
+            std::cout << p+i*qV << std::endl;
         }
+        std::cout << "X_ made" << std::endl;
     }
 
     // construction of Gamma (approxiamtion of \Psi^T Q \Psi)
     void init_Gamma() {
-        DMatrix<double> Qconstr {};
+        DMatrix<double> Qconstr;
+        std::cout << "Qconstr made" << std::endl;
         Qconstr.resize(N,N);
+        std::cout << "Qconstr resized" << std::endl;
         for(std::size_t i = 0; i < L; i++){
             DMatrix<double> I = {};
+            std::cout << "I initialized" << std::endl;
             I.resize(n(i),n(i));
+            std::cout << "I resized" << std::endl;
             I.setIdentity();
+            std::cout << "I setted identity" << std::endl;
+            std::cout << X(i) << std::endl;
+            
+            auto aux = invXtWX().solve(X().transpose() );
+            std::cout << "aux created" << std::endl;
             DMatrix<double> Qi = I - X(i)*invXtWX().solve(X(i).transpose());       // dimension of Qi: n*n
+            std::cout << "Q_" << i << " made" << std::endl;
             Qconstr.block(i*n(i),i*n(i),n(i),n(i)) = Qi; // oppure Qi.sparseView();         // dimension of Q: N*N
         }
+        std::cout << "Qconstr made" << std::endl;
         Q_ = Qconstr.sparseView();
+        std::cout << "Q_ = Qconstr.sparseView()" << std::endl;
         Gamma_ = mPsiTD()*Q()*mPsi();   // dimension of Gamma: NL*NL
+        std::cout << "Gamma_ = mPsiTD()*Q()*mPsi();" << std::endl;
     }
 
     // construction of the preconditioning matrix P_
@@ -296,22 +313,65 @@ class MixedSRPDE<SpaceOnly,iterative> : public RegressionBase<MixedSRPDE<SpaceOn
     // check: if SpaceOnly tensorizes \Psi matrix -> if yes uncomment the following line
     // void tensorize_psi() { return; }   // avoid tensorization of \Psi matrix
     void init_regularization(){
+        std::cout << "init_regularization" << std::endl;
         pde_.init();
+        std::cout << "pde_.init();" << std::endl;
         s_ = pde_.initial_condition();
+        std::cout << "s_" << std::endl;
         u_ = pde_.force();   // forcing term... questo è definito in (3.5) thesis Ischia pag. 26
+        std::cout << "u_" << std::endl;
         // u = \Psi^T*Q*z
         // check: I'm not sure about this 
+    }
+
+    void analyze_data() { 
+        
+        // initialize empty masks
+        if (!y_mask_.size()) y_mask_.resize(Base::n_locs()); // da sostituire N 
+        if (!nan_mask_.size()) nan_mask_.resize(Base::n_locs()); // da sostiture N
+
+        // compute q x q dense matrix X^\top*W*X and its factorization
+        if (has_weights() && df_.is_dirty(WEIGHTS_BLK)) {
+            W_ = df_.template get<double>(WEIGHTS_BLK).col(0).asDiagonal(); // !!! da modificare !!!
+            model().runtime().set(runtime_status::require_W_update);
+        } else if (is_empty(W_)) {
+            W_ = DVector<double>::Ones(N).asDiagonal(); // W_ in R^{N times N}
+        }
+    	
+        // compute q x q dense matrix X^\top*W*X and its factorization
+        if (has_covariates() && (df_.is_dirty(DESIGN_MATRIX_BLK) || df_.is_dirty(WEIGHTS_BLK))) {
+            XtWX_ = X().transpose() * W_ * X(); 
+            invXtWX_ = XtWX_.partialPivLu(); 
+        }
+        
+
+        // derive missingness pattern from observations vector (if changed)
+        if (df_.is_dirty(OBSERVATIONS_BLK)) {
+            n_nan_ = 0;
+            for (std::size_t i = 0; i < df_.template get<double>(OBSERVATIONS_BLK).size(); ++i) {
+                if (std::isnan(y()(i, 0))) {   // requires -ffast-math compiler flag to be disabled
+                    nan_mask_.set(i);
+                    n_nan_++;
+                    df_.template get<double>(OBSERVATIONS_BLK)(i, 0) = 0.0;   // zero out NaN
+                }
+            }
+            if (has_nan()) model().runtime().set(runtime_status::require_psi_correction);
+        }
+        return;
     }
 
     void init_model() { 
         
         // build multi-domain model design matrix 
+        std::cout << "- INIT X" << std::endl;
     	init_X();
 
         // build Gamma
+        std::cout << "- INIT GAMMA" << std::endl;
         init_Gamma();
 
         // build preconditioning matrix 
+        std::cout << "- INIT P" << std::endl;
         init_P();
         invP_.compute(P_);
 
@@ -350,10 +410,12 @@ class MixedSRPDE<SpaceOnly,iterative> : public RegressionBase<MixedSRPDE<SpaceOn
 
     // mask for X
     DMatrix<double> X(std::size_t i) const { 
-
+        std::cout << "MASCHERA PER X" << std::endl;
         double init = 0;   // \sum_{l=0}^{i-1} n_l + 1
-        for (std::size_t l = 0; l <= i-1; l++){
+        for (std::size_t l = 0; l <= i; l++){
             init += n(l);
+            // std::cout << l << std::endl;
+            // questo loop non si ferma
         }
         // init += 1;
 
@@ -470,6 +532,7 @@ class MixedSRPDE<SpaceOnly,iterative> : public RegressionBase<MixedSRPDE<SpaceOn
 
     // getters
     const int n() const { return n_; }
+    std::size_t q() const { return p+L*qV; }
     const DiagMatrix<double>& W() const { return W_; }
     const DMatrix<double>& X() const { return X_; }  
     const SpMatrix<double>& Q() const { return Q_; }  

@@ -34,6 +34,7 @@ using fdapde::models::MixedSRPDE;
 using fdapde::models::Sampling;
 using fdapde::models::SpaceOnly;
 using fdapde::monolithic;
+using fdapde::iterative;
 
 #include "utils/constants.h"
 #include "utils/mesh_loader.h"
@@ -51,18 +52,21 @@ TEST(mixed_srpde_test, cento) {
     DMatrix<double> y = read_csv<double>("../data/models/mixed_srpde/2D_test1/100/observations.csv");
     DMatrix<double> Wg = read_csv<double>("../data/models/mixed_srpde/2D_test1/100/W.csv");
     DMatrix<double> Vp = read_csv<double>("../data/models/mixed_srpde/2D_test1/100/V.csv"); 
+    std::cout << "data imported" << std::endl;
 
     // define regularizing PDE
     auto L = -laplacian<FEM>();
     DMatrix<double> u = DMatrix<double>::Zero(domain.mesh.n_elements() * 3, 1);
     PDE<decltype(domain.mesh), decltype(L), DMatrix<double>, FEM, fem_order<1>> problem(domain.mesh, L, u);
-        
+    std::cout << "pde defined" << std::endl;
+
     // define model
     double lambda = 1;
     
-    MixedSRPDE<SpaceOnly, monolithic> model(problem, Sampling::pointwise);
+    MixedSRPDE<SpaceOnly,iterative> model(problem, Sampling::pointwise);
     model.set_lambda_D(lambda);
     model.set_spatial_locations(locs);
+    std::cout << "model defined" << std::endl;
     
     // set model's data
     BlockFrame<double, int> df;
@@ -70,9 +74,13 @@ TEST(mixed_srpde_test, cento) {
     df.insert(MIXED_EFFECTS_BLK, Vp); 
     df.insert(DESIGN_MATRIX_BLK, Wg);
     model.set_data(df);
+    std::cout << "blockframe constructed" << std::endl;
     
     // solve smoothing problem
+    std::cout << "MODEL INIT" << std::endl;
     model.init();
+    
+    std::cout << "MODEL SOLVE" << std::endl;
     model.solve();
     
     DMatrix<double> f_estimate = read_csv<double>("../data/models/mixed_srpde/2D_test1/100/f_hat.csv");
