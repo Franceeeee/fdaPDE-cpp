@@ -255,16 +255,16 @@ class MixedSRPDE<SpaceOnly,iterative> : public RegressionBase<MixedSRPDE<SpaceOn
 
     // construction of Gamma (approxiamtion of \Psi^T Q \Psi)
     void init_Gamma() {
-        Q_.resize(N,N);
+        DMatrix<double> Qconstr {};
+        Qconstr.resize(N,N);
         for(std::size_t i = 0; i < L; i++){
             DMatrix<double> I = {};
             I.resize(n(i),n(i));
             I.setIdentity();
             DMatrix<double> Qi = I - X(i)*invXtWX().solve(X(i).transpose());       // dimension of Qi: n*n
-            SpMatrix<double> QiSparse = Qi.sparseView();
-            QiSparse.resize(n(i),n(i));
-            Q_.block(i*n(i),i*n(i),n(i),n(i)) = QiSparse;         // dimension of Q: N*N
+            Qconstr.block(i*n(i),i*n(i),n(i),n(i)) = Qi; // oppure Qi.sparseView();         // dimension of Q: N*N
         }
+        Q_ = Qconstr.sparseView();
         Gamma_ = mPsiTD()*Q()*mPsi();   // dimension of Gamma: NL*NL
     }
 
