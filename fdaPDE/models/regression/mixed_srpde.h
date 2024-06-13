@@ -319,7 +319,7 @@ class MixedSRPDE<SpaceOnly,iterative> : public RegressionBase<MixedSRPDE<SpaceOn
         A_ = SparseBlockMatrix<double,2,2>(
             -mPsiTD()*W()*mPsi(), lambda_D()*R1().transpose(),
             lambda_D()*R1(), lambda_D()*R0()
-        ); // domanda: W() sarebbe definito come Q? cioè I-X(X^T*X)^{-1}*X^T
+        ); 
         invA_.compute(A_); 
         b_.resize(A_.rows());
 
