@@ -566,10 +566,11 @@ class MixedSRPDE<SpaceOnly,iterative> : public RegressionBase<MixedSRPDE<SpaceOn
         // std::cout << "Jold" << std::endl;
         
         // iteration loop
-        std::size_t k = 1;   // iteration number        
+        std::size_t k = 1;   // iteration number    
+        bool rcheck = 1;    
 
         // iterative scheme for minimization of functional 
-        while (k < max_iter_ && (r_new-r_old).squaredNorm() > tol_ && std::abs((Jnew-Jold)/Jnew) > tol_) /* ischia pag 25 */ {
+        while (k < max_iter_ && rcheck && std::abs((Jnew-Jold)/Jnew) > tol_) /* ischia pag 25 */ {
             
             z = invP_.solve(r_old);  // mi serve solo z all'iterazione corrente... giusto?
 
@@ -578,14 +579,16 @@ class MixedSRPDE<SpaceOnly,iterative> : public RegressionBase<MixedSRPDE<SpaceOn
             g_ = x_new.bottomRows(L*n_basis());
             Jold = Jnew;
             Jnew = J(f_,g_);
-
+            
             r_new = r_old + alpha(k)*A_*z;
 
-            r_old = r_new;
-            x_old = x_new;
+            rcheck = ((r_new-r_old).squaredNorm() > tol_);
+
             std::cout << "Iteration n." << k << std::endl;
             std::cout << "r:" << (r_new-r_old).squaredNorm() << std::endl;
             std::cout << "J:" << std::abs((Jnew-Jold)/Jnew)  << std::endl;
+            x_old = x_new;
+            r_old = r_new;
             k++;
         }
 
