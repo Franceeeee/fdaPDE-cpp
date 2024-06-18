@@ -388,7 +388,7 @@ class MixedSRPDE<SpaceOnly,iterative> : public RegressionBase<MixedSRPDE<SpaceOn
         // std::cout << "- INIT P" << std::endl;
         init_P();
 
-        std::cout << P_.rows() << P_.cols() << std::endl;
+        // std::cout << P_.rows() << P_.cols() << std::endl;
         invP_.compute(P_);
 
         // std::cout << "invP calcolata" << std::endl;
@@ -419,7 +419,7 @@ class MixedSRPDE<SpaceOnly,iterative> : public RegressionBase<MixedSRPDE<SpaceOn
 
         // build A_ and initialize b_   
         // std::cout << W() << std::endl;
-        std::cout << W().rows() << W().cols()<< std::endl;
+        // std::cout << W().rows() << W().cols()<< std::endl;
         // std::cout << lambda_D()*R1()<< std::endl;
         // std::cout << lambda_D()*R0()<< std::endl;
         A_ = SparseBlockMatrix<double,2,2>(
@@ -555,12 +555,14 @@ class MixedSRPDE<SpaceOnly,iterative> : public RegressionBase<MixedSRPDE<SpaceOn
 
         x_old = x_new;
 
-        r_old = r_new + DVector<double>::Ones(r_new.rows())*tol_; // in this way I can enter the loop the first time... maybe there is a better idea
+        double c = 2;
+
+        r_old = r_new + DVector<double>::Ones(r_new.rows())*c; // in this way I can enter the loop the first time... maybe there is a better idea
         // std::cout << "r_old: " << r_old << std::endl;
         // std::cout << "r_new: " << r_new << std::endl;
         Jnew = J(f_,g_);
         // std::cout << "Jnew" << std::endl;
-        Jold = Jnew + tol_;
+        Jold = Jnew + c;
         // std::cout << "Jold" << std::endl;
         
         // iteration loop
