@@ -542,12 +542,12 @@ class MixedSRPDE<SpaceOnly,iterative> : public RegressionBase<MixedSRPDE<SpaceOn
         g_ = x_new.tail(L*n_basis()); // g0
 
         // computation of r^{0} = b - Ax^{0} (residual at k=0)
-        r_new = b_ - A_*x_new;
+        r_old = b_ - A_*x_new;
 
         // computation of z^{1} as solution of the linear system Pz^{1} = r^{0}
         // questo forse va come prima cosa del loop
         DVector<double> z;
-        z = invP_.solve(r_new); 
+        z = invP_.solve(r_old); 
 
         // u_ = mPsiTD()*Q()*z; // forse?
         
@@ -557,7 +557,7 @@ class MixedSRPDE<SpaceOnly,iterative> : public RegressionBase<MixedSRPDE<SpaceOn
 
         double c = 2;
 
-        r_old = r_new + DVector<double>::Ones(r_new.rows())*c; // in this way I can enter the loop the first time... maybe there is a better idea
+        r_new = r_old + DVector<double>::Ones(r_old.rows())*c; // in this way I can enter the loop the first time... maybe there is a better idea
         // std::cout << "r_old: " << r_old << std::endl;
         // std::cout << "r_new: " << r_new << std::endl;
         Jnew = J(f_,g_);
@@ -571,7 +571,7 @@ class MixedSRPDE<SpaceOnly,iterative> : public RegressionBase<MixedSRPDE<SpaceOn
         // iterative scheme for minimization of functional 
         while (k < max_iter_ && (r_new-r_old).squaredNorm() > tol_ && std::abs((Jnew-Jold)/Jnew) > tol_) /* ischia pag 25 */ {
             
-            z = invP_.solve(r_new);  // mi serve solo z all'iterazione corrente... giusto?
+            z = invP_.solve(r_old);  // mi serve solo z all'iterazione corrente... giusto?
 
             x_new = x_old + alpha(k)*z;
             f_ = x_new.topRows(L*n_basis());
@@ -579,9 +579,9 @@ class MixedSRPDE<SpaceOnly,iterative> : public RegressionBase<MixedSRPDE<SpaceOn
             Jold = Jnew;
             Jnew = J(f_,g_);
 
-            r_old = r_new;
             r_new = r_old + alpha(k)*A_*z;
 
+            r_old = r_new;
             x_old = x_new;
             std::cout << "Iteration n." << k << std::endl;
             std::cout << "r:" << (r_new-r_old).squaredNorm() << std::endl;
