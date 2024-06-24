@@ -574,13 +574,13 @@ class MixedSRPDE<SpaceOnly,iterative> : public RegressionBase<MixedSRPDE<SpaceOn
             
             z = invP_.solve(r_old);  // mi serve solo z all'iterazione corrente... giusto?
 
-            x_new = x_old + alpha(k)*z;
+            x_new = x_old - alpha(k)*z;
             f_ = x_new.topRows(L*n_basis());
             g_ = x_new.bottomRows(L*n_basis());
             Jold = Jnew;
             Jnew = J(f_,g_);
             
-            r_new = r_old + alpha(k)*A_*z;
+            r_new = r_old - alpha(k)*A_*z;
 
             rcheck = ((r_new-r_old).squaredNorm() > tol_);
 
