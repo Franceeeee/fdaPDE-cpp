@@ -490,8 +490,9 @@ class MixedSRPDE<SpaceOnly,iterative> : public RegressionBase<MixedSRPDE<SpaceOn
             K = SparseBlockMatrix<double, 2, 2>(
             -mPsi(i).transpose()*Q(i)*mPsi(i),      lambda_D() * R1(i).transpose(),
             lambda_D() * R1(i),                     lambda_D() * R0(i)                 );
-            SpMatrix<double> obj = -mPsi(i).transpose()*Q(i)*mPsi(i);
+            
             invK.compute(K); 
+
             bi = DMatrix<double>::Zero(K.rows(), 1);
             bi.block(0,0,n_basis(i),1) = -mPsi(i).transpose() * Q(i) * y(i-1);
 
@@ -529,7 +530,7 @@ class MixedSRPDE<SpaceOnly,iterative> : public RegressionBase<MixedSRPDE<SpaceOn
 
         r_new = r_old + DVector<double>::Ones(r_old.rows())*c; // in this way I can enter the loop the first time... maybe there is a better idea
         Jnew = J(f_,g_);
-        Jold = Jnew + c;
+        Jold = Jnew + c*Jnew;
         
         // iteration loop
         std::size_t k = 1;   // iteration number    
@@ -548,11 +549,11 @@ class MixedSRPDE<SpaceOnly,iterative> : public RegressionBase<MixedSRPDE<SpaceOn
             
             r_new = r_old - alpha(k)*A_*z;
 
-            rcheck = ((r_new-r_old).squaredNorm() > tol_);
-            // rcheck = r_new.norm() / b_.norm() > tol_;
+            // rcheck = ((r_new-r_old).squaredNorm() > tol_);
+            rcheck = r_new.norm() / b_.norm() > tol_;
 
             std::cout << "Iteration n." << k << std::endl;
-            std::cout << "r:" << (r_new-r_old).squaredNorm() << std::endl;
+            std::cout << "r:" << r_new.norm() / b_.norm() << std::endl;
             std::cout << "J:" << std::abs((Jnew-Jold)/Jnew)  << std::endl;
             x_old = x_new;
             r_old = r_new;
