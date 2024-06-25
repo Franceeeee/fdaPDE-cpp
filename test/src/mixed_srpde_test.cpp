@@ -93,11 +93,12 @@ TEST(mixed_srpde_test, cento) {
         output << data(i) << "\n";
     }
     output.close();
+    std::cout << "Numerical results saved in f_100.csv" << std::endl;
     
     EXPECT_TRUE(  (model.f() - f_estimate ).array().abs().maxCoeff() < 1e-6 );
 }
 
-/*
+
 // test 2
 TEST(mixed_srpde_test, duecentocinquanta) {
     // define domain 
@@ -140,6 +141,7 @@ TEST(mixed_srpde_test, duecentocinquanta) {
         output << data(i) << "\n";
     }
     output.close();
+    std::cout << "Numerical results saved in f_250.csv" << std::endl;
 
     //EXPECT_TRUE(almost_equal(model.f(), f_estimate));
     EXPECT_TRUE(  (model.f() - f_estimate ).array().abs().maxCoeff() < 1e-6 );
@@ -187,6 +189,7 @@ TEST(mixed_srpde_test, cinquecento) {
         output << data(i) << "\n";
     }
     output.close();
+    std::cout << "Numerical results saved in f_500.csv" << std::endl;
 
     //EXPECT_TRUE(almost_equal(model.f(), f_estimate));
     EXPECT_TRUE(  (model.f() - f_estimate ).array().abs().maxCoeff() < 1e-6 );
@@ -234,8 +237,8 @@ TEST(mixed_srpde_test, mille) {
         output << data(i) << "\n";
     }
     output.close();
+    std::cout << "Numerical results saved in f_1000.csv" << std::endl;
 
     //EXPECT_TRUE(almost_equal(model.f(), f_estimate));
     EXPECT_TRUE(  (model.f() - f_estimate ).array().abs().maxCoeff() < 1e-6 );
 }
-*/
