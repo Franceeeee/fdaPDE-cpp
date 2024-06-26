@@ -228,7 +228,7 @@ class MixedSRPDE<SpaceOnly,iterative> : public RegressionBase<MixedSRPDE<SpaceOn
     int L;                                         // L: number of patients
     int qV;                                        // qV: patient-specific covariatess
     int p;                                         // p: group-specific covariates
-    int alpha_ = 1;                                // alpha: acceleration parameter
+    double alpha_ = 1;                                // alpha: acceleration parameter
     SparseBlockMatrix<double, 2, 2> P_ {};         // preconditioning matrix of the Richardson scheme
     fdapde::SparseLU<SpMatrix<double>> invP_ {};   // factorization of matrix P
     SpMatrix<double> Gamma_ {};                    // approximation of the north-east block of the matrix A
@@ -278,8 +278,7 @@ class MixedSRPDE<SpaceOnly,iterative> : public RegressionBase<MixedSRPDE<SpaceOn
             int sum_n = 0;
             for (std::size_t k = 0; k < i; k++){
                 sum_n += n(k);
-            }
-
+            }            
             Qconstr.block(sum_n,sum_n,n(i),n(i)) = Qi; // oppure Qi.sparseView();         // dimension of Q: N*N
         }
         
@@ -392,24 +391,24 @@ class MixedSRPDE<SpaceOnly,iterative> : public RegressionBase<MixedSRPDE<SpaceOn
     }
 
     // internal utilities
-    int n(std::size_t k) const { return k == 0 ? 0 : n_; } // at this point n is assumed to be the same for everyone (?)
-    int n_basis(std::size_t k) const { return k == 0 ? 0 : n_basis(); }
+    int n(std::size_t k) const { return n_; } // at this point n is assumed to be the same for everyone (?)
+    int n_basis(std::size_t k) const { return n_basis(); }
     DMatrix<double> y(std::size_t k) const { return y().block(n_spatial_locs() * k, 0, n_spatial_locs(), 1); }
     double alpha(std::size_t k) const { return alpha_; } // fixed to 1 
 
     // mask for u
-    DMatrix<double> u(std::size_t k) const { 
-        double init = 0;
-        for (std::size_t l = 0; l <= k-1; l++){
-            init += n(l);
-        }
-        double end = 0;
-        for (std::size_t l = 0; l <= k; l++){
-            end += n(l);
-        }
-        end -= 1; // controlare
-        return u_.block(init, 0, end-init, 1); 
-    };
+    // DMatrix<double> u(std::size_t k) const { 
+    //     double init = 0;
+    //     for (std::size_t l = 0; l < k; l++){
+    //         init += n(l);
+    //     }
+    //     double end = 0;
+    //     for (std::size_t l = 0; l < k; l++){
+    //         end += n(l);
+    //     }
+    //     end -= 1; // controlare
+    //     return u_.block(init, 0, end-init, 1); 
+    // };
 
     // mask for X
     DMatrix<double> X(std::size_t i) const { 
@@ -485,7 +484,7 @@ class MixedSRPDE<SpaceOnly,iterative> : public RegressionBase<MixedSRPDE<SpaceOn
         f0 = DMatrix<double>::Zero(L*n_basis(), 1); // qui L*n_basis sarebbe la somma di n_basis
         g0 = DMatrix<double>::Zero(L*n_basis(), 1);
 
-        for (std::size_t i = 1; i <= L; i++){
+        for (std::size_t i = 0; i < L; i++){
 
             K = SparseBlockMatrix<double, 2, 2>(
             -mPsi(i).transpose()*Q(i)*mPsi(i),      lambda_D() * R1(i).transpose(),
@@ -494,15 +493,14 @@ class MixedSRPDE<SpaceOnly,iterative> : public RegressionBase<MixedSRPDE<SpaceOn
             invK.compute(K); 
 
             bi = DMatrix<double>::Zero(K.rows(), 1);
-            bi.block(0,0,n_basis(i),1) = -mPsi(i).transpose() * Q(i) * y(i-1);
+            bi.block(0,0,n_basis(i),1) = -mPsi(i).transpose() * Q(i) * y(i);
 
             xi0 = invK.solve(bi);
-        
-            f0.block((i-1)*n_basis(i),0,n_basis(i),1) = xi0.head(n_basis(i)); // f0_i
-            g0.block((i-1)*n_basis(i),0,n_basis(i),1) = xi0.tail(n_basis(i)); // g0_i
-            // se si cambia n_basis poi bisogna cambiare questa roba con un ciclo for che tiene conto dei diversi n_basis
 
-            b_.block((i-1)*n_basis(i), 0, bi.rows(), 1) = bi;
+            f0.block(i*n_basis(i),0,n_basis(i),1) = xi0.head(n_basis(i)); // f0_i
+            g0.block(i*n_basis(i),0,n_basis(i),1) = xi0.tail(n_basis(i)); // g0_i
+            // se si cambia n_basis poi bisogna cambiare questa roba con un ciclo for che tiene conto dei diversi n_basis
+            b_.block(i*n_basis(i), 0, bi.rows(), 1) = bi;
         }
         
         x_new.block(0,0,f0.rows(),1) = f0;
@@ -518,7 +516,7 @@ class MixedSRPDE<SpaceOnly,iterative> : public RegressionBase<MixedSRPDE<SpaceOn
         // computation of z^{1} as solution of the linear system Pz^{1} = r^{0}
         // questo forse non serve, tanto lo fa all'inizio del loop
         DVector<double> z;
-        z = invP_.solve(r_old); 
+        // z = invP_.solve(r_old); 
 
         // u_ = mPsiTD()*Q()*z; // forse?
         

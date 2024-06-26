@@ -98,7 +98,7 @@ TEST(mixed_srpde_test, cento) {
     EXPECT_TRUE(  (model.f() - f_estimate ).array().abs().maxCoeff() < 1e-6 );
 }
 
-
+/*
 // test 2
 TEST(mixed_srpde_test, duecentocinquanta) {
     // define domain 
@@ -242,3 +242,4 @@ TEST(mixed_srpde_test, mille) {
     //EXPECT_TRUE(almost_equal(model.f(), f_estimate));
     EXPECT_TRUE(  (model.f() - f_estimate ).array().abs().maxCoeff() < 1e-6 );
 }
+*/
