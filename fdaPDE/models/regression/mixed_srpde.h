@@ -298,12 +298,21 @@ class MixedSRPDE<SpaceOnly,iterative> : public RegressionBase<MixedSRPDE<SpaceOn
         I.setIdentity();
         
         // le seguenti due righe potrebbero essere sostituite da invXtWX() già implementato ma devo capire come si usa
+
         DMatrix<double> XtWX = X().transpose() * X();   // qui sarebbe X().transpose() * W() * X() // ma bisogna controllare le dimensioni di W
         DMatrix<double> invXtWX = XtWX.inverse(); 
 
         DMatrix<double> Qi = I - X(i)*invXtWX*(X(i).transpose());
         return Qi.sparseView();
     }; 
+
+
+    DMatrix<double> lmbH(const DMatrix<double>& x, std::size_t i) const{
+    	DMatrix<double> v = X(i).transpose() * x;   // X_i^\top*x
+       	DMatrix<double> z = invXtWX().solve(v);          // (X^\top*X)^{-1}*X_i^\top*x
+       // compute  W*X*z = (W*X*(X^\top*W*X)^{-1}*X^\top*W)*x = W(H)*x 
+       return X(i) * z;
+    }
 
     // construction of the preconditioning matrix P_
     // void init_P() {
@@ -314,6 +323,7 @@ class MixedSRPDE<SpaceOnly,iterative> : public RegressionBase<MixedSRPDE<SpaceOn
 
     // iterative scheme 
     double tol_ = 1e-4;             // tolerance (stopping criterion)
+    double tol_res = 1e-8;	
     std::size_t max_iter_ = 30;     // maximum number of iteration
 
    public:
@@ -466,9 +476,9 @@ class MixedSRPDE<SpaceOnly,iterative> : public RegressionBase<MixedSRPDE<SpaceOn
 
         DMatrix<double> fhat = mPsi() * f; 
         DMatrix<double> nu = invXtWX().solve(X().transpose()*(y() - fhat));
-        DMatrix<double> term2 = g.transpose()*R0()*g; // this should be done "component-wise" (for each statistical unit) - pag.25 ischia
+        // DMatrix<double> term2 = g.transpose()*R0()*g; // this should be done "component-wise" (for each statistical unit) - pag.25 ischia
 
-        return (y() - X() * nu - fhat).squaredNorm() + lambda_D()*term2.squaredNorm();
+        return (y() - X() * nu - fhat).squaredNorm() + lambda_D()*g.squaredNorm();
     }
 
     void solve() { 
@@ -477,7 +487,7 @@ class MixedSRPDE<SpaceOnly,iterative> : public RegressionBase<MixedSRPDE<SpaceOn
 
         DVector<double> x_new = DMatrix<double>::Zero(2*m_*n_basis(), 1); // queste dimensioni boh
         DVector<double> x_old;  
-        DVector<double> r_new; 
+        // DVector<double> r_new; 
         DVector<double> r_old = DMatrix<double>::Zero(2*m_*n_basis(), 1); 
         double Jnew;
         double Jold;
@@ -523,7 +533,11 @@ class MixedSRPDE<SpaceOnly,iterative> : public RegressionBase<MixedSRPDE<SpaceOn
             // se si cambia n_basis poi bisogna cambiare questa roba con un ciclo for che tiene conto dei diversi n_basis
             
             // computation of r^{0} = b - Ax^{0} (residual at k=0)
-            r_old.block(i*n_basis(i),0,bi.rows(),1) = bi - A*xi0;
+            // r_old.block(i*n_basis(i),0,bi.rows(),1) = bi - A*xi0;
+
+            DVector<double> obj = PsiTD_*lmbH(Psi_*xi0.head(n_basis(i)),i);
+            std::cout << obj.rows() << obj.cols() << std::endl;
+            r_old.block(i*n_basis(i),0,n_basis(i),1) -= PsiTD_*lmbH(Psi_*xi0.head(n_basis(i)),i); // Psi_i^\top * Q(i) * Psi_i * f_i
             std::cout << "r_old: " << r_old.rows() << " x " << r_old.cols() << std::endl;
             
         }
@@ -552,7 +566,7 @@ class MixedSRPDE<SpaceOnly,iterative> : public RegressionBase<MixedSRPDE<SpaceOn
 
         double c = 2;
 
-        r_new = r_old + DVector<double>::Ones(r_old.rows())*c; // in this way I can enter the loop the first time... maybe there is a better idea
+        // r_new = r_old + DVector<double>::Ones(r_old.rows())*c; // in this way I can enter the loop the first time... maybe there is a better idea
         std::cout << "r_new" << std::endl;
         Jnew = J(f_,g_);
         Jold = (1 + c) * Jnew;
@@ -560,10 +574,12 @@ class MixedSRPDE<SpaceOnly,iterative> : public RegressionBase<MixedSRPDE<SpaceOn
         
         // iteration loop
         std::size_t k = 1;   // iteration number    
-        bool rcheck = 1;    
+        bool rcheck = r_old.norm() / b_.norm() < tol_res; // stop by residual    
+        bool Jcheck =  std::abs((Jnew-Jold)/Jnew) < tol_; // stop by J
+        bool exit_ = Jcheck && rcheck;
 
         // iterative scheme for minimization of functional 
-        while (k < max_iter_ && rcheck && std::abs((Jnew-Jold)/Jnew) > tol_) /* ischia pag 25 */ {
+        while (k < max_iter_ && !exit_) /* ischia pag 25 */ {
 
             for (std::size_t i = 0; i < m_; i++){
                 DVector<double> xi;
@@ -614,8 +630,12 @@ class MixedSRPDE<SpaceOnly,iterative> : public RegressionBase<MixedSRPDE<SpaceOn
             std::cout << "z: " << z.rows() << "x" << z.cols() << std::endl;
 
             x_new = x_old + alpha(k)*z; 
+
             /* calcolo di r_new: r_new = r_old - alpha(k)*A*z;*/
-            r_new = r_old - alpha(k)*A_*z; // qui mi sono persa la differenza tra A e P
+            // r_new = r_old - alpha(k)*A_*z; // qui mi sono persa la differenza tra A e P
+            for(std::size_t i = 0; i < m_; i++){
+        		r_old.block(i*n_basis(i),0,n_basis(i),1) -= alpha(k)*PsiTD_*lmbH(Psi_*z.block(i*n_basis(i),0,n_basis(i),1),i);
+        	}
             std::cout << "r_new" << std::endl;
 
             // COEFFICIENTI BETA: da ragionare
@@ -623,17 +643,22 @@ class MixedSRPDE<SpaceOnly,iterative> : public RegressionBase<MixedSRPDE<SpaceOn
 
             f_ = x_new.topRows(m_*n_basis());
             g_ = x_new.bottomRows(m_*n_basis());
+
             Jold = Jnew;
+            std::cout << "Jold:" << Jold << std::endl;
             Jnew = J(f_,g_);
+            std::cout << "Jnew:" << Jnew << std::endl;
 
             // rcheck = ((r_new-r_old).squaredNorm() > tol_);
-            rcheck = r_new.norm() / b_.norm() > tol_;
+            rcheck = r_old.norm() / b_.norm() < tol_;
+            Jcheck =  std::abs((Jnew-Jold)/Jnew) < tol_; // stop by J
+            exit_ = Jcheck && rcheck;
 
             std::cout << "Iteration n." << k << std::endl;
-            std::cout << "r:" << r_new.norm() / b_.norm() << std::endl;
+            std::cout << "r:" << r_old.norm() / b_.norm() << std::endl;
             std::cout << "J:" << std::abs((Jnew-Jold)/Jnew)  << std::endl;
             x_old = x_new;
-            r_old = r_new;
+            // r_old = r_new;
             k++;
         }
 
