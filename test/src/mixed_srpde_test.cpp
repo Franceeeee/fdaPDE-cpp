@@ -98,6 +98,61 @@ TEST(mixed_srpde_test, cento) {
     EXPECT_TRUE(  (model.f() - f_estimate ).array().abs().maxCoeff() < 1e-6 );
 }
 
+// test 1
+TEST(mixed_srpde_test, cento_mono) {
+    // define domain 
+    MeshLoader<Mesh2D> domain("c_shaped");
+    // import data from files
+    DMatrix<double> locs = read_csv<double>("../data/models/mixed_srpde/2D_test1/100/locations_1.csv");
+    DMatrix<double> y = read_csv<double>("../data/models/mixed_srpde/2D_test1/100/observations.csv");
+    DMatrix<double> Wg = read_csv<double>("../data/models/mixed_srpde/2D_test1/100/W.csv");
+    DMatrix<double> Vp = read_csv<double>("../data/models/mixed_srpde/2D_test1/100/V.csv"); 
+
+    // define regularizing PDE
+    auto L = -laplacian<FEM>();
+    DMatrix<double> u = DMatrix<double>::Zero(domain.mesh.n_elements() * 3, 1);
+    PDE<decltype(domain.mesh), decltype(L), DMatrix<double>, FEM, fem_order<1>> problem(domain.mesh, L, u);
+
+    // define model
+    double lambda = 1;
+    
+    MixedSRPDE<SpaceOnly,monolithic> model(problem, Sampling::pointwise);
+    model.set_lambda_D(lambda);
+    model.set_spatial_locations(locs);
+    
+    // set model's data
+    BlockFrame<double, int> df;
+    df.insert(OBSERVATIONS_BLK, y);
+    df.insert(MIXED_EFFECTS_BLK, Vp); 
+    df.insert(DESIGN_MATRIX_BLK, Wg);
+    model.set_data(df);
+    
+    // solve smoothing problem
+    model.init();
+    
+    model.solve();
+    
+    DMatrix<double> f_estimate = read_csv<double>("../data/models/mixed_srpde/2D_test1/100/f_hat.csv");
+    // DMatrix<double> f_true = read_csv<double>("../data/models/mixed_srpde/2D_test1/100/f.csv");
+
+    // std::cout << f_estimate.rows() << " "<< f_estimate.cols() << std::endl;
+    // std::cout << f_true.rows() << " "<< f_true.cols() << std::endl;
+    
+    // test correctness
+    // std::cout <<  (f_true - f_estimate).lpNorm<Eigen::Infinity>() << std::endl;
+    // std::cout <<  (model.f() - f_true).lpNorm<Eigen::Infinity>() << std::endl;
+    std::ofstream output("f_100.csv");
+    output << "Results for test with 100 observations\n";
+    DMatrix<double> data = model.f();
+    for(std::size_t i = 0; i < data.size(); ++i){
+        output << data(i) << "\n";
+    }
+    output.close();
+    std::cout << "Numerical results saved in f_100.csv" << std::endl;
+    
+    EXPECT_TRUE(  (model.f() - f_estimate ).array().abs().maxCoeff() < 1e-6 );
+}
+
 /*
 // test 2
 TEST(mixed_srpde_test, duecentocinquanta) {

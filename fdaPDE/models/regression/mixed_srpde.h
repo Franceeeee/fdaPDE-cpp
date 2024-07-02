@@ -278,18 +278,30 @@ class MixedSRPDE<SpaceOnly,iterative> : public RegressionBase<MixedSRPDE<SpaceOn
         return Qi.sparseView();
 
     }; 
-
+    
+    DMatrix<double> lmbH(const DMatrix<double>& x) const{
+    	DMatrix<double> v = X().transpose() * x;   // X_i^\top*x
+       	DMatrix<double> z = invXtWX().solve(v);          // (X^\top*X)^{-1}*X_i^\top*x
+       // compute  W*X*z = (W*X*(X^\top*W*X)^{-1}*X^\top*W)*x = W(H)*x 
+       return X() * z;
+    }
+    
     DMatrix<double> lmbH(const DMatrix<double>& x, std::size_t i) const{
     	DMatrix<double> v = X(i).transpose() * x;   // X_i^\top*x
        	DMatrix<double> z = invXtWX().solve(v);          // (X^\top*X)^{-1}*X_i^\top*x
        // compute  W*X*z = (W*X*(X^\top*W*X)^{-1}*X^\top*W)*x = W(H)*x 
        return X(i) * z;
     }
-
+    
+    // lmbMonolithic ???
+    
+    // lmbPsiT ???
+    
+    
     // iterative scheme 
     double tol_ = 1e-4;             // tolerance (stopping criterion)
     double tol_res = 1e-8;	
-    std::size_t max_iter_ = 30;     // maximum number of iteration
+    std::size_t max_iter_ = 10;     // maximum number of iteration
 
    public:
     using RegularizationType = SpaceOnly;
@@ -396,7 +408,15 @@ class MixedSRPDE<SpaceOnly,iterative> : public RegressionBase<MixedSRPDE<SpaceOn
         fdapde_assert(y().rows() != 0); // what is this?
 
         DVector<double> x_new = DMatrix<double>::Zero(2*m_*n_basis(), 1); // queste dimensioni boh
-        DVector<double> x_old;  
+        
+        b_.block(0, 0, m_*n_basis(), 1) = -mPsiTD() * lmbQ(y());
+        U_ = DMatrix<double>::Zero(2*m_*n_basis(), q());
+        V_ = DMatrix<double>::Zero(q(), 2*m_*n_basis());
+        
+        U_.block(0, 0, m_* n_basis(), q()) = mPsiTD()  * X(); // * W() * X(); 
+        V_.block(0, 0, q(), m_ * n_basis()) = X().transpose() * mPsi(); // W() * mPsi()
+        
+        DVector<double> x_old = x_new;  
         DVector<double> r = DMatrix<double>::Zero(2*m_*n_basis(), 1); 
         double Jnew;
         double Jold;
@@ -410,50 +430,78 @@ class MixedSRPDE<SpaceOnly,iterative> : public RegressionBase<MixedSRPDE<SpaceOn
         DVector<double> g0; 
         f0 = DMatrix<double>::Zero(m_*n_basis(), 1); // qui m_*n_basis sarebbe la somma di n_basis
         g0 = DMatrix<double>::Zero(m_*n_basis(), 1);
-
+        
+        // P R^{2 n_basis() x 2 n_basis()} NO COVARIATE
+        P = SparseBlockMatrix<double, 2, 2>(
+            -PsiTD_*Psi_,                     lambda_D() * pde_.stiff().transpose(),
+            lambda_D() * pde_.stiff(),             lambda_D() * pde_.mass()                 );
+        invP.compute(P);   
+        
+        DMatrix<double> U_i = DMatrix<double>::Zero(2*n_basis(), q());
+        DMatrix<double> V_i = DMatrix<double>::Zero(q(), 2*n_basis());
+                    
         for (std::size_t i = 0; i < m_; i++){
-
+            /*
             P = SparseBlockMatrix<double, 2, 2>(
             -PsiTD_*Q(i)*Psi_,                     lambda_D() * pde_.stiff().transpose(),
             lambda_D() * pde_.stiff(),             lambda_D() * pde_.mass()                 );
-
+            
             invP.compute(P); 
 
             bi = DMatrix<double>::Zero(P.rows(), 1);
-            bi.block(0,0,n_basis(i),1) = -PsiTD_ * Q(i) * y(i); // valutare implementazione di lmbQ(yi)
+            bi.block(0,0,n_basis(i),1) = b_.block(i*n_basis(), 0, n_basis(i), 1) ;// valutare implementazione di lmbQ(yi)
 
             // matrices U and V for application of woodbury formula
-            U_ = DMatrix<double>::Zero(P.rows(), q());
-            U_.block(0, 0, n_basis(i), q()) = PsiTD_ * X(i);
-            V_ = DMatrix<double>::Zero(q(), P.rows());
-            V_.block(0, 0, q(), n_basis(i)) = X(i).transpose() * Psi_; 
+            //U_.block(0, 0, n_basis(i), q()) = U_.block(i*n_basis(i));
+            //V_.block(0, 0, q(), n_basis(i)) = X(i).transpose() * Psi_; 
 
-            xi0 = SMW<>().solve(invP, U_, XtWX(), V_, bi);
+            // xi0 = SMW<>().solve(invP, U_, XtWX(), V_, bi); //
+            xi0 = DMatrix<double>::Zero(P.rows(), 1);
+            xi0 = invP.solve(bi);
+            */
 
-            x_new.block(i*n_basis(i),0,xi0.rows(),1) = xi0;
+            bi = DMatrix<double>::Zero(P.rows(), 1);
+            bi.block(0,0,n_basis(i),1) = b_.block(i*n_basis(), 0, n_basis(i), 1);
             
-            b_.block(i*n_basis(i), 0, bi.rows(), 1) = bi;
-
+            U_i.block(0, 0, n_basis(i), q()) = U_.block(i*n_basis(i), 0, n_basis(i), q());
+            V_i.block(0, 0, q(), n_basis(i)) = V_.block(0, i*n_basis(i), q(), n_basis(i));
+            
+            // solve system (A_ + U_*(X^T*W_*X)*V_)x = b using woodbury formula from linear_algebra module
+            xi0 = SMW<>().solve(invP, U_i, XtWX(), V_i, bi);
+          
+            x_new.block(i*n_basis(i),0, n_basis(i),1) = xi0.head(n_basis(i));
+            x_new.block((i+m_)*n_basis(i),0, n_basis(i),1) = xi0.tail(n_basis(i)); 
+           
             // computation of r^{0} = b - Ax^{0} (residual at k=0)
             // r.block(i*n_basis(i),0,bi.rows(),1) = bi - P*xi0;
-            r.block(i*n_basis(i),0,n_basis(i),1) -= PsiTD_*lmbH(Psi_*xi0.head(n_basis(i)),i); // Psi_i^\top * Q(i) * Psi_i * f_i
             
+            /*
+            r.block(i*n_basis(i),0,n_basis(i),1) = bi.block(0,0, n_basis(i),1) +  PsiTD_ * Psi_ * xi0.head(n_basis(i)) - 
+                                                                                  PsiTD_*lmbH(Psi_*xi0.head(n_basis(i)),i) - 
+                                                                                  lambda_D() * pde_.stiff().transpose()*xi0.tail(n_basis(i)); // Psi_i^\top * Q(i) * Psi_i * f_i
+            r.block((i+m_)*n_basis(i),0,n_basis(i),1) = bi.block(n_basis(i),0, n_basis(i),1) - ( lambda_D() * pde_.stiff() * xi0.head(n_basis(i)) + 
+                                                                                                lambda_D() * pde_.mass() * xi0.tail(n_basis(i)) ); 
+            */
         }
-
+        
         // COEFFICIENTI BETA: da ragionare
         // beta_ = invXtWX().solve(X().transpose() ) * (y() - mPsi() * f_); 
 
         // store result of smoothing
         f_ = x_new.head(m_*n_basis()); // f0        
         g_ = x_new.tail(m_*n_basis()); // g0
-
+        
+        // compute residual (k=0)
+        r = b_ - A_ * x_new; // senza cov
+        r.block(0, 0, m_*n_basis(), 1) -= mPsi().transpose()*lmbH(mPsi()*f_); // correzione per cov
+        
         DVector<double> z;
         z = DMatrix<double>::Zero(r.rows(), 1);
         // u_ = mPsiTD()*Q()*z; // forse?
 
         // Nota: f_ e g_ sono già definite in model_macros.h, vanno aggiornate a ogni iterazione
 
-        x_old = x_new;
+        //x_old = x_new;
 
         double c = 2;
 
@@ -466,26 +514,56 @@ class MixedSRPDE<SpaceOnly,iterative> : public RegressionBase<MixedSRPDE<SpaceOn
         bool rcheck = r.norm() / b_.norm() < tol_res; // stop by residual    
         bool Jcheck =  std::abs((Jnew-Jold)/Jnew) < tol_; // stop by J
         bool exit_ = Jcheck && rcheck;
-
+      
+        DVector<double> ri = DMatrix<double>::Zero(2*n_basis(),1);
+        std::cout << "J(f_,g_): " << Jnew  << std::endl;
+        std::cout << "r.norm(): " << r.norm()  << std::endl;
+        std::cout << "r.norm() / b_.norm(): " << r.norm() / b_.norm() << std::endl;
+        
         // iterative scheme for minimization of functional 
         while (k < max_iter_ && !exit_) /* ischia pag 25 */ {
-
-            for (std::size_t i = 0; i < m_; i++){
-                DVector<double> xi;
-
-                for(std::size_t i = 0; i < m_; i++){
+            
+            for(std::size_t i = 0; i < m_; i++){
                     
+                    // NB. NB. NB.
+                    /*
                     P = SparseBlockMatrix<double, 2, 2>(
-                    -PsiTD_*Q(i)*Psi_,                    lambda_D() * pde_.stiff().transpose(),
-                    lambda_D() * pde_.stiff(),             lambda_D() * pde_.mass()                 );
-                    
-                    invP.compute(P); 
-
+                    -PsiTD_*Psi_,                    lambda_D() * pde_.stiff().transpose(),
+                    lambda_D() * pde_.stiff(),       lambda_D() * pde_.mass()              );
+                    */
+                    // invP.compute(P); 
+                    // i ...
                     bi = DMatrix<double>::Zero(P.rows(), 1);
-                    bi.block(0,0,n_basis(i),1) = -PsiTD_ * Q(i) * y(i); // valutare implementazione di lmbQ(yi)
-
-                    b_.block(i*n_basis(i),0,bi.rows(),1) = bi;
-
+                    
+                    // valutare implementazione di lmbQ(yi)
+                    bi.block(0,0,n_basis(i),1) = r.block(i*n_basis(), 0, n_basis(i), 1) ; 
+                    bi.block(n_basis(i), 0, n_basis(i), 1) = r.block( (i+m_)*n_basis(), 0, n_basis(i), 1) ;
+                    
+                    DMatrix<double> U_i = DMatrix<double>::Zero(2*n_basis(), q());
+                    DMatrix<double> V_i = DMatrix<double>::Zero(q(), 2*n_basis());
+                    
+                    U_i.block(0, 0, n_basis(i), q()) = U_.block(i*n_basis(i), 0, n_basis(i), q());
+                    V_i.block(0, 0, q(), n_basis(i)) = V_.block(0, i*n_basis(i), q(), n_basis(i));
+                    
+                    // solve system (A_ + U_*(X^T*W_*X)*V_)x = b using woodbury formula from linear_algebra module
+                    DVector<double> zi = SMW<>().solve(invP, U_i, XtWX(), V_i, bi);
+                    
+                    x_new.block(i*n_basis(i),0, n_basis(i),1) += alpha(k)*zi.head(n_basis(i));  
+                    x_new.block((i+m_)*n_basis(i),0, n_basis(i),1) += alpha(k)*zi.tail(n_basis(i));
+                    
+                    
+                    r.block(i*n_basis(i),0, n_basis(i),1) -=  alpha(k) * ((-PsiTD_* Psi_) * zi.head(n_basis(i)) +
+                                                                         lambda_D()*pde_.stiff().transpose()*zi.tail(n_basis(i)));
+                                                                         
+                    // correzione cov fuori
+                    
+                    r.block((i+m_)*n_basis(i),0, n_basis(i),1) -= alpha(k)*(lambda_D()*pde_.stiff()*zi.head(n_basis(i)) +
+                                                                            lambda_D()*pde_.mass()*zi.tail(n_basis(i)) );
+                    
+                    
+                    z.block(i*n_basis(i),0, n_basis(i),1) = zi.head(n_basis(i));  
+                    z.block((i+m_)*n_basis(i),0, n_basis(i),1) = zi.tail(n_basis(i)); 
+                    
                     // // matrices U and V for application of woodbury formula
                     // U_ = DMatrix<double>::Zero(A.rows(), q());
                     // U_.block(0, 0, n_basis(i), q()) = PsiTD_ * X(i);
@@ -504,29 +582,60 @@ class MixedSRPDE<SpaceOnly,iterative> : public RegressionBase<MixedSRPDE<SpaceOn
                     
                     /* calcolo di z */
                     // computation of z^{1} as solution of the linear system Pz^{1} = r^{0}
-                    DVector<double> zi = invP.solve(r.block(i*n_basis(i),0,bi.rows(),1));
-                    z.block(i*n_basis(i),0, zi.rows(),1) = zi;  // controllare le dimensioni
+                    
+                    //ri.head(n_basis(i)) = r.block(i*n_basis(i), 0, n_basis(i),1);
+                    //ri.tail(n_basis(i)) = r.block((i+m_)*n_basis(i), 0, n_basis(i), 1);  
+                    //DVector<double> zi = invP.solve(ri);
+                    
+                    
+                    //z.block(i*n_basis(i),0, n_basis(i),1) = zi.head(n_basis(i));  
+                    //z.block((i+m_)*n_basis(i),0, n_basis(i),1) = zi.tail(n_basis(i));
 
                     /* calcolo di r_new: r_new = r_old - alpha(k)*A*z;*/
-                    r.block(i*n_basis(i),0,n_basis(i),1) -= alpha(k)*PsiTD_*lmbH(Psi_*z.block(i*n_basis(i),0,n_basis(i),1),i);
+                    //r.block(i*n_basis(i),0,n_basis(i),1) -= alpha(k)*PsiTD_*lmbH(Psi_*z.block(i*n_basis(i),0,n_basis(i),1),i);
+                    
+                    /* calcolo di r_new: r_new = b - A*x; */
+                    
+                    //r.block(i*n_basis(i),0,n_basis(i),1) = bi.block(0,0, n_basis(i),1) + PsiTD_ * Psi_ * x_old.block(i*n_basis(i),0,n_basis(i),1) - 
+                    //                                                                     PsiTD_*lmbH(Psi_*x_old.block(i*n_basis(i),0,n_basis(i),1), i) - 
+                    //                                                                     lambda_D() * pde_.stiff().transpose()*x_old.block((i+m_)*n_basis(i),0,n_basis(i),1);
+                    //r.block((i+m_)*n_basis(i),0,n_basis(i),1) = bi.block(n_basis(i),0, n_basis(i),1) - ( lambda_D() * pde_.stiff() * x_old.block(i*n_basis(i),0,n_basis(i),1) + 
+                    //                                                                                    lambda_D() * pde_.mass() * x_old.block((i+m_)*n_basis(i),0,n_basis(i),1)); 
 
-                }
+                
             }
 
-            x_new = x_old + alpha(k)*z; 
-
+            //x_new = x_old + alpha(k)*z; 
+            
             // COEFFICIENTI BETA: da ragionare
             // beta_ = invXtWX().solve(X().transpose() ) * (y() - mPsi() * f_); 
-
+            // vecchia libreria ???
+            
+            /*
+            for(std::size_t i = 0; i < m_; ++i){
+                r.block(i*n_basis(i),0, n_basis(i),1) = b_.block(i*n_basis(i),0, n_basis(i),1) - ((-PsiTD_* Psi_) * x_new.block(i*n_basis(i),0, n_basis(i),1) +
+                                                                         lambda_D()*pde_.stiff().transpose()*x_new.block(i*n_basis(i),0, n_basis(i),1));
+                r.block((i+m_)*n_basis(i),0, n_basis(i),1) = b_.block(i*n_basis(i),0, n_basis(i),1) - (lambda_D()*pde_.stiff()*x_new.block(i*n_basis(i),0, n_basis(i),1) +
+                                                                        lambda_D()*pde_.mass()*x_new.block((i+m_)*n_basis(i),0, n_basis(i),1) );
+                
+                U_i.block(0, 0, n_basis(i), q()) = U_.block(i*n_basis(i), 0, n_basis(i), q());
+                // cov correction    
+                r.block(i*n_basis(i),0, n_basis(i),1) -= (U_i * XtWX() * (U_.transpose() * x_new.head(m_* n_basis())) );
+            }
+            */
             f_ = x_new.topRows(m_*n_basis());
             g_ = x_new.bottomRows(m_*n_basis());
-
+            
+            //r = b_ - A_ * x_new; // senza cov
+            // correzione covariate res
+            r.block(0, 0, m_*n_basis(), 1) -= alpha(k) * mPsi().transpose()*lmbH(mPsi()*z.head(m_*n_basis())); // correzione per cov
+            
             Jold = Jnew;
             Jnew = J(f_,g_);
 
             rcheck = r.norm() / b_.norm() < tol_res;
             Jcheck =  std::abs((Jnew-Jold)/Jnew) < tol_;
-            exit_ = Jcheck && rcheck;
+            exit_ = Jcheck; //&& rcheck;
 
             std::cout << "Iteration n." << k << std::endl;
             std::cout << "r:" << r.norm() / b_.norm() << std::endl;
@@ -534,8 +643,8 @@ class MixedSRPDE<SpaceOnly,iterative> : public RegressionBase<MixedSRPDE<SpaceOn
 
             x_old = x_new;
             k++;
+            //return;
         }
-
         return;
     }
 
