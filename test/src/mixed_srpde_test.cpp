@@ -94,6 +94,8 @@ TEST(mixed_srpde_test, cento) {
     }
     output.close();
     std::cout << "Numerical results saved in f_100.csv" << std::endl;
+    std::cout << model.beta().rows() << std::endl;
+    std::cout << model.beta() << std::endl;
     
     EXPECT_TRUE(  (model.f() - f_estimate ).array().abs().maxCoeff() < 1e-6 );
 }
