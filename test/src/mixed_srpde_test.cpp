@@ -46,13 +46,20 @@ using fdapde::testing::read_csv;
 // test 1
 TEST(mixed_srpde_test, cento) {
     // define domain 
-    MeshLoader<Mesh2D> domain("c_shaped");
+    std::string meshID = "c_shaped_1";
+    std::string locsID = "100/";
+    std::string policyID = "richardson/";
+    MeshLoader<Mesh2D> domain(meshID);
+    meshID = meshID + "/"; 
     // import data from files
-    DMatrix<double> locs = read_csv<double>("../data/models/mixed_srpde/2D_test1/100/locations_1.csv");
-    DMatrix<double> y = read_csv<double>("../data/models/mixed_srpde/2D_test1/100/observations.csv");
-    DMatrix<double> Wg = read_csv<double>("../data/models/mixed_srpde/2D_test1/100/W.csv");
-    DMatrix<double> Vp = read_csv<double>("../data/models/mixed_srpde/2D_test1/100/V.csv"); 
-
+    DMatrix<double> locs = read_csv<double>("../data/models/mixed_srpde/2D_test1/" + 
+    											meshID + policyID + locsID + "locations_1.csv");
+    DMatrix<double> y = read_csv<double>("../data/models/mixed_srpde/2D_test1/" + 
+    											meshID + policyID + locsID + "observations.csv");
+    DMatrix<double> Wg = read_csv<double>("../data/models/mixed_srpde/2D_test1/" + 
+    											meshID + policyID + locsID + "W.csv");
+    DMatrix<double> Vp = read_csv<double>("../data/models/mixed_srpde/2D_test1/" + 
+    										    meshID + policyID + locsID + "V.csv"); 
     // define regularizing PDE
     auto L = -laplacian<FEM>();
     DMatrix<double> u = DMatrix<double>::Zero(domain.mesh.n_elements() * 3, 1);
@@ -77,7 +84,8 @@ TEST(mixed_srpde_test, cento) {
     
     model.solve();
     
-    DMatrix<double> f_estimate = read_csv<double>("../data/models/mixed_srpde/2D_test1/100/f_hat.csv");
+    DMatrix<double> f_estimate = read_csv<double>("../data/models/mixed_srpde/2D_test1/" 
+    												+ meshID + policyID + locsID + "f_hat.csv");
     // DMatrix<double> f_true = read_csv<double>("../data/models/mixed_srpde/2D_test1/100/f.csv");
 
     // std::cout << f_estimate.rows() << " "<< f_estimate.cols() << std::endl;
@@ -103,12 +111,21 @@ TEST(mixed_srpde_test, cento) {
 // test 1
 TEST(mixed_srpde_test, cento_mono) {
     // define domain 
-    MeshLoader<Mesh2D> domain("c_shaped");
+    std::string meshID = "c_shaped_1";
+    std::string policyID = "monolithic/";
+    std::string locsID = "100/";
+    MeshLoader<Mesh2D> domain(meshID);
     // import data from files
-    DMatrix<double> locs = read_csv<double>("../data/models/mixed_srpde/2D_test1/100/locations_1.csv");
-    DMatrix<double> y = read_csv<double>("../data/models/mixed_srpde/2D_test1/100/observations.csv");
-    DMatrix<double> Wg = read_csv<double>("../data/models/mixed_srpde/2D_test1/100/W.csv");
-    DMatrix<double> Vp = read_csv<double>("../data/models/mixed_srpde/2D_test1/100/V.csv"); 
+    meshID = meshID + "/"; 
+    // import data from files
+    DMatrix<double> locs = read_csv<double>("../data/models/mixed_srpde/2D_test1/" + 
+    											meshID + policyID + locsID + "locations_1.csv");
+    DMatrix<double> y = read_csv<double>("../data/models/mixed_srpde/2D_test1/" + 
+    											meshID + policyID + locsID + "observations.csv");
+    DMatrix<double> Wg = read_csv<double>("../data/models/mixed_srpde/2D_test1/" + 
+    											meshID + policyID + locsID + "W.csv");
+    DMatrix<double> Vp = read_csv<double>("../data/models/mixed_srpde/2D_test1/" + 
+    										    meshID + policyID + locsID + "V.csv"); 
 
     // define regularizing PDE
     auto L = -laplacian<FEM>();
@@ -134,7 +151,8 @@ TEST(mixed_srpde_test, cento_mono) {
     
     model.solve();
     
-    DMatrix<double> f_estimate = read_csv<double>("../data/models/mixed_srpde/2D_test1/100/f_hat.csv");
+    DMatrix<double> f_estimate = read_csv<double>("../data/models/mixed_srpde/2D_test1/" + 
+    												 meshID + policyID + locsID + "f_hat.csv");
     // DMatrix<double> f_true = read_csv<double>("../data/models/mixed_srpde/2D_test1/100/f.csv");
 
     // std::cout << f_estimate.rows() << " "<< f_estimate.cols() << std::endl;
