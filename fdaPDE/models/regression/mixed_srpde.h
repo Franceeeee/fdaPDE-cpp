@@ -446,9 +446,9 @@ class MixedSRPDE<SpaceOnly,iterative> : public RegressionBase<MixedSRPDE<SpaceOn
     double J(const DMatrix<double>& f, const DMatrix<double>& g) const{
 
         DMatrix<double> fhat = mPsi() * f; 
-        DMatrix<double> nu = invXtWX().solve(X().transpose()*(y() - fhat));
+        // DMatrix<double> nu = invXtWX().solve(X().transpose()*(y() - fhat));
         
-        return (y() - X() * nu - fhat).squaredNorm() + lambda_D()*g.squaredNorm();
+        return (y() - X() * beta_ - fhat).squaredNorm() + lambda_D()*g.squaredNorm();
     }
 
     void solve() { 
