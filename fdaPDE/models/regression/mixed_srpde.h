@@ -219,7 +219,7 @@ class MixedSRPDE<SpaceOnly,iterative> : public RegressionBase<MixedSRPDE<SpaceOn
    private:
     // typedef RegressionBase<MixedSRPDE, SpaceOnly> Base;
     SparseBlockMatrix<double, 2, 2> A_ {};         // system matrix of non-parametric problem (2N x 2N matrix)
-    fdapde::SparseLU<SpMatrix<double>> invA_ {};   // factorization of matrix A
+    // fdapde::SparseLU<SpMatrix<double>> invA_ {};   // factorization of matrix A
     DVector<double> b_ {};                         // right hand side of problem's linear system (1 x 2N vector)
     DMatrix<double> X_ {};                         // design matrix
     SpMatrix<double> Q_ {};                        // Q = I - X(X^T X)^{-1}X^T
@@ -237,6 +237,7 @@ class MixedSRPDE<SpaceOnly,iterative> : public RegressionBase<MixedSRPDE<SpaceOn
     DMatrix<double> u_;     // discretized forcing [1/DeltaT * (u_1 + R_0*s) \ldots u_n]
     SpMatrix<double> Psi_;
     SpMatrix<double> PsiTD_;
+    DVector<double> alpha_coeff_;                   // coefficients
 
     // construction of the design matrix X_
     void init_X() {
@@ -371,7 +372,7 @@ class MixedSRPDE<SpaceOnly,iterative> : public RegressionBase<MixedSRPDE<SpaceOn
             -mPsiTD()*W()*mPsi(), lambda_D()*R1().transpose(),
             lambda_D()*R1(), lambda_D()*R0()
         ); 
-        //invA_.compute(A_); 
+        // invA_.compute(A_); 
         b_.resize(A_.rows());
         b_ = DMatrix<double>::Zero(2*m_*n_basis(), 1);
 
@@ -398,14 +399,14 @@ class MixedSRPDE<SpaceOnly,iterative> : public RegressionBase<MixedSRPDE<SpaceOn
     double J(const DMatrix<double>& f, const DMatrix<double>& g) const{
 
         DMatrix<double> fhat = mPsi() * f; 
-        //DMatrix<double> nu = invXtWX().solve(X().transpose()*(y() - fhat));
-        // DMatrix<double> term2 = g.transpose()*R0()*g; // this should be done "component-wise" (for each statistical unit) - pag.25 ischia
-        return (y() - X() * beta() - fhat).squaredNorm() + lambda_D()*g.squaredNorm();
+        DMatrix<double> nu = invXtWX().solve(X().transpose()*(y() - fhat));
+        
+        return (y() - X() * nu - fhat).squaredNorm() + lambda_D()*g.squaredNorm();
     }
 
     void solve() { 
         
-        fdapde_assert(y().rows() != 0); // NON HO OSSERVAZIONI ...
+        fdapde_assert(y().rows() != 0); // what is this?
 
         DVector<double> x_new = DMatrix<double>::Zero(2*m_*n_basis(), 1); // queste dimensioni boh
         
@@ -441,24 +442,37 @@ class MixedSRPDE<SpaceOnly,iterative> : public RegressionBase<MixedSRPDE<SpaceOn
         DMatrix<double> V_i = DMatrix<double>::Zero(q(), 2*n_basis());
                     
         for (std::size_t i = 0; i < m_; i++){
-            
+
             bi = DMatrix<double>::Zero(P.rows(), 1);
             bi.block(0,0,n_basis(i),1) = b_.block(i*n_basis(), 0, n_basis(i), 1);
             
             U_i.block(0, 0, n_basis(i), q()) = U_.block(i*n_basis(i), 0, n_basis(i), q());
             V_i.block(0, 0, q(), n_basis(i)) = V_.block(0, i*n_basis(i), q(), n_basis(i));
             
+            // solve system (A_ + U_*(X^T*W_*X)*V_)x = b using woodbury formula from linear_algebra module
             xi0 = SMW<>().solve(invP, U_i, XtWX(), V_i, bi);
           
             x_new.block(i*n_basis(i),0, n_basis(i),1) = xi0.head(n_basis(i));
             x_new.block((i+m_)*n_basis(i),0, n_basis(i),1) = xi0.tail(n_basis(i)); 
+           
+            // computation of r^{0} = b - Ax^{0} (residual at k=0)
+            // r.block(i*n_basis(i),0,bi.rows(),1) = bi - P*xi0;
+            
+            /*
+            r.block(i*n_basis(i),0,n_basis(i),1) = bi.block(0,0, n_basis(i),1) +  PsiTD_ * Psi_ * xi0.head(n_basis(i)) - 
+                                                                                  PsiTD_*lmbH(Psi_*xi0.head(n_basis(i)),i) - 
+                                                                                  lambda_D() * pde_.stiff().transpose()*xi0.tail(n_basis(i)); // Psi_i^\top * Q(i) * Psi_i * f_i
+            r.block((i+m_)*n_basis(i),0,n_basis(i),1) = bi.block(n_basis(i),0, n_basis(i),1) - ( lambda_D() * pde_.stiff() * xi0.head(n_basis(i)) + 
+                                                                                                lambda_D() * pde_.mass() * xi0.tail(n_basis(i)) ); 
+            */
         }
-        
+
         // store result of smoothing
         f_ = x_new.head(m_*n_basis()); // f0        
         g_ = x_new.tail(m_*n_basis()); // g0
         beta_ = invXtWX().solve(X().transpose() * (y() - mPsi() * f_)); 
-
+        alpha_coeff_ = 0; // CAMBIARE QUESTO
+        
         // compute residual (k=0)
         r = b_ - A_ * x_new; // senza cov
         r.block(0, 0, m_*n_basis(), 1) -= mPsi().transpose()*lmbH(mPsi()*f_); // correzione per cov
@@ -473,7 +487,6 @@ class MixedSRPDE<SpaceOnly,iterative> : public RegressionBase<MixedSRPDE<SpaceOn
 
         double c = 2;
 
-        // r_new = r_old + DVector<double>::Ones(r_old.rows())*c; // in this way I can enter the loop the first time... maybe there is a better idea
         Jnew = J(f_,g_);
         Jold = (1 + c) * Jnew;
         
@@ -511,7 +524,6 @@ class MixedSRPDE<SpaceOnly,iterative> : public RegressionBase<MixedSRPDE<SpaceOn
                     x_new.block(i*n_basis(i),0, n_basis(i),1) += alpha(k)*zi.head(n_basis(i));  
                     x_new.block((i+m_)*n_basis(i),0, n_basis(i),1) += alpha(k)*zi.tail(n_basis(i));
                     
-                    
                     r.block(i*n_basis(i),0, n_basis(i),1) -=  alpha(k) * ((-PsiTD_* Psi_) * zi.head(n_basis(i)) +
                                                                          lambda_D()*pde_.stiff().transpose()*zi.tail(n_basis(i)));
                                                                          
@@ -520,11 +532,12 @@ class MixedSRPDE<SpaceOnly,iterative> : public RegressionBase<MixedSRPDE<SpaceOn
                     r.block((i+m_)*n_basis(i),0, n_basis(i),1) -= alpha(k)*(lambda_D()*pde_.stiff()*zi.head(n_basis(i)) +
                                                                             lambda_D()*pde_.mass()*zi.tail(n_basis(i)) );
                     
-                    
                     z.block(i*n_basis(i),0, n_basis(i),1) = zi.head(n_basis(i));  
                     z.block((i+m_)*n_basis(i),0, n_basis(i),1) = zi.tail(n_basis(i)); 
-            }   
-     	    // vecchia libreria ???
+                
+            }
+
+            // vecchia libreria ???
             
             /*
             for(std::size_t i = 0; i < m_; ++i){
@@ -538,11 +551,12 @@ class MixedSRPDE<SpaceOnly,iterative> : public RegressionBase<MixedSRPDE<SpaceOn
                 r.block(i*n_basis(i),0, n_basis(i),1) -= (U_i * XtWX() * (U_.transpose() * x_new.head(m_* n_basis())) );
             }
             */
-            // update
             f_ = x_new.topRows(m_*n_basis());
             g_ = x_new.bottomRows(m_*n_basis());
-            beta_ = invXtWX().solve(X().transpose()*(y() - mPsi()*f_)); 
+            beta_ = invXtWX().solve(X().transpose() * (y() - mPsi() * f_)); 
+            alpha_coeff_ = 0; // CAMBIARE QUESTOs
             
+            //r = b_ - A_ * x_new; // senza cov
             // correzione covariate res
             r.block(0, 0, m_*n_basis(), 1) -= alpha(k) * mPsi().transpose()*lmbH(mPsi()*z.head(m_*n_basis())); // correzione per cov
             
@@ -584,6 +598,7 @@ class MixedSRPDE<SpaceOnly,iterative> : public RegressionBase<MixedSRPDE<SpaceOn
     const SpMatrix<double> mPsiTD() const { return Kronecker(I_, PsiTD(not_nan())); }
     const SpMatrix<double> R0() const { return Kronecker(I_, pde_.mass()); }
     const SpMatrix<double> R1() const { return Kronecker(I_, pde_.stiff()); }
+    const DVector<double> alpha() const { return alpha_coeff_; }
 
     virtual ~MixedSRPDE() = default;
 
