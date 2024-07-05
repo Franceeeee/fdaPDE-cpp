@@ -44,7 +44,7 @@ using fdapde::testing::MeshLoader;
 using fdapde::testing::read_csv;
 
 // test 1
-TEST(mixed_srpde_test, cento) {
+TEST(mixed_srpde_test, cento_iter) {
     // define domain 
     std::string meshID = "c_shaped_1";
     std::string locsID = "100/";
@@ -94,16 +94,34 @@ TEST(mixed_srpde_test, cento) {
     // test correctness
     // std::cout <<  (f_true - f_estimate).lpNorm<Eigen::Infinity>() << std::endl;
     // std::cout <<  (model.f() - f_true).lpNorm<Eigen::Infinity>() << std::endl;
-    std::ofstream output("f_100.csv");
-    output << "Results for test with 100 observations\n";
+    std::ofstream output("f_iter.csv");
     DMatrix<double> data = model.f();
     for(std::size_t i = 0; i < data.size(); ++i){
         output << data(i) << "\n";
     }
     output.close();
-    std::cout << "Numerical results saved in f_100.csv" << std::endl;
-    std::cout << model.beta().rows() << std::endl;
-    std::cout << model.beta() << std::endl;
+
+    std::ofstream output1("g_iter.csv");
+    data = model.g();
+    for(std::size_t i = 0; i < data.size(); ++i){
+        output1 << data(i) << "\n";
+    }
+    output1.close();
+
+    std::ofstream output2("beta_iter.csv");
+    data = model.beta();
+    for(std::size_t i = 0; i < data.size(); ++i){
+        output2 << data(i) << "\n";
+    }
+    output2.close();
+
+    std::ofstream output3("alpha_iter.csv");
+    data = model.alpha();
+    for(std::size_t i = 0; i < data.size(); ++i){
+        output3 << data(i) << "\n";
+    }
+    output3.close();
+
     
     EXPECT_TRUE(  (model.f() - f_estimate ).array().abs().maxCoeff() < 1e-6 );
 }
@@ -161,15 +179,35 @@ TEST(mixed_srpde_test, cento_mono) {
     // test correctness
     // std::cout <<  (f_true - f_estimate).lpNorm<Eigen::Infinity>() << std::endl;
     // std::cout <<  (model.f() - f_true).lpNorm<Eigen::Infinity>() << std::endl;
-    std::ofstream output("f_100.csv");
-    output << "Results for test with 100 observations\n";
+    std::ofstream output("f_mono.csv");
     DMatrix<double> data = model.f();
     for(std::size_t i = 0; i < data.size(); ++i){
         output << data(i) << "\n";
     }
     output.close();
-    std::cout << "Numerical results saved in f_100.csv" << std::endl;
     
+    std::ofstream output1("g_mono.csv");
+    data = model.g();
+    for(std::size_t i = 0; i < data.size(); ++i){
+        output1 << data(i) << "\n";
+    }
+    output1.close();
+
+    std::ofstream output2("beta_mono.csv");
+    data = model.beta();
+    for(std::size_t i = 0; i < data.size(); ++i){
+        output2 << data(i) << "\n";
+    }
+    output2.close();
+
+    // std::ofstream output3("alpha_mono.csv");
+    // data = model.alpha();
+    // for(std::size_t i = 0; i < data.size(); ++i){
+    //     output3 << data(i) << "\n";
+    // }
+    // output3.close();
+    
+
     EXPECT_TRUE(  (model.f() - f_estimate ).array().abs().maxCoeff() < 1e-6 );
 }
 

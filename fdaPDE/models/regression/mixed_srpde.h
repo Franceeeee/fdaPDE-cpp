@@ -228,16 +228,20 @@ class MixedSRPDE<SpaceOnly,iterative> : public RegressionBase<MixedSRPDE<SpaceOn
     int m_;                                        // m: number of patients
     int qV;                                        // qV: patient-specific covariatess
     int p;                                         // p: group-specific covariates
-    double alpha_ = 1;                                // alpha: acceleration parameter
+    double alpha_ = 1;                             // alpha: acceleration parameter
     SparseBlockMatrix<double, 2, 2> P_ {};         // preconditioning matrix of the Richardson scheme
     fdapde::SparseLU<SpMatrix<double>> invP_ {};   // factorization of matrix P
     SpMatrix<double> Gamma_ {};                    // approximation of the north-east block of the matrix A
     SpMatrix<double> I_;                           // N x N sparse identity matrix 
-    DMatrix<double> s_;     // N x 1 initial condition vector
-    DMatrix<double> u_;     // discretized forcing [1/DeltaT * (u_1 + R_0*s) \ldots u_n]
+    DMatrix<double> s_;                            // N x 1 initial condition vector
+    DMatrix<double> u_;                            // discretized forcing [1/DeltaT * (u_1 + R_0*s) \ldots u_n]
     SpMatrix<double> Psi_;
     SpMatrix<double> PsiTD_;
     DVector<double> alpha_coeff_;                   // coefficients
+    DVector<double> beta_coeff_;                    // beta coefficients of the original model
+    // here I redeclared the beta() getter because beta_ is used in the function J
+    SparseBlockMatrix<double, 2, 2> F_ {};          // matrix used for linear transformation of coefficients
+    DMatrix<double> T_;
 
     // construction of the design matrix X_
     void init_X() {
@@ -376,6 +380,49 @@ class MixedSRPDE<SpaceOnly,iterative> : public RegressionBase<MixedSRPDE<SpaceOn
         b_.resize(A_.rows());
         b_ = DMatrix<double>::Zero(2*m_*n_basis(), 1);
 
+        // matrix for retrieve initial coefficients (alpha and beta)
+        DMatrix<double> Ip = {};
+        Ip.resize(p,p);
+        Ip.setIdentity();
+        Ip = Ip/m_;
+        
+        DMatrix<double> Iqp = {};
+        Iqp.resize(qV,qV);
+        Iqp.setIdentity();
+
+        DMatrix<double> Z1 = DMatrix<double>::Zero(p, qV);
+
+        DMatrix<double> Z2 = DMatrix<double>::Zero(qV, m_*p);
+
+        DMatrix<double> Ip_loop = {};
+        Ip_loop.resize(p, m_*p);
+
+        for (std::size_t i=0; i<m_; i++){
+            Ip_loop.block(0,i*p,p,p) = Ip;
+        }
+
+        F_ = SparseBlockMatrix<double,2,2>(
+            Z1.sparseView(), Ip_loop.sparseView(),
+            Iqp.sparseView(), Z2.sparseView()
+        ); 
+
+        // std::cout << "F_: "<< F_.rows() << "x" << F_.cols() << std::endl;
+
+        T_.resize(m_*p,m_*p);
+        T_.setIdentity();
+        T_ = (m_-1.0)/m_ * T_;
+
+        Ip.setIdentity();
+
+
+        for (std::size_t i=0; i<m_; i++){
+            for(std::size_t j=0; j<m_; j++){
+                if(T_(i*p,j*p) == 0){
+                    T_.block(i*p,j*p,p,p) = -Ip;
+                }
+            }
+        }
+
         return; 
     }
 
@@ -471,7 +518,8 @@ class MixedSRPDE<SpaceOnly,iterative> : public RegressionBase<MixedSRPDE<SpaceOn
         f_ = x_new.head(m_*n_basis()); // f0        
         g_ = x_new.tail(m_*n_basis()); // g0
         beta_ = invXtWX().solve(X().transpose() * (y() - mPsi() * f_)); 
-        alpha_coeff_ = 0; // CAMBIARE QUESTO
+        beta_coeff_ = F_*beta_;
+        alpha_coeff_ = T_*beta_.tail(m_*p); 
         
         // compute residual (k=0)
         r = b_ - A_ * x_new; // senza cov
@@ -554,7 +602,8 @@ class MixedSRPDE<SpaceOnly,iterative> : public RegressionBase<MixedSRPDE<SpaceOn
             f_ = x_new.topRows(m_*n_basis());
             g_ = x_new.bottomRows(m_*n_basis());
             beta_ = invXtWX().solve(X().transpose() * (y() - mPsi() * f_)); 
-            alpha_coeff_ = 0; // CAMBIARE QUESTOs
+            beta_coeff_ = F_*beta_;
+            alpha_coeff_ = T_*beta_.tail(m_*p); 
             
             //r = b_ - A_ * x_new; // senza cov
             // correzione covariate res
@@ -599,6 +648,7 @@ class MixedSRPDE<SpaceOnly,iterative> : public RegressionBase<MixedSRPDE<SpaceOn
     const SpMatrix<double> R0() const { return Kronecker(I_, pde_.mass()); }
     const SpMatrix<double> R1() const { return Kronecker(I_, pde_.stiff()); }
     const DVector<double> alpha() const { return alpha_coeff_; }
+    const DVector<double> beta() const { return beta_coeff_; }
 
     virtual ~MixedSRPDE() = default;
 
