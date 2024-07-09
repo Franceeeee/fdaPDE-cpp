@@ -19,9 +19,24 @@
 #include "src/mixed_srpde_test.cpp"
 
 
+//int main(int argc, char **argv){
+  // start testing
+  //testing::InitGoogleTest(&argc, argv);
+  
+  //return RUN_ALL_TESTS();
+//}
 
+// cyclic execution
 int main(int argc, char **argv){
   // start testing
   testing::InitGoogleTest(&argc, argv);
-  return RUN_ALL_TESTS();
+    int numRuns = 30; 
+    for (int i = 0; i < numRuns; ++i) {
+        std::cout << "===== Run " << i+1 << " =====" << std::endl;
+        int result = RUN_ALL_TESTS();
+        if (result != 0) {
+            std::cerr << "Google Test returned non-zero exit code: " << result << std::endl;
+            return result;
+        }
+    }
 }

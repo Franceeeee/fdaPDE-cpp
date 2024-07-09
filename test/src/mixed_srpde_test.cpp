@@ -17,6 +17,8 @@
 #include <cstddef>
 #include <gtest/gtest.h>   // testing framework
 #include <fstream>
+#include <sstream>
+#include <chrono> 
 
 #include <fdaPDE/core.h>
 using fdapde::core::advection;
@@ -43,173 +45,286 @@ using fdapde::testing::almost_equal;
 using fdapde::testing::MeshLoader;
 using fdapde::testing::read_csv;
 
-// test 1
-TEST(mixed_srpde_test, cento_iter) {
-    // define domain 
-    std::string meshID = "c_shaped_1";
-    std::string locsID = "100/";
-    std::string policyID = "richardson/";
-    MeshLoader<Mesh2D> domain(meshID);
-    meshID = meshID + "/"; 
-    // import data from files
-    DMatrix<double> locs = read_csv<double>("../data/models/mixed_srpde/2D_test1/" + 
-    											meshID + policyID + locsID + "locations_1.csv");
-    DMatrix<double> y = read_csv<double>("../data/models/mixed_srpde/2D_test1/" + 
-    											meshID + policyID + locsID + "observations.csv");
-    DMatrix<double> Wg = read_csv<double>("../data/models/mixed_srpde/2D_test1/" + 
-    											meshID + policyID + locsID + "W.csv");
-    DMatrix<double> Vp = read_csv<double>("../data/models/mixed_srpde/2D_test1/" + 
-    										    meshID + policyID + locsID + "V.csv"); 
-    // define regularizing PDE
-    auto L = -laplacian<FEM>();
-    DMatrix<double> u = DMatrix<double>::Zero(domain.mesh.n_elements() * 3, 1);
-    PDE<decltype(domain.mesh), decltype(L), DMatrix<double>, FEM, fem_order<1>> problem(domain.mesh, L, u);
+struct TestParams {
+    std::string meshID;
+    std::string locsID;
+    std::string policyID;
+};
 
-    // define model
-    double lambda = 1;
-    
-    MixedSRPDE<SpaceOnly,iterative> model(problem, Sampling::pointwise);
-    model.set_lambda_D(lambda);
-    model.set_spatial_locations(locs);
-    
-    // set model's data
-    BlockFrame<double, int> df;
-    df.insert(OBSERVATIONS_BLK, y);
-    df.insert(MIXED_EFFECTS_BLK, Vp); 
-    df.insert(DESIGN_MATRIX_BLK, Wg);
-    model.set_data(df);
-    
-    // solve smoothing problem
-    model.init();
-    
-    model.solve();
-    
-    DMatrix<double> f_estimate = read_csv<double>("../data/models/mixed_srpde/2D_test1/" 
-    												+ meshID + policyID + locsID + "f_hat.csv");
-    // DMatrix<double> f_true = read_csv<double>("../data/models/mixed_srpde/2D_test1/100/f.csv");
+const std::vector<TestParams> kPets = {
+    {"c_shaped_5", "100", "richardson"},
+    {"c_shaped_5", "100", "monolithic"},
+    {"c_shaped_5", "250", "richardson"},
+    {"c_shaped_5", "250", "monolithic"},
+    {"c_shaped_5", "500", "richardson"},
+    {"c_shaped_5", "500", "monolithic"},
+    {"c_shaped_5", "1000", "richardson"},
+    {"c_shaped_5", "1000", "monolithic"},
+    {"c_shaped_5", "5000", "richardson"},
+    {"c_shaped_5", "5000", "monolithic"},
+    {"c_shaped_5", "10000", "richardson"},
+    {"c_shaped_5", "10000", "monolithic"}
+};
 
-    // std::cout << f_estimate.rows() << " "<< f_estimate.cols() << std::endl;
-    // std::cout << f_true.rows() << " "<< f_true.cols() << std::endl;
-    
-    // test correctness
-    // std::cout <<  (f_true - f_estimate).lpNorm<Eigen::Infinity>() << std::endl;
-    // std::cout <<  (model.f() - f_true).lpNorm<Eigen::Infinity>() << std::endl;
-    std::ofstream output("f_iter.csv");
-    DMatrix<double> data = model.f();
-    for(std::size_t i = 0; i < data.size(); ++i){
-        output << data(i) << "\n";
-    }
-    output.close();
+// from https://github.com/google/googletest/blob/main/docs/advanced.md
+class MixedSRPDETest : public testing::TestWithParam<TestParams> {
+  // You can implement all the usual fixture class members here.
+  // To access the test parameter, call GetParam() from class TestWithParam<T>.
+};
 
-    std::ofstream output1("g_iter.csv");
-    data = model.g();
-    for(std::size_t i = 0; i < data.size(); ++i){
-        output1 << data(i) << "\n";
-    }
-    output1.close();
 
-    std::ofstream output2("beta_iter.csv");
-    data = model.beta();
-    for(std::size_t i = 0; i < data.size(); ++i){
-        output2 << data(i) << "\n";
-    }
-    output2.close();
+INSTANTIATE_TEST_SUITE_P(Pets, MixedSRPDETest, testing::ValuesIn(kPets));
 
-    std::ofstream output3("alpha_iter.csv");
-    data = model.alpha();
-    for(std::size_t i = 0; i < data.size(); ++i){
-        output3 << data(i) << "\n";
-    }
-    output3.close();
-
-    
-    EXPECT_TRUE(  (model.f() - f_estimate ).array().abs().maxCoeff() < 1e-6 );
-}
 
 // test 1
-TEST(mixed_srpde_test, cento_mono) {
+TEST_P(MixedSRPDETest, Testing) {
+
+    TestParams params = GetParam();
+    std::stringstream ss;
+    ss << "meshID: " << params.meshID << ", locsID: " << params.locsID << ", policyID: " << params.policyID;
+    
+    std::string filename = "test_output_mesh5.txt";
+    
+    // Use params.meshID, params.locsID, and params.policyID in your test
+    std::string meshID = params.meshID;
+    std::string locsID = params.locsID;
+    std::string policyID = params.policyID;
+    auto start = std::chrono::high_resolution_clock::now();
+
+    policyID = policyID + "/"; 
+    locsID = locsID + "/"; 
+
     // define domain 
-    std::string meshID = "c_shaped_1";
-    std::string policyID = "monolithic/";
-    std::string locsID = "100/";
-    MeshLoader<Mesh2D> domain(meshID);
-    // import data from files
-    meshID = meshID + "/"; 
-    // import data from files
-    DMatrix<double> locs = read_csv<double>("../data/models/mixed_srpde/2D_test1/" + 
-    											meshID + policyID + locsID + "locations_1.csv");
-    DMatrix<double> y = read_csv<double>("../data/models/mixed_srpde/2D_test1/" + 
-    											meshID + policyID + locsID + "observations.csv");
-    DMatrix<double> Wg = read_csv<double>("../data/models/mixed_srpde/2D_test1/" + 
-    											meshID + policyID + locsID + "W.csv");
-    DMatrix<double> Vp = read_csv<double>("../data/models/mixed_srpde/2D_test1/" + 
-    										    meshID + policyID + locsID + "V.csv"); 
+    // std::string meshID = "c_shaped_1";
+    // std::string locsID = "1000/";
+    // std::string policyID = "richardson/";
 
-    // define regularizing PDE
-    auto L = -laplacian<FEM>();
-    DMatrix<double> u = DMatrix<double>::Zero(domain.mesh.n_elements() * 3, 1);
-    PDE<decltype(domain.mesh), decltype(L), DMatrix<double>, FEM, fem_order<1>> problem(domain.mesh, L, u);
+    if(policyID=="richardson/"){
+        MeshLoader<Mesh2D> domain(meshID);
+        meshID = meshID + "/"; 
+        // import data from files
+        DMatrix<double> locs = read_csv<double>("../data/models/mixed_srpde/2D_test1/" + 
+                                                    meshID + policyID + locsID + "locations_1.csv");
+        DMatrix<double> y = read_csv<double>("../data/models/mixed_srpde/2D_test1/" + 
+                                                    meshID + policyID + locsID + "observations.csv");
+        DMatrix<double> Wg = read_csv<double>("../data/models/mixed_srpde/2D_test1/" + 
+                                                    meshID + policyID + locsID + "W.csv");
+        DMatrix<double> Vp = read_csv<double>("../data/models/mixed_srpde/2D_test1/" + 
+                                                    meshID + policyID + locsID + "V.csv"); 
+        // define regularizing PDE
+        auto L = -laplacian<FEM>();
+        DMatrix<double> u = DMatrix<double>::Zero(domain.mesh.n_elements() * 3, 1);
+        PDE<decltype(domain.mesh), decltype(L), DMatrix<double>, FEM, fem_order<1>> problem(domain.mesh, L, u);
 
-    // define model
-    double lambda = 1;
-    
-    MixedSRPDE<SpaceOnly,monolithic> model(problem, Sampling::pointwise);
-    model.set_lambda_D(lambda);
-    model.set_spatial_locations(locs);
-    
-    // set model's data
-    BlockFrame<double, int> df;
-    df.insert(OBSERVATIONS_BLK, y);
-    df.insert(MIXED_EFFECTS_BLK, Vp); 
-    df.insert(DESIGN_MATRIX_BLK, Wg);
-    model.set_data(df);
-    
-    // solve smoothing problem
-    model.init();
-    
-    model.solve();
-    
-    DMatrix<double> f_estimate = read_csv<double>("../data/models/mixed_srpde/2D_test1/" + 
-    												 meshID + policyID + locsID + "f_hat.csv");
-    // DMatrix<double> f_true = read_csv<double>("../data/models/mixed_srpde/2D_test1/100/f.csv");
+        // define model
+        double lambda = 1;
 
-    // std::cout << f_estimate.rows() << " "<< f_estimate.cols() << std::endl;
-    // std::cout << f_true.rows() << " "<< f_true.cols() << std::endl;
-    
-    // test correctness
-    // std::cout <<  (f_true - f_estimate).lpNorm<Eigen::Infinity>() << std::endl;
-    // std::cout <<  (model.f() - f_true).lpNorm<Eigen::Infinity>() << std::endl;
-    std::ofstream output("f_mono.csv");
-    DMatrix<double> data = model.f();
-    for(std::size_t i = 0; i < data.size(); ++i){
-        output << data(i) << "\n";
+        MixedSRPDE<SpaceOnly,iterative> model(problem, Sampling::pointwise);
+        
+        model.set_lambda_D(lambda);
+        model.set_spatial_locations(locs);
+        
+        // set model's data
+        BlockFrame<double, int> df;
+        df.insert(OBSERVATIONS_BLK, y);
+        df.insert(MIXED_EFFECTS_BLK, Vp); 
+        df.insert(DESIGN_MATRIX_BLK, Wg);
+        model.set_data(df);
+        
+        // solve smoothing problem
+        model.init();
+        
+        model.solve();
+        
+        DMatrix<double> f_estimate = read_csv<double>("../data/models/mixed_srpde/2D_test1/" 
+                                                        + meshID + policyID + locsID + "f_hat.csv");
+
+        // DMatrix<double> f_true = read_csv<double>("../data/models/mixed_srpde/2D_test1/100/f.csv");
+
+        // std::cout << f_estimate.rows() << " "<< f_estimate.cols() << std::endl;
+        // std::cout << f_true.rows() << " "<< f_true.cols() << std::endl;
+        
+        // test correctness
+        // std::cout <<  (f_true - f_estimate).lpNorm<Eigen::Infinity>() << std::endl;
+        // std::cout <<  (model.f() - f_true).lpNorm<Eigen::Infinity>() << std::endl;
+        
+        EXPECT_TRUE(  (model.f() - f_estimate ).array().abs().maxCoeff() < 1e-6 );
+        
+        auto end = std::chrono::high_resolution_clock::now();
+
+        auto differences = (model.f() - f_estimate).array().square().mean();
+
+        auto rmse = std::sqrt(differences);
+
+        std::chrono::duration<double> duration = end - start;
+        ss << ", rmse: " << rmse << ", execution_time: " << duration.count() << std::endl;
+
+        // Append to a text file
+        std::ofstream outputFile;
+        outputFile.open(filename, std::ios_base::app);
+        if (outputFile.is_open()) {
+            outputFile << ss.str(); 
+            outputFile.close();
+        } else {
+            std::cerr << "Unable to open file for writing" << std::endl;
+        }
+    } else if (policyID=="monolithic/"){
+        MeshLoader<Mesh2D> domain(meshID);
+        meshID = meshID + "/"; 
+        // import data from files
+        DMatrix<double> locs = read_csv<double>("../data/models/mixed_srpde/2D_test1/" + 
+                                                    meshID + policyID + locsID + "locations_1.csv");
+        DMatrix<double> y = read_csv<double>("../data/models/mixed_srpde/2D_test1/" + 
+                                                    meshID + policyID + locsID + "observations.csv");
+        DMatrix<double> Wg = read_csv<double>("../data/models/mixed_srpde/2D_test1/" + 
+                                                    meshID + policyID + locsID + "W.csv");
+        DMatrix<double> Vp = read_csv<double>("../data/models/mixed_srpde/2D_test1/" + 
+                                                    meshID + policyID + locsID + "V.csv"); 
+        // define regularizing PDE
+        auto L = -laplacian<FEM>();
+        DMatrix<double> u = DMatrix<double>::Zero(domain.mesh.n_elements() * 3, 1);
+        PDE<decltype(domain.mesh), decltype(L), DMatrix<double>, FEM, fem_order<1>> problem(domain.mesh, L, u);
+
+        // define model
+        double lambda = 1;
+
+        MixedSRPDE<SpaceOnly,monolithic> model(problem, Sampling::pointwise);
+        
+        model.set_lambda_D(lambda);
+        model.set_spatial_locations(locs);
+        
+        // set model's data
+        BlockFrame<double, int> df;
+        df.insert(OBSERVATIONS_BLK, y);
+        df.insert(MIXED_EFFECTS_BLK, Vp); 
+        df.insert(DESIGN_MATRIX_BLK, Wg);
+        model.set_data(df);
+        
+        // solve smoothing problem
+        model.init();
+        
+        model.solve();
+        
+        DMatrix<double> f_estimate = read_csv<double>("../data/models/mixed_srpde/2D_test1/" 
+                                                        + meshID + policyID + locsID + "f_hat.csv");
+
+        // DMatrix<double> f_true = read_csv<double>("../data/models/mixed_srpde/2D_test1/100/f.csv");
+
+        // std::cout << f_estimate.rows() << " "<< f_estimate.cols() << std::endl;
+        // std::cout << f_true.rows() << " "<< f_true.cols() << std::endl;
+        
+        // test correctness
+        // std::cout <<  (f_true - f_estimate).lpNorm<Eigen::Infinity>() << std::endl;
+        // std::cout <<  (model.f() - f_true).lpNorm<Eigen::Infinity>() << std::endl;
+        
+        EXPECT_TRUE(  (model.f() - f_estimate ).array().abs().maxCoeff() < 1e-6 );
+        
+        auto end = std::chrono::high_resolution_clock::now();
+
+         auto differences = (model.f() - f_estimate).array().square().mean();
+
+        auto rmse = std::sqrt(differences);
+
+        std::chrono::duration<double> duration = end - start;
+        ss << ", rmse: " << rmse << ", execution_time: " << duration.count() << std::endl;
+
+        // Append to a text file
+        std::ofstream outputFile;
+        outputFile.open(filename, std::ios_base::app);
+        if (outputFile.is_open()) {
+            outputFile << ss.str(); 
+            outputFile.close();
+        } else {
+            std::cerr << "Unable to open file for writing" << std::endl;
+        }
     }
-    output.close();
-    
-    std::ofstream output1("g_mono.csv");
-    data = model.g();
-    for(std::size_t i = 0; i < data.size(); ++i){
-        output1 << data(i) << "\n";
-    }
-    output1.close();
-
-    std::ofstream output2("beta_mono.csv");
-    data = model.beta();
-    for(std::size_t i = 0; i < data.size(); ++i){
-        output2 << data(i) << "\n";
-    }
-    output2.close();
-
-    // std::ofstream output3("alpha_mono.csv");
-    // data = model.alpha();
-    // for(std::size_t i = 0; i < data.size(); ++i){
-    //     output3 << data(i) << "\n";
-    // }
-    // output3.close();
-    
-
-    EXPECT_TRUE(  (model.f() - f_estimate ).array().abs().maxCoeff() < 1e-6 );
 }
+
+
+// test 1
+// TEST(mixed_srpde_test, cento_mono) {
+//     // define domain 
+//     std::string meshID = "c_shaped_1";
+//     std::string policyID = "monolithic/";
+//     std::string locsID = "1000/";
+//     MeshLoader<Mesh2D> domain(meshID);
+//     // import data from files
+//     meshID = meshID + "/"; 
+//     // import data from files
+//     DMatrix<double> locs = read_csv<double>("../data/models/mixed_srpde/2D_test1/" + 
+//     											meshID + policyID + locsID + "locations_1.csv");
+//     DMatrix<double> y = read_csv<double>("../data/models/mixed_srpde/2D_test1/" + 
+//     											meshID + policyID + locsID + "observations.csv");
+//     DMatrix<double> Wg = read_csv<double>("../data/models/mixed_srpde/2D_test1/" + 
+//     											meshID + policyID + locsID + "W.csv");
+//     DMatrix<double> Vp = read_csv<double>("../data/models/mixed_srpde/2D_test1/" + 
+//     										    meshID + policyID + locsID + "V.csv"); 
+
+//     // define regularizing PDE
+//     auto L = -laplacian<FEM>();
+//     DMatrix<double> u = DMatrix<double>::Zero(domain.mesh.n_elements() * 3, 1);
+//     PDE<decltype(domain.mesh), decltype(L), DMatrix<double>, FEM, fem_order<1>> problem(domain.mesh, L, u);
+
+//     // define model
+//     double lambda = 1;
+    
+//     MixedSRPDE<SpaceOnly,monolithic> model(problem, Sampling::pointwise);
+//     model.set_lambda_D(lambda);
+//     model.set_spatial_locations(locs);
+    
+//     // set model's data
+//     BlockFrame<double, int> df;
+//     df.insert(OBSERVATIONS_BLK, y);
+//     df.insert(MIXED_EFFECTS_BLK, Vp); 
+//     df.insert(DESIGN_MATRIX_BLK, Wg);
+//     model.set_data(df);
+    
+//     // solve smoothing problem
+//     model.init();
+    
+//     model.solve();
+    
+//     DMatrix<double> f_estimate = read_csv<double>("../data/models/mixed_srpde/2D_test1/" + 
+//     												 meshID + policyID + locsID + "f_hat.csv");
+//     // DMatrix<double> f_true = read_csv<double>("../data/models/mixed_srpde/2D_test1/100/f.csv");
+
+//     // std::cout << f_estimate.rows() << " "<< f_estimate.cols() << std::endl;
+//     // std::cout << f_true.rows() << " "<< f_true.cols() << std::endl;
+    
+//     // test correctness
+//     // std::cout <<  (f_true - f_estimate).lpNorm<Eigen::Infinity>() << std::endl;
+//     // std::cout <<  (model.f() - f_true).lpNorm<Eigen::Infinity>() << std::endl;
+//     // std::ofstream output("f_mono.csv");
+//     // DMatrix<double> data = model.f();
+//     // for(std::size_t i = 0; i < data.size(); ++i){
+//     //     output << data(i) << "\n";
+//     // }
+//     // output.close();
+    
+//     // std::ofstream output1("g_mono.csv");
+//     // data = model.g();
+//     // for(std::size_t i = 0; i < data.size(); ++i){
+//     //     output1 << data(i) << "\n";
+//     // }
+//     // output1.close();
+
+//     // std::ofstream output2("beta_mono.csv");
+//     // data = model.beta();
+//     // for(std::size_t i = 0; i < data.size(); ++i){
+//     //     output2 << data(i) << "\n";
+//     // }
+//     // output2.close();
+
+//     // std::ofstream output3("alpha_mono.csv");
+//     // data = model.alpha();
+//     // for(std::size_t i = 0; i < data.size(); ++i){
+//     //     output3 << data(i) << "\n";
+//     // }
+//     // output3.close();
+    
+//     std::cout << "Monolithic: " << (model.f() - f_estimate ).array().abs().maxCoeff() << std::endl;
+//     EXPECT_TRUE(  (model.f() - f_estimate ).array().abs().maxCoeff() < 1e-6 );
+// }
 
 /*
 // test 2
