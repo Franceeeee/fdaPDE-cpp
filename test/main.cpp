@@ -19,14 +19,15 @@
 #include "src/mixed_srpde_test.cpp"
 
 
-//int main(int argc, char **argv){
+int main(int argc, char **argv){
   // start testing
-  //testing::InitGoogleTest(&argc, argv);
+  testing::InitGoogleTest(&argc, argv);
   
-  //return RUN_ALL_TESTS();
-//}
+  return RUN_ALL_TESTS();
+}
 
 // cyclic execution
+/*
 int main(int argc, char **argv){
   // start testing
   testing::InitGoogleTest(&argc, argv);
@@ -40,3 +41,4 @@ int main(int argc, char **argv){
         }
     }
 }
+*/
