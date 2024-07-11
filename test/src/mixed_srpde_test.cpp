@@ -65,15 +65,15 @@ const std::vector<TestParams> kPets = {
     // {"c_shaped_4_patients", "5000", "richardson"},
     // {"c_shaped_4_patients", "5000", "monolithic"},
     {"c_shaped_4_patients", "10000", "richardson", "24"},
-    {"c_shaped_4_patients", "10000", "monolithic", "24"},
     {"c_shaped_4_patients", "10000", "richardson", "36"},
-    {"c_shaped_4_patients", "10000", "monolithic", "36"},
     {"c_shaped_4_patients", "10000", "richardson", "60"},
-    {"c_shaped_4_patients", "10000", "monolithic", "60"},
     {"c_shaped_4_patients", "10000", "richardson", "75"},
-    {"c_shaped_4_patients", "10000", "monolithic", "75"},
     {"c_shaped_4_patients", "10000", "richardson", "90"},
-    {"c_shaped_4_patients", "10000", "monolithic", "90"}
+    {"c_shaped_4_patients", "10000", "monolithic", "90"},
+    {"c_shaped_4_patients", "10000", "monolithic", "24"},
+    {"c_shaped_4_patients", "10000", "monolithic", "36"},
+    {"c_shaped_4_patients", "10000", "monolithic", "60"},
+    {"c_shaped_4_patients", "10000", "monolithic", "75"}
 };
 
 // from https://github.com/google/googletest/blob/main/docs/advanced.md

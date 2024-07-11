@@ -327,14 +327,8 @@ class MixedSRPDE<SpaceOnly,iterative> : public RegressionBase<MixedSRPDE<SpaceOn
         N = Wg().rows();          // N: total observations (N=n*m)
         n_ = n_locs();            // n: observations for each statistical unit (patient)
         m_ = std::ceil(N/n_);                 // m: number of patients
-        std::cout << m_ << std::endl;
-        std::cout << N << std::endl;
-        std::cout << n_locs() << std::endl;
         qV = Vp().cols();         // qV: patient-specific covariatess
-        std::cout << qV << std::endl;
-        
         p = Wg().cols();          // p: group-specific covariates
-        std::cout << p << std::endl;
         
         // I_ is a NxN sparse identity matrix
         I_.resize(m_,m_);
