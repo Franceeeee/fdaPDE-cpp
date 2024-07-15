@@ -64,16 +64,28 @@ const std::vector<TestParams> kPets = {
     // {"c_shaped_4_patients", "1000", "monolithic"},
     // {"c_shaped_4_patients", "5000", "richardson"},
     // {"c_shaped_4_patients", "5000", "monolithic"},
-    {"c_shaped_4_patients", "10000", "richardson", "24"},
-    {"c_shaped_4_patients", "10000", "richardson", "36"},
-    {"c_shaped_4_patients", "10000", "richardson", "60"},
-    {"c_shaped_4_patients", "10000", "richardson", "75"},
-    {"c_shaped_4_patients", "10000", "richardson", "90"},
-    {"c_shaped_4_patients", "10000", "monolithic", "90"},
-    {"c_shaped_4_patients", "10000", "monolithic", "24"},
-    {"c_shaped_4_patients", "10000", "monolithic", "36"},
-    {"c_shaped_4_patients", "10000", "monolithic", "60"},
-    {"c_shaped_4_patients", "10000", "monolithic", "75"}
+    // {"c_shaped_4_patients", "10000", "richardson", "24"},
+    // {"c_shaped_4_patients", "10000", "richardson", "36"},
+    // {"c_shaped_4_patients", "10000", "richardson", "60"},
+    // {"c_shaped_4_patients", "10000", "richardson", "75"},
+    // {"c_shaped_4_patients", "10000", "richardson", "90"},
+    // {"c_shaped_4_patients", "10000", "monolithic", "24"},
+    // {"c_shaped_4_patients", "10000", "monolithic", "36"},
+    // {"c_shaped_4_patients", "10000", "monolithic", "60"},
+    // {"c_shaped_4_patients", "10000", "monolithic", "75"},
+    // {"c_shaped_4_patients", "10000", "monolithic", "90"}
+    {"c_shaped_5_patients", "10000", "richardson", "24"},
+    {"c_shaped_5_patients", "10000", "richardson", "36"},
+    {"c_shaped_5_patients", "10000", "richardson", "60"},
+    {"c_shaped_5_patients", "10000", "richardson", "75"},
+    {"c_shaped_5_patients", "10000", "richardson", "90"},
+    {"c_shaped_5_patients", "10000", "richardson", "150"},
+    {"c_shaped_5_patients", "10000", "monolithic", "24"},
+    {"c_shaped_5_patients", "10000", "monolithic", "36"},
+    {"c_shaped_5_patients", "10000", "monolithic", "60"},
+    {"c_shaped_5_patients", "10000", "monolithic", "75"},
+    {"c_shaped_5_patients", "10000", "monolithic", "90"},
+    {"c_shaped_5_patients", "10000", "monolithic", "150"}
 };
 
 // from https://github.com/google/googletest/blob/main/docs/advanced.md
@@ -116,7 +128,7 @@ TEST_P(MixedSRPDETest, Testing) {
 
     if(policyID=="richardson/"){
         
-        MeshLoader<Mesh2D> domain("c_shaped_4");
+        MeshLoader<Mesh2D> domain("c_shaped_5");
         
         meshID = meshID + "/"; 
 
@@ -188,7 +200,7 @@ TEST_P(MixedSRPDETest, Testing) {
             std::cerr << "Unable to open file for writing" << std::endl;
         }
     } else if (policyID=="monolithic/"){
-        MeshLoader<Mesh2D> domain("c_shaped_4");
+        MeshLoader<Mesh2D> domain("c_shaped_5");
         meshID = meshID + "/"; 
         // import data from files
         DMatrix<double> locs = read_csv<double>("../data/models/mixed_srpde/2D_test1/" + 
