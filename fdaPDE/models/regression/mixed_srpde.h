@@ -184,7 +184,7 @@ class MixedSRPDE<SpaceOnly,monolithic> : public RegressionBase<MixedSRPDE<SpaceO
     }
     
     void init_model() { 
-        std::cout << "MODELLO MONOLITICO" << std::endl;
+        std::cout << "METODO MONOLITICO" << std::endl;
         // I_ is a NxN sparse identity matrix
         I_.resize(m_,m_);
         I_.setIdentity();
@@ -266,7 +266,7 @@ class MixedSRPDE<SpaceOnly,monolithic> : public RegressionBase<MixedSRPDE<SpaceO
 
     
         auto end = std::chrono::high_resolution_clock::now();
-        auto duration = end - start;
+        std::chrono::duration<double> duration = end - start;
         std::cout << "- solve(): " << duration.count() << std::endl;
 
         return;
