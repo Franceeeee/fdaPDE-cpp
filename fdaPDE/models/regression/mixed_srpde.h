@@ -746,8 +746,8 @@ class MixedSRPDE<SpaceOnly,iterative> : public RegressionBase<MixedSRPDE<SpaceOn
                     //DMatrix<double> U_i = DMatrix<double>::Zero(2*n_basis(), q());
                     //DMatrix<double> V_i = DMatrix<double>::Zero(q(), 2*n_basis());
                     
-                    U_i.block(0, 0, n_basis(i), q()) = U_.block(i*n_basis(i), 0, n_basis(i), q());
-                    V_i.block(0, 0, q(), n_basis(i)) = V_.block(0, i*n_basis(i), q(), n_basis(i));
+                    U_i.block(0, 0, n_basis(i), q()) = U_.block(i*n_basis(i), 0, n_basis(i), q()); // GUARDA SU - come prima
+                    V_i.block(0, 0, q(), n_basis(i)) = V_.block(0, i*n_basis(i), q(), n_basis(i)); // GUARDA SU - come prima
                     
                     // solve system (A_ + U_*(X^T*W_*X)*V_)x = b using woodbury formula from linear_algebra module
                     auto ___start = std::chrono::high_resolution_clock::now();
