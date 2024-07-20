@@ -605,11 +605,11 @@ class MixedSRPDE<SpaceOnly,iterative> : public RegressionBase<MixedSRPDE<SpaceOn
         DVector<double> x_new = DMatrix<double>::Zero(2*m_*n_basis(), 1); // queste dimensioni boh
         
         b_.block(0, 0, m_*n_basis(), 1) = -mPsiTD() * lmbQ(y());
-        U_ = DMatrix<double>::Zero(2*m_*n_basis(), q());
-        V_ = DMatrix<double>::Zero(q(), 2*m_*n_basis());
+        // U_ = DMatrix<double>::Zero(2*m_*n_basis(), q());
+        // V_ = DMatrix<double>::Zero(q(), 2*m_*n_basis());
         
-        U_.block(0, 0, m_* n_basis(), q()) = mPsiTD()  * X(); // * W() * X(); / SE salvo X_i, V_i POSSO implementare direttamente U_i ?!
-        V_.block(0, 0, q(), m_ * n_basis()) = X().transpose() * mPsi(); // / SE salvo X_i, V_i POSSO implementare direttamente V_i?!
+        // U_.block(0, 0, m_* n_basis(), q()) = mPsiTD()  * X(); // * W() * X(); / SE salvo X_i, V_i POSSO implementare direttamente U_i ?!
+        // V_.block(0, 0, q(), m_ * n_basis()) = X().transpose() * mPsi(); // / SE salvo X_i, V_i POSSO implementare direttamente V_i?!
         
         DVector<double> x_old = x_new;  
         DVector<double> r = b_;//DMatrix<double>::Zero(2*m_*n_basis(), 1); 
@@ -650,9 +650,15 @@ class MixedSRPDE<SpaceOnly,iterative> : public RegressionBase<MixedSRPDE<SpaceOn
 
             bi.block(0,0,n_basis(i),1) = b_.block(i*n_basis(), 0, n_basis(i), 1);
             
-            U_i.block(0, 0, n_basis(i), q()) = U_.block(i*n_basis(i), 0, n_basis(i), q()); //GUARDA SU
-            V_i.block(0, 0, q(), n_basis(i)) = V_.block(0, i*n_basis(i), q(), n_basis(i)); // GUARDA SU
+            // U_i.block(0, 0, n_basis(i), q()) = U_.block(i*n_basis(i), 0, n_basis(i), q()); //GUARDA SU
+            // V_i.block(0, 0, q(), n_basis(i)) = V_.block(0, i*n_basis(i), q(), n_basis(i)); // GUARDA SU
             
+            U_i.block(0, p+i*qV, n_basis(i), qV ) = PsiTD_*_V[i];
+            U_i.block(0, 0, n_basis(i), p) = PsiTD_*_W[i];
+
+            V_i.block(0, 0, p, n_basis(i)) = _W[i].transpose()*Psi_;
+            V_i.block(p+i*qV, 0, qV, n_basis(i)) = _V[i].transpose()*Psi_; 
+
             // solve system (A_ + U_*(X^T*W_*X)*V_)x = b using woodbury formula from linear_algebra module
             xi0 = SMW<>().solve(invP_, U_i, XtWX(), V_i, bi);
           
@@ -746,9 +752,14 @@ class MixedSRPDE<SpaceOnly,iterative> : public RegressionBase<MixedSRPDE<SpaceOn
                     //DMatrix<double> U_i = DMatrix<double>::Zero(2*n_basis(), q());
                     //DMatrix<double> V_i = DMatrix<double>::Zero(q(), 2*n_basis());
                     
-                    U_i.block(0, 0, n_basis(i), q()) = U_.block(i*n_basis(i), 0, n_basis(i), q()); // GUARDA SU - come prima
-                    V_i.block(0, 0, q(), n_basis(i)) = V_.block(0, i*n_basis(i), q(), n_basis(i)); // GUARDA SU - come prima
-                    
+                    // U_i.block(0, 0, n_basis(i), q()) = U_.block(i*n_basis(i), 0, n_basis(i), q()); // GUARDA SU - come prima
+                    // V_i.block(0, 0, q(), n_basis(i)) = V_.block(0, i*n_basis(i), q(), n_basis(i)); // GUARDA SU - come prima
+                    U_i.block(0, p+i*qV, n_basis(i), qV ) = PsiTD_*_V[i];
+                    U_i.block(0, 0, n_basis(i), p) = PsiTD_*_W[i];
+
+                    V_i.block(0, 0, p, n_basis(i)) = _W[i].transpose()*Psi_;
+                    V_i.block(p+i*qV, 0, qV, n_basis(i)) = _V[i].transpose()*Psi_; 
+
                     // solve system (A_ + U_*(X^T*W_*X)*V_)x = b using woodbury formula from linear_algebra module
                     auto ___start = std::chrono::high_resolution_clock::now();
                     zi = SMW<>().solve(invP_, U_i, XtWX(), V_i, bi);

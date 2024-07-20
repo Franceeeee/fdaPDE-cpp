@@ -44,7 +44,7 @@ using fdapde::iterative;
 using fdapde::testing::almost_equal;
 using fdapde::testing::MeshLoader;
 using fdapde::testing::read_csv;
-
+/*
 // PARAMETRIC TEST 
 struct TestParams {
     std::string meshID;
@@ -54,7 +54,7 @@ struct TestParams {
 };
 
 const std::vector<TestParams> kPets = {
-     /*
+     
      {"c_shaped_4_patients", "100", "richardson"},
      {"c_shaped_4_patients", "100", "monolithic"},
      {"c_shaped_4_patients", "250", "richardson"},
@@ -65,7 +65,7 @@ const std::vector<TestParams> kPets = {
      {"c_shaped_4_patients", "1000", "monolithic"},
      {"c_shaped_4_patients", "5000", "richardson"},
      {"c_shaped_4_patients", "5000", "monolithic"},
-     */
+     
      
      {"c_shaped_4_patients", "10000", "richardson", "24"},
      {"c_shaped_4_patients", "10000", "richardson", "36"},
@@ -78,7 +78,7 @@ const std::vector<TestParams> kPets = {
      {"c_shaped_4_patients", "10000", "monolithic", "75"},
      {"c_shaped_4_patients", "10000", "monolithic", "90"}
     
-    /*
+    
     {"c_shaped_5_patients", "10000", "richardson", "24"},
     {"c_shaped_5_patients", "10000", "richardson", "36"},
     {"c_shaped_5_patients", "10000", "richardson", "60"},
@@ -91,7 +91,7 @@ const std::vector<TestParams> kPets = {
     {"c_shaped_5_patients", "10000", "monolithic", "75"},
     {"c_shaped_5_patients", "10000", "monolithic", "90"},
     {"c_shaped_5_patients", "10000", "monolithic", "150"}
-    */
+    
 };
 
 // from https://github.com/google/googletest/blob/main/docs/advanced.md
@@ -278,7 +278,7 @@ TEST_P(MixedSRPDETest, Testing) {
         }
     }
 }
-
+*/
 
 // // test 1
 // TEST_P(MixedSRPDETest, Testing) {
@@ -448,7 +448,7 @@ TEST_P(MixedSRPDETest, Testing) {
 // }
 
 
-/*
+
 // test monolitico
 TEST(mixed_srpde_test, cento_mono) {
 
@@ -549,7 +549,7 @@ TEST(mixed_srpde_test, cento_iter) {
     std::cout << "Iterative: " << (model.f() - f_estimate ).array().abs().maxCoeff() << std::endl;
     EXPECT_TRUE(  (model.f() - f_estimate ).array().abs().maxCoeff() < 1e-6 );
 }
-*/
+
 
 /*
 // test 2
