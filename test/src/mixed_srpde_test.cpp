@@ -130,7 +130,7 @@ TEST(mixed_srpde_test, cento_iter) {
     // df.insert(MIXED_EFFECTS_BLK, Vp); 
     // df.insert(DESIGN_MATRIX_BLK, Wg);
     model.set_data(data);
-    model.set_psi();
+    // model.set_psi();
     
     // solve smoothing problem
     model.init();
