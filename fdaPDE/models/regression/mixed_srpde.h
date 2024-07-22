@@ -336,7 +336,7 @@ class MixedSRPDE<SpaceOnly,iterative> : public RegressionBase<MixedSRPDE<SpaceOn
         p = data_[0].template get<double>(W_BLOCK).cols();          // p: group-specific covariates
         
         // I_ is a NxN sparse identity matrix
-        I_.resize(m_,m_);
+        I_.resize(m_,m_);  //   quando sistemo mPsi questo non mi serve più
         I_.setIdentity();
 
         // Kronecker products with the identity
@@ -557,7 +557,7 @@ class MixedSRPDE<SpaceOnly,iterative> : public RegressionBase<MixedSRPDE<SpaceOn
         }
 
     
-        auto duration = std::chrono::high_resolution_clock::now() - start;
+        std::chrono::duration<double> duration = std::chrono::high_resolution_clock::now() - start;
         std::cout << "- assemblamento delle matrici per i coefficienti beta: " << duration.count() << std::endl;
         return; 
     }
@@ -598,14 +598,17 @@ class MixedSRPDE<SpaceOnly,iterative> : public RegressionBase<MixedSRPDE<SpaceOn
     }
 
     void solve() { 
-        
+        std::cout << "solve" << std::endl;
         auto start = std::chrono::high_resolution_clock::now();
         
         fdapde_assert(y().rows() != 0); // what is this?
+        std::cout << "assert" << std::endl;
 
         DVector<double> x_new = DMatrix<double>::Zero(2*m_*n_basis(), 1); // queste dimensioni boh
+        std::cout << "x_new" << std::endl;
         
-        b_.block(0, 0, m_*n_basis(), 1) = -mPsiTD() * lmbQ(y());
+        b_.block(0, 0, m_*n_basis(), 1) = -mPsiTD() * lmbQ(y()); // questo dà problemi - controllare dimensioni
+        std::cout << "b_block" << std::endl;
         // U_ = DMatrix<double>::Zero(2*m_*n_basis(), q());
         // V_ = DMatrix<double>::Zero(q(), 2*m_*n_basis());
         
@@ -613,7 +616,9 @@ class MixedSRPDE<SpaceOnly,iterative> : public RegressionBase<MixedSRPDE<SpaceOn
         // V_.block(0, 0, q(), m_ * n_basis()) = X().transpose() * mPsi(); // / SE salvo X_i, V_i POSSO implementare direttamente V_i?!
         
         DVector<double> x_old = x_new;  
+        std::cout << "xold" << std::endl;
         DVector<double> r = b_;//DMatrix<double>::Zero(2*m_*n_basis(), 1); 
+        std::cout << "r" << std::endl;
         double Jnew;
         double Jold;
         
@@ -644,7 +649,7 @@ class MixedSRPDE<SpaceOnly,iterative> : public RegressionBase<MixedSRPDE<SpaceOn
 
         DMatrix<double> U_i = DMatrix<double>::Zero(2*n_basis(), q());
         DMatrix<double> V_i = DMatrix<double>::Zero(q(), 2*n_basis());
-       
+       std::cout << "U,V" << std::endl;
         
         auto _start = std::chrono::high_resolution_clock::now();           
         for (std::size_t i = 0; i < m_; i++){
@@ -862,7 +867,7 @@ class MixedSRPDE<SpaceOnly,iterative> : public RegressionBase<MixedSRPDE<SpaceOn
         return;
     }
 
-    void set_psi() {
+    void init_sampling(bool forced = true) {
         
         // switch (s) {
         // case Sampling::pointwise: {   // data sampled at general locations p_1, p_2, ... p_n
@@ -912,8 +917,11 @@ class MixedSRPDE<SpaceOnly,iterative> : public RegressionBase<MixedSRPDE<SpaceOn
     const DMatrix<double>& y(std::size_t i) const { return data_[i].template get<double>(Y_BLOCK); } 
     const DMatrix<double>& locs(std::size_t i) const { return data_[i].template get<double>(LOCS_BLOCK); } 
     // const DMatrix<double>& Vp() const { return df_.template get<double>(MIXED_EFFECTS_BLK); } 
-    const SpMatrix<double> mPsi() const { return Kronecker(I_, Psi(not_nan())); }
-    const SpMatrix<double> mPsiTD() const { return Kronecker(I_, PsiTD(not_nan())); }
+
+    const SpMatrix<double> mPsi() const { return Kronecker(I_, Psi_[0]); } // DA SISTEMARE !!
+
+    const SpMatrix<double> mPsiTD() const { return Kronecker(I_, PsiTD_[0]); }  // DA SISTEMARE !!!
+    
     const SpMatrix<double> R0() const { return Kronecker(I_, pde_.mass()); }
     const SpMatrix<double> R1() const { return Kronecker(I_, pde_.stiff()); }
     const DVector<double> alpha() const { return alpha_coeff_; }
