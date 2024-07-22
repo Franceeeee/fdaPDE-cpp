@@ -70,5 +70,9 @@
 #define DESIGN_MATRIX_BLK "DESIGN_MATRIX"   // covariates
 #define WEIGHTS_BLK       "WEIGHTS"         // weights for heteroskedastic observations
 #define MIXED_EFFECTS_BLK "DESIGN_MIXED_EFFECT_MATRIX" // covariates patient specific
+#define W_BLOCK           "W_BLOCK"         // block containing observations of W for each patient
+#define V_BLOCK           "V_BLOCK"         // block containing observations of V for each patient
+#define Y_BLOCK           "Y_BLOCK"         // block containing observations of Y for each patient
+#define LOCS_BLOCK        "LOCS_BLOCK"      // block containing LOCS for each patient
 
 #endif   // __MODEL_MACROS_H__

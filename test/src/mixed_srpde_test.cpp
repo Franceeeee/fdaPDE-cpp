@@ -19,6 +19,7 @@
 #include <fstream>
 #include <sstream>
 #include <chrono> 
+#include <filesystem>
 
 #include <fdaPDE/core.h>
 using fdapde::core::advection;
@@ -44,6 +45,107 @@ using fdapde::iterative;
 using fdapde::testing::almost_equal;
 using fdapde::testing::MeshLoader;
 using fdapde::testing::read_csv;
+
+// test iterativo LOCAZIONI DIFFERENTI
+TEST(mixed_srpde_test, cento_iter) {
+    // define domain 
+    std::string meshID = "c_shaped_1";
+    std::string policyID = "richardson/";
+    std::string locsID = "1000/";
+    MeshLoader<Mesh2D> domain(meshID);
+    // import data from files
+    meshID = meshID + "/"; 
+
+    std::vector<BlockFrame<double, int>> data;
+    data.resize(3);
+    std::cout << "data" << std::endl;
+    // import data from files
+    bool exist = 1;
+    for(std::size_t i = 0; i<3; i++){
+        
+        std::string Wname = "W_" + std::to_string(i+1) + ".csv";
+        std::cout << Wname << std::endl;
+        std::string Vname = "V_" + std::to_string(i+1);
+        std::string locsname = "locs_" + std::to_string(i+1);
+        std::string yname = "observations_" + std::to_string(i+1);
+
+        // exist = std::filesystem::exists(Wname);
+        // std::cout << exist << std::endl;
+        // if(!exist){
+        //     break;
+        // }
+        // std::cout << exist << std::endl;
+        // BlockFrame<double, int> df;
+        data[i].read_csv<double>(W_BLOCK, "../data/models/mixed_srpde/2D_test1/" + meshID + policyID + locsID + Wname);
+        data[i].read_csv<double>(V_BLOCK, "../data/models/mixed_srpde/2D_test1/" + meshID + policyID + locsID + Vname + ".csv");
+        data[i].read_csv<double>(Y_BLOCK, "../data/models/mixed_srpde/2D_test1/" + meshID + policyID + locsID + yname + ".csv");
+        data[i].read_csv<double>(LOCS_BLOCK, "../data/models/mixed_srpde/2D_test1/" + meshID + policyID + locsID + locsname + ".csv");
+        
+        // data[i] = df;
+        // DMatrix<double> Wi = read_csv<double>("../data/models/mixed_srpde/2D_test1/" + meshID + policyID + locsID + Wname + ".csv");
+        // Wg(i, 0) = &Wi;
+        // Wg.block(i,0,1,1) = &Wi;   
+        // Wg.emplace_back(DMatrix<double>*(read_csv<double>(("../data/models/mixed_srpde/2D_test1/" + meshID + policyID + locsID + Wname + ".csv"))));
+        // Wg.emplace_back(&Wi);
+
+        // DMatrix<double>* Vi = read_csv<double>("../data/models/mixed_srpde/2D_test1/" + meshID + policyID + locsID + Vname + ".csv");
+        // Vp.emplace_back(&Vi);
+
+        // DMatrix<double>* locsi = read_csv<double>("../data/models/mixed_srpde/2D_test1/" + meshID + policyID + locsID + locsname + ".csv");
+        // locs.emplace_back(locsi);        
+
+        // DMatrix<double>* yi = read_csv<double>("../data/models/mixed_srpde/2D_test1/" + meshID + policyID + locsID + yname + ".csv");
+        // y.emplace_back(yi);
+
+    }
+
+    // DMatrix<double> locs = read_csv<double>("../data/models/mixed_srpde/2D_test1/" + 
+    // 											meshID + policyID + locsID + "locations_1.csv");
+    // DMatrix<double> y = read_csv<double>("../data/models/mixed_srpde/2D_test1/" + 
+    // 											meshID + policyID + locsID + "observations.csv");
+    // DMatrix<double> Wg = read_csv<double>("../data/models/mixed_srpde/2D_test1/" + 
+    // 											meshID + policyID + locsID + "W.csv");
+    // DMatrix<double> Vp = read_csv<double>("../data/models/mixed_srpde/2D_test1/" + 
+    // 										    meshID + policyID + locsID + "V.csv"); 
+
+    std::size_t sum = 0;
+    for(std::size_t i=0; i<data.size(); i++){
+        sum += data[i].template get<double>(LOCS_BLOCK).rows();
+    }
+
+    // define regularizing PDE
+    auto L = -laplacian<FEM>();
+    DMatrix<double> u = DMatrix<double>::Zero(sum, 1);
+    PDE<decltype(domain.mesh), decltype(L), DMatrix<double>, FEM, fem_order<1>> problem(domain.mesh, L, u);
+    // define model
+    double lambda = 1;
+    
+    MixedSRPDE<SpaceOnly,iterative> model(problem, Sampling::pointwise);
+    model.set_lambda_D(lambda);
+    // model.set_spatial_locations(locs);
+    
+    // set model's data
+    // BlockFrame<double, int> df;
+    // df.insert(OBSERVATIONS_BLK, y);
+    // df.insert(MIXED_EFFECTS_BLK, Vp); 
+    // df.insert(DESIGN_MATRIX_BLK, Wg);
+    model.set_data(data);
+    model.set_psi();
+    
+    // solve smoothing problem
+    model.init();
+    
+    model.solve();
+    
+    DMatrix<double> f_estimate = read_csv<double>("../data/models/mixed_srpde/2D_test1/" + 
+    												 meshID + policyID + locsID + "f_hat.csv");
+    
+    std::cout << "Iterative: " << (model.f() - f_estimate ).array().abs().maxCoeff() << std::endl;
+    EXPECT_TRUE(  (model.f() - f_estimate ).array().abs().maxCoeff() < 1e-6 );
+}
+
+
+
 /*
 // PARAMETRIC TEST 
 struct TestParams {
@@ -448,7 +550,7 @@ TEST_P(MixedSRPDETest, Testing) {
 // }
 
 
-
+/*
 // test monolitico
 TEST(mixed_srpde_test, cento_mono) {
 
@@ -549,7 +651,7 @@ TEST(mixed_srpde_test, cento_iter) {
     std::cout << "Iterative: " << (model.f() - f_estimate ).array().abs().maxCoeff() << std::endl;
     EXPECT_TRUE(  (model.f() - f_estimate ).array().abs().maxCoeff() < 1e-6 );
 }
-
+*/
 
 /*
 // test 2
