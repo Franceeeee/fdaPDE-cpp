@@ -395,30 +395,34 @@ class MixedSRPDE<SpaceOnly,iterative> : public RegressionBase<MixedSRPDE<SpaceOn
     
     DMatrix<double> aux(const DMatrix<double>& x, std::size_t i) const{
     	//DMatrix<double> v = (mPsi().transpose()*X()).transpose() * x.topRows(n_basis()*m_);   
-       	DMatrix<double> v = DMatrix<double>::Zero(N*m_,1);
-       	
-       	//v.block(0, 0, p, 1) = _sumWt * mPsi() * x;
+       	DMatrix<double> v = DMatrix<double>::Zero(N,1);
+        
        	for(std::size_t k = 0; k < m_; ++k){
-       		v.block(k*N, 0, N, 1) = Psi_[k]*x.block(k*n_basis(k), 0, n_basis(k),1);	
+       		v.block(k*n_locs(i), 0, n_locs(i), 1) = Psi_[k]*x.block(k*n_basis(), 0, n_basis(),1);	
        	}
-       	
+
        	DMatrix<double> u = DMatrix<double>::Zero(q(),1);
        	
        	//u.block(0, 0, p, 1) = _sumWt * v;
+
+        int sum = 0;
+
        	for(std::size_t k = 0; k < m_; ++k){
-       		u.block(0, 0, p, 1) += Wg(k).transpose()*v.block(k*N, 0, N,1);	
-       		u.block(k*qV+p, 0, qV, 1) = Vp(k).transpose()*v.block(k*N, 0, N, 1);	
+       		u.block(0, 0, p, 1) += Wg(k).transpose()*v.block(sum, 0, n_locs(k),1);	
+       		u.block(k*qV+p, 0, qV, 1) = Vp(k).transpose()*v.block(sum, 0, n_locs(k), 1);	
+            sum += n_locs(k);
        	}
        
        	DMatrix<double> z = invXtWX().solve(u);         
        	
-       	
 		DMatrix<double> w = Wg(i)*z.block(0, 0, p, 1) + Vp(i)*z.block(i*qV+p, 0, qV, 1);
-       	       	
+       	
        	//DMatrix<double> U_i = (mPsi().transpose()*X()).block(i*n_basis(), 0, n_basis(), q()); 
         //DMatrix<double> res = DMatrix<double>::Zero(n_basis(),1);
         
         //return U_i * z;
+        std::cout << (Psi_[i].transpose()*w).rows() << std::endl;
+
         return Psi_[i].transpose()*w; // ????? 
     }
     
@@ -508,8 +512,8 @@ class MixedSRPDE<SpaceOnly,iterative> : public RegressionBase<MixedSRPDE<SpaceOn
        
         // invA_.compute(A_); 
         //b_.resize(A_.rows());
-        b_ = DMatrix<double>::Zero(2*m_*n_basis(), 1);
-
+        b_ = DMatrix<double>::Zero(2*n_basis()*m_, 1);
+        
         
         // start = std::chrono::high_resolution_clock::now();
 
@@ -564,8 +568,17 @@ class MixedSRPDE<SpaceOnly,iterative> : public RegressionBase<MixedSRPDE<SpaceOn
 
     // internal utilities
     // int n(std::size_t k) const { return n_; } // at this point n is assumed to be the same for everyone (?)
-    int n_basis() const { return data_[0].template get<double>(LOCS_BLOCK).cols();}
-    int n_basis(std::size_t i) const { return data_[i].template get<double>(LOCS_BLOCK).cols(); }
+    // int n_basis() const { 
+    //     int sum = 0;
+    //     for(std::size_t i=0; i<m_; i++){
+    //         sum += data_[i].template get<double>(LOCS_BLOCK).rows();
+    //     }
+    //     return sum;
+    // }
+    
+    int n_basis(std::size_t i) const { return n_basis(); }
+    // int n_basis(std::size_t i) const { return data_[i].template get<double>(LOCS_BLOCK).rows(); }
+
     // DMatrix<double> y(std::size_t k) const { return y().block(n_spatial_locs() * k, 0, n_spatial_locs(), 1); }
     double alpha(std::size_t k) const { return alpha_; } // fixed to 1 
     DMatrix<double> y() {
@@ -602,23 +615,20 @@ class MixedSRPDE<SpaceOnly,iterative> : public RegressionBase<MixedSRPDE<SpaceOn
         auto start = std::chrono::high_resolution_clock::now();
         
         fdapde_assert(y().rows() != 0); // what is this?
-        std::cout << "assert" << std::endl;
-
-        DVector<double> x_new = DMatrix<double>::Zero(2*m_*n_basis(), 1); // queste dimensioni boh
-        std::cout << "x_new" << std::endl;
         
-        b_.block(0, 0, m_*n_basis(), 1) = -mPsiTD() * lmbQ(y()); // questo dà problemi - controllare dimensioni
-        std::cout << "b_block" << std::endl;
+
+        DVector<double> x_new = DMatrix<double>::Zero(2*n_basis()*m_, 1); // queste dimensioni boh
+        
+        b_.block(0, 0, n_basis()*m_, 1) = -mPsiTD() * lmbQ(y()); // questo dà problemi - controllare dimensioni
+        
         // U_ = DMatrix<double>::Zero(2*m_*n_basis(), q());
         // V_ = DMatrix<double>::Zero(q(), 2*m_*n_basis());
         
         // U_.block(0, 0, m_* n_basis(), q()) = mPsiTD()  * X(); // * W() * X(); / SE salvo X_i, V_i POSSO implementare direttamente U_i ?!
         // V_.block(0, 0, q(), m_ * n_basis()) = X().transpose() * mPsi(); // / SE salvo X_i, V_i POSSO implementare direttamente V_i?!
         
-        DVector<double> x_old = x_new;  
-        std::cout << "xold" << std::endl;
+        DVector<double> x_old = x_new; 
         DVector<double> r = b_;//DMatrix<double>::Zero(2*m_*n_basis(), 1); 
-        std::cout << "r" << std::endl;
         double Jnew;
         double Jold;
         
@@ -627,10 +637,10 @@ class MixedSRPDE<SpaceOnly,iterative> : public RegressionBase<MixedSRPDE<SpaceOn
         //fdapde::SparseLU<SpMatrix<double>> invP {};   
         DVector<double> bi = DMatrix<double>::Zero(2*n_basis(), 1);
         DVector<double> xi0; 
-        DVector<double> f0; 
-        DVector<double> g0; 
-        f0 = DMatrix<double>::Zero(m_*n_basis(), 1); // qui m_*n_basis sarebbe la somma di n_basis
-        g0 = DMatrix<double>::Zero(m_*n_basis(), 1);
+        // DVector<double> f0; 
+        // DVector<double> g0; 
+        // f0 = DMatrix<double>::Zero(n_basis()*m_, 1); // qui m_*n_basis sarebbe la somma di n_basis
+        // g0 = DMatrix<double>::Zero(n_basis()*m_, 1);
         
         // P R^{2 n_basis() x 2 n_basis()} NO COVARIATE
         /*
@@ -649,9 +659,9 @@ class MixedSRPDE<SpaceOnly,iterative> : public RegressionBase<MixedSRPDE<SpaceOn
 
         DMatrix<double> U_i = DMatrix<double>::Zero(2*n_basis(), q());
         DMatrix<double> V_i = DMatrix<double>::Zero(q(), 2*n_basis());
-       std::cout << "U,V" << std::endl;
         
-        auto _start = std::chrono::high_resolution_clock::now();           
+        auto _start = std::chrono::high_resolution_clock::now();   
+        
         for (std::size_t i = 0; i < m_; i++){
 
             std::chrono::duration<double> duration = std::chrono::high_resolution_clock::now() - start;
@@ -682,9 +692,9 @@ class MixedSRPDE<SpaceOnly,iterative> : public RegressionBase<MixedSRPDE<SpaceOn
 
             // solve system (A_ + U_*(X^T*W_*X)*V_)x = b using woodbury formula from linear_algebra module
             xi0 = SMW<>().solve(invP_, U_i, XtWX(), V_i, bi);
-          
-            x_new.block(i*n_basis(i),0, n_basis(i),1) = xi0.head(n_basis(i));
-            x_new.block((i+m_)*n_basis(i),0, n_basis(i),1) = xi0.tail(n_basis(i)); 
+
+            x_new.block(i*n_basis(), 0, n_basis(i),1) = xi0.head(n_basis(i));
+            x_new.block((i+m_)*n_basis(),0, n_basis(i),1) = xi0.tail(n_basis(i)); 
            
             // computation of r^{0} = b - Ax^{0} (residual at k=0)
             // r.block(i*n_basis(i),0,bi.rows(),1) = bi - P_*xi0;
@@ -697,13 +707,15 @@ class MixedSRPDE<SpaceOnly,iterative> : public RegressionBase<MixedSRPDE<SpaceOn
                                                                                                 lambda_D() * pde_.mass() * xi0.tail(n_basis(i)) ); 
             */
             
-            r.block(i*n_basis(i),0, n_basis(i),1) -=   ((-PsiTD_[i]* Psi_[i]) * xi0.head(n_basis(i)) +
+            r.block(n_basis()*i,0, n_basis(i),1) -=   ((-PsiTD_[i]* Psi_[i]) * xi0.head(n_basis(i)) +
                                            			  lambda_D()*pde_.stiff().transpose()*xi0.tail(n_basis(i)));
-                                                                         
+  
             // correzione cov fuori
-            r.block((i+m_)*n_basis(i),0, n_basis(i),1) -= (lambda_D()*pde_.stiff()*xi0.head(n_basis(i)) +
+            r.block(n_basis()*(m_+i),0, n_basis(i),1) -= (lambda_D()*pde_.stiff()*xi0.head(n_basis(i)) +
                                                           lambda_D()*pde_.mass()*xi0.tail(n_basis(i)) );
-            // if cov ... RIGA SOTTO SBAGLIATA.                                              
+        
+            // if cov ... RIGA SOTTO SBAGLIATA.                                        
+    
          //r.block(i*n_basis(i),0, n_basis(i), 1) -= Psi_.transpose()*lmbH(Psi_*xi0.head(n_basis(i)), i); // correzione per cov
         }
 		
@@ -714,8 +726,9 @@ class MixedSRPDE<SpaceOnly,iterative> : public RegressionBase<MixedSRPDE<SpaceOn
 		// if cov AGGIORNAMNETO COV
 		
 		_start = std::chrono::high_resolution_clock::now();
+        
 		for(std::size_t i = 0; i < m_; i++){
-			r.block(i*n_basis(i),0, n_basis(i), 1) -= aux(x_new, i); 
+			r.block(i*n_basis(),0, n_basis(), 1) -= aux(x_new, i); 
 		}
 	
 		_duration = std::chrono::high_resolution_clock::now() - _start;
@@ -725,7 +738,9 @@ class MixedSRPDE<SpaceOnly,iterative> : public RegressionBase<MixedSRPDE<SpaceOn
         // store result of smoothing
         f_ = x_new.head(m_*n_basis()); // f0        
         g_ = x_new.tail(m_*n_basis()); // g0
+
         beta_ = invXtWX().solve(X().transpose() * (y() - mPsi() * f_)); 
+        
         beta_coeff_ = F_*beta_;
         alpha_coeff_ = T_*beta_.tail(m_*p); 
         
@@ -762,24 +777,25 @@ class MixedSRPDE<SpaceOnly,iterative> : public RegressionBase<MixedSRPDE<SpaceOn
         while (k < max_iter_ && !exit_) /* ischia pag 25 */ {
             
             auto __start = std::chrono::high_resolution_clock::now();
+            
             for(std::size_t i = 0; i < m_; i++){
                     
                    // bi = DMatrix<double>::Zero(P_.rows(), 1);
                     
                     // valutare implementazione di lmbQ(yi)
-                    bi.block(0,0,n_basis(i),1) = r.block(i*n_basis(), 0, n_basis(i), 1) ; 
-                    bi.block(n_basis(i), 0, n_basis(i), 1) = r.block( (i+m_)*n_basis(), 0, n_basis(i), 1) ;
+                    bi.block(0,0,n_basis(),1) = r.block(i*n_basis(), 0, n_basis(), 1) ; 
+                    bi.block(n_basis(), 0, n_basis(), 1) = r.block( i*n_basis() + n_basis(), 0, n_basis(), 1) ;
                     
                     //DMatrix<double> U_i = DMatrix<double>::Zero(2*n_basis(), q());
                     //DMatrix<double> V_i = DMatrix<double>::Zero(q(), 2*n_basis());
                     
                     // U_i.block(0, 0, n_basis(i), q()) = U_.block(i*n_basis(i), 0, n_basis(i), q()); // GUARDA SU - come prima
                     // V_i.block(0, 0, q(), n_basis(i)) = V_.block(0, i*n_basis(i), q(), n_basis(i)); // GUARDA SU - come prima
-                    U_i.block(0, p+i*qV, n_basis(i), qV ) = PsiTD_[i]*Vp(i);
-                    U_i.block(0, 0, n_basis(i), p) = PsiTD_[i]*Wg(i);
+                    U_i.block(0, p+i*qV, n_basis(), qV ) = PsiTD_[i]*Vp(i);
+                    U_i.block(0, 0, n_basis(), p) = PsiTD_[i]*Wg(i);
 
-                    V_i.block(0, 0, p, n_basis(i)) =  Wg(i).transpose()*Psi_[i];
-                    V_i.block(p+i*qV, 0, qV, n_basis(i)) = Vp(i).transpose()*Psi_[i]; 
+                    V_i.block(0, 0, p, n_basis()) =  Wg(i).transpose()*Psi_[i];
+                    V_i.block(p+i*qV, 0, qV, n_basis()) = Vp(i).transpose()*Psi_[i]; 
 
                     // solve system (A_ + U_*(X^T*W_*X)*V_)x = b using woodbury formula from linear_algebra module
                     auto ___start = std::chrono::high_resolution_clock::now();
@@ -788,21 +804,22 @@ class MixedSRPDE<SpaceOnly,iterative> : public RegressionBase<MixedSRPDE<SpaceOn
         	std::cout << "-			costo SMW/unita: " << 
         											___duration.count() << std::endl;
                     
-                    x_new.block(i*n_basis(i),0, n_basis(i),1) += alpha(k)*zi.head(n_basis(i));  
-                    x_new.block((i+m_)*n_basis(i),0, n_basis(i),1) += alpha(k)*zi.tail(n_basis(i));
+                    x_new.block(n_basis(),0, n_basis(),1) += alpha(k)*zi.head(n_basis());  
+                    x_new.block(n_basis()*(m_+i),0, n_basis(),1) += alpha(k)*zi.tail(n_basis());
                     
-                    r.block(i*n_basis(i),0, n_basis(i),1) -=  alpha(k) * ((-PsiTD_[i]* Psi_[i]) * zi.head(n_basis(i)) +
-                                                                         lambda_D()*pde_.stiff().transpose()*zi.tail(n_basis(i)));
+                    r.block(n_basis(),0, n_basis(),1) -=  alpha(k) * ((-PsiTD_[i]* Psi_[i]) * zi.head(n_basis()) +
+                                                                         lambda_D()*pde_.stiff().transpose()*zi.tail(n_basis()));
                                                                          
                     // correzione cov fuori
                     
-                    r.block((i+m_)*n_basis(i),0, n_basis(i),1) -= alpha(k)*(lambda_D()*pde_.stiff()*zi.head(n_basis(i)) +
-                                                                            lambda_D()*pde_.mass()*zi.tail(n_basis(i)) );
+                    r.block(n_basis()*(m_+i),0, n_basis(),1) -= alpha(k)*(lambda_D()*pde_.stiff()*zi.head(n_basis()) +
+                                                                            lambda_D()*pde_.mass()*zi.tail(n_basis()) );
                     
-                    z.block(i*n_basis(i),0, n_basis(i),1) = zi.head(n_basis(i));  
-                    z.block((i+m_)*n_basis(i),0, n_basis(i),1) = zi.tail(n_basis(i)); 
+                    z.block(i*n_basis(),0, n_basis(i),1) = zi.head(n_basis());  
+                    z.block(n_basis()*(m_+i),0, n_basis(),1) = zi.tail(n_basis()); 
                 	// prova RIGA SOTTO SBAGLIATA
                 	//r.block((i+m_)*n_basis(i),0, n_basis(i), 1) -= alpha(k) * Psi_.transpose()*lmbH(Psi_*zi.head(n_basis(i)), i);
+                    
             }
             std::chrono::duration<double> __duration = std::chrono::high_resolution_clock::now() - __start;
         	std::cout << "-		costo singola iter: " << __duration.count() << std::endl;
@@ -821,8 +838,8 @@ class MixedSRPDE<SpaceOnly,iterative> : public RegressionBase<MixedSRPDE<SpaceOn
                 r.block(i*n_basis(i),0, n_basis(i),1) -= (U_i * XtWX() * (U_.transpose() * x_new.head(m_* n_basis())) );
             }
             */
-            f_ = x_new.topRows(m_*n_basis());
-            g_ = x_new.bottomRows(m_*n_basis());
+            f_ = x_new.topRows(n_basis()*m_);
+            g_ = x_new.bottomRows(n_basis()*m_);
        
        		__start = std::chrono::high_resolution_clock::now();
             beta_ = invXtWX().solve(X().transpose() * (y() - mPsi() * f_)); 
@@ -839,7 +856,10 @@ class MixedSRPDE<SpaceOnly,iterative> : public RegressionBase<MixedSRPDE<SpaceOn
             //r.block(0, 0, m_*n_basis(), 1) -= alpha(k) * mPsi().transpose()*lmbH(mPsi()*z.head(m_*n_basis())); // correzione per cov
             
             // AGGIORNAMENTO per COV
-            for(std::size_t i = 0; i < m_; i++) r.block(i*n_basis(i),0, n_basis(i), 1) -= aux(z, i); 
+            
+            for(std::size_t i = 0; i < m_; i++) {
+                r.block(i*n_basis(),0, n_basis(), 1) -= aux(z, i); 
+            }
             
             Jold = Jnew;
             Jnew = J(f_,g_);
@@ -915,10 +935,43 @@ class MixedSRPDE<SpaceOnly,iterative> : public RegressionBase<MixedSRPDE<SpaceOn
     const DMatrix<double>& Wg(std::size_t i) const { return data_[i].template get<double>(W_BLOCK); } 
     const DMatrix<double>& Vp(std::size_t i) const { return data_[i].template get<double>(V_BLOCK); } 
     const DMatrix<double>& y(std::size_t i) const { return data_[i].template get<double>(Y_BLOCK); } 
+
+    const DMatrix<double> y() const {  // sistemare
+        DMatrix<double> yps;
+        yps.resize(N,1);
+        int sum = 0;
+        for(std::size_t i=0; i<m_; i++){
+            yps.block(sum,0,n_locs(i),1) = data_[i].template get<double>(Y_BLOCK);
+            sum += n_locs(i);
+        }
+        return yps; 
+    } 
     const DMatrix<double>& locs(std::size_t i) const { return data_[i].template get<double>(LOCS_BLOCK); } 
     // const DMatrix<double>& Vp() const { return df_.template get<double>(MIXED_EFFECTS_BLK); } 
 
-    const SpMatrix<double> mPsi() const { return Kronecker(I_, Psi_[0]); } // DA SISTEMARE !!
+    const SpMatrix<double> mPsi() const { 
+        SpMatrix<double> mpsi;
+        mpsi.resize(N, n_basis()*m_);
+        std::vector<fdapde::Triplet<double>> triplet_list;
+        triplet_list.reserve(N);
+        std::size_t sum_row = 0;
+        std::size_t sum_col = 0;
+        for (std::size_t i = 0; i < m_; ++i){
+            // for (SpMatrix<double> value : Psi_) {
+            for(std::size_t k = 0; k < Psi_[i].outerSize(); k++){
+                for (SpMatrix<double>::InnerIterator it(Psi_[i],k); it; ++it){
+                    triplet_list.emplace_back(sum_row + it.row(), sum_col + it.col(), it.value());
+                }
+            }
+            sum_row += n_locs(i);
+            sum_col += n_basis();
+        } 
+        
+        mpsi.setFromTriplets(triplet_list.begin(), triplet_list.end());
+        mpsi.makeCompressed();
+
+        return mpsi;
+    }
 
     const SpMatrix<double> mPsiTD() const { return Kronecker(I_, PsiTD_[0]); }  // DA SISTEMARE !!!
     
