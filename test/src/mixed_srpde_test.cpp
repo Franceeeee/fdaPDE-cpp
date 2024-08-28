@@ -139,6 +139,15 @@ TEST(mixed_srpde_test, cento_iter) {
     
     DMatrix<double> f_estimate = read_csv<double>("../data/models/mixed_srpde/2D_test1/" + 
     												 meshID + policyID + locsID + "f_hat.csv");
+
+
+    std::ofstream output("f.csv");
+
+    DMatrix<double> data1 = model.f();
+    for(std::size_t i = 0; i < data1.size(); ++i){
+        output << data1(i) << "\n";
+    }
+    output.close();
     
     std::cout << "Iterative: " << (model.f() - f_estimate ).array().abs().maxCoeff() << std::endl;
     EXPECT_TRUE(  (model.f() - f_estimate ).array().abs().maxCoeff() < 1e-6 );
