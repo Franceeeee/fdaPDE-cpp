@@ -482,7 +482,7 @@ class MixedSRPDE<SpaceOnly,iterative> : public RegressionBase<MixedSRPDE<SpaceOn
         std::cout << "b_: " << b_.rows() << "x" << b_.cols() << std::endl;
         std::cout << "head: " << b_[0] << ", " << b_[1] << ", " << b_[2] << ", " << b_[3] << ", " << b_[4] << ", " << b_[5] << std::endl;
               
-        DVector<double> x_old = x_new; 
+        //DVector<double> x_old = x_new; 
         DVector<double> r = b_; //DMatrix<double>::Zero(2*m_*n_basis(), 1);
         double Jnew;
         double Jold;
@@ -653,8 +653,8 @@ class MixedSRPDE<SpaceOnly,iterative> : public RegressionBase<MixedSRPDE<SpaceOn
                     bi.block(0,0,n_basis(),1) = r.block(i*n_basis(), 0, n_basis(), 1) ; 
                     bi.block(n_basis(), 0, n_basis(), 1) = r.block( i*n_basis() + n_basis(), 0, n_basis(), 1) ;
                     
-                    U_i.block(0, p+i*qV, n_basis(), qV ) = PsiTD_[i]*Vp(i);
                     U_i.block(0, 0, n_basis(), p) = PsiTD_[i]*Wg(i);
+                    U_i.block(0, p+i*qV, n_basis(), qV ) = PsiTD_[i]*Vp(i);
 
                     V_i.block(0, 0, p, n_basis()) =  Wg(i).transpose()*Psi_[i];
                     V_i.block(p+i*qV, 0, qV, n_basis()) = Vp(i).transpose()*Psi_[i]; 
@@ -709,7 +709,7 @@ class MixedSRPDE<SpaceOnly,iterative> : public RegressionBase<MixedSRPDE<SpaceOn
             Jcheck =  std::abs((Jnew-Jold)/Jnew) < tol_;
             exit_ = Jcheck && rcheck;
 
-            x_old = x_new;
+            //x_old = x_new;
             k++;
 
         }
