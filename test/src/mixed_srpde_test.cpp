@@ -54,7 +54,7 @@ TEST(mixed_srpde_test, mille_mono) {
     data.resize(n_patients);
 
     // define domain 
-    std::string meshID = "c_shaped_2";
+    std::string meshID = "c_shaped_1";
     std::string policyID = "monolithic/";
     std::string locsID = "1000/";
     MeshLoader<Mesh2D> domain(meshID);
@@ -72,13 +72,14 @@ TEST(mixed_srpde_test, mille_mono) {
 
         data[i].read_csv<double>(W_BLOCK, "../data/models/mixed_srpde/2D_test1/" + meshID + policyID + locsID + Wname + ".csv");
         std::cout << Wname << " read and imported" << std::endl;
-        std::cout << "dimension: " << data[i].template get<double>(W_BLOCK).rows() << "x" << data[i].template get<double>(W_BLOCK).cols();
+        std::cout << "dimension: " << data[i].template get<double>(W_BLOCK).rows() << "x" << data[i].template get<double>(W_BLOCK).cols() << std::endl;
         data[i].read_csv<double>(V_BLOCK, "../data/models/mixed_srpde/2D_test1/" + meshID + policyID + locsID + Vname + ".csv");
         std::cout << Vname << " read and imported" << std::endl;
         data[i].read_csv<double>(Y_BLOCK, "../data/models/mixed_srpde/2D_test1/" + meshID + policyID + locsID + yname + ".csv");
         std::cout << locsname << " read and imported" << std::endl;
         data[i].read_csv<double>(LOCS_BLOCK, "../data/models/mixed_srpde/2D_test1/" + meshID + policyID + locsID + locsname + ".csv");
         std::cout << yname << " read and imported" << std::endl;
+        std::cout << "nlocs col: " << data[i].template get<double>(LOCS_BLOCK).cols() << std::endl;
 
     }
 
@@ -137,6 +138,14 @@ TEST(mixed_srpde_test, mille_mono) {
     
     DMatrix<double> f_estimate = read_csv<double>("../data/models/mixed_srpde/2D_test1/" + 
     												 meshID + policyID + locsID + "f_hat.csv");
+
+    // printing model.f() on a csv file
+    std::ofstream output("f_mono.csv");
+    DMatrix<double> data2 = model.f();
+    for(std::size_t i = 0; i < data2.size(); ++i){
+        output << data2(i) << "\n";
+    }
+    output.close();
     
     std::cout << "Monolithic: " << (model.f() - f_estimate ).array().abs().maxCoeff() << std::endl;
     EXPECT_TRUE(  (model.f() - f_estimate ).array().abs().maxCoeff() < 1e-6 );
@@ -146,7 +155,7 @@ TEST(mixed_srpde_test, mille_mono) {
 TEST(mixed_srpde_test, mille_iter) {
     // define domain 
     std::size_t n_patients = 3;
-    std::string meshID = "c_shaped_2";
+    std::string meshID = "c_shaped_1";
     std::string policyID = "richardson/";
     std::string locsID = "1000/";
     MeshLoader<Mesh2D> domain(meshID);
@@ -171,6 +180,7 @@ TEST(mixed_srpde_test, mille_iter) {
         std::string yname = "observations_" + std::to_string(i+1);
 
         data[i].read_csv<double>(W_BLOCK, "../data/models/mixed_srpde/2D_test1/" + meshID + policyID + locsID + Wname);
+        std::cout << Wname << ": " << data[i].template get<double>(W_BLOCK)(0) << ", " << data[i].template get<double>(W_BLOCK)(1) << ", " << data[i].template get<double>(W_BLOCK)(2) << std::endl;
         data[i].read_csv<double>(V_BLOCK, "../data/models/mixed_srpde/2D_test1/" + meshID + policyID + locsID + Vname + ".csv");
         data[i].read_csv<double>(Y_BLOCK, "../data/models/mixed_srpde/2D_test1/" + meshID + policyID + locsID + yname + ".csv");
         data[i].read_csv<double>(LOCS_BLOCK, "../data/models/mixed_srpde/2D_test1/" + meshID + policyID + locsID + locsname + ".csv");
@@ -214,12 +224,18 @@ TEST(mixed_srpde_test, mille_iter) {
 
 
     // printing model.f() on a csv file
-    std::ofstream output("f.csv");
+    std::ofstream output("f_iter.csv");
     DMatrix<double> data1 = model.f();
     for(std::size_t i = 0; i < data1.size(); ++i){
         output << data1(i) << "\n";
     }
     output.close();
+
+    std::ofstream output1("W_iter.csv");
+    for(std::size_t i = 0; i < data.size(); ++i){
+        output1 << data[i].template get<double>(W_BLOCK) << "\n";
+    }
+    output1.close();
     
     std::cout << "Iterative: " << (model.f() - f_estimate ).array().abs().maxCoeff() << std::endl;
     EXPECT_TRUE(  (model.f() - f_estimate ).array().abs().maxCoeff() < 1e-6 );
