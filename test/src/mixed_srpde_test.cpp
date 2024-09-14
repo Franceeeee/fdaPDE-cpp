@@ -89,7 +89,6 @@ TEST(mixed_srpde_test, mille_mono) {
     MixedSRPDE<SpaceOnly,monolithic> model(problem, Sampling::pointwise);
 
     model.set_lambda_D(lambda);
-    model.set_spatial_locations(data[0].template get<double>(LOCS_BLOCK));
 
     model.set_data(data);
     model.set_N(sum);
