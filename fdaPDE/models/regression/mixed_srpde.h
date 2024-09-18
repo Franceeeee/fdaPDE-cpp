@@ -231,7 +231,7 @@ class MixedSRPDE<SpaceOnly,monolithic> : public RegressionBase<MixedSRPDE<SpaceO
 
         if (runtime().query(runtime_status::require_W_update)) {
             // adjust north-west block of matrix A_ only
-            A_.block(0, 0) = -mPsiTD_ * mPsi_;      // W() problemi . 
+            A_.block(0, 0) = -mPsiTD_ * W_ * mPsi_;      // W() problemi . 
             invA_.compute(A_);
             return;
         }
@@ -253,13 +253,13 @@ class MixedSRPDE<SpaceOnly,monolithic> : public RegressionBase<MixedSRPDE<SpaceO
 
         // parametric case
         // update rhs of SR-PDE linear system
-        b_.block(0, 0, m_*n_basis(), 1) = -mPsiTD_ * lmbQ(y_);   // -\Psi^T*D*Q*z
+        b_.block(0, 0, m_*n_basis(), 1) = -mPsiTD_ * W_ * lmbQ(y_);   // -\Psi^T*D*Q*z
         
         // matrices U and V for application of woodbury formula
         U_ = DMatrix<double>::Zero(2 * m_ * n_basis(), q());
-        U_.block(0, 0, m_* n_basis(), q()) = mPsiTD_ * X_; // * W() * X();
+        U_.block(0, 0, m_* n_basis(), q()) = mPsiTD_ * W_ * X_; // * W() * X();
         V_ = DMatrix<double>::Zero(q(), 2 * m_ * n_basis());
-        V_.block(0, 0, q(), m_ * n_basis()) = X_.transpose() * mPsi_; // W() * mPsi()
+        V_.block(0, 0, q(), m_ * n_basis()) = X_.transpose() * W_ * mPsi_; // W() * mPsi()
 
         // solve system (A_ + U_*(X^T*W_*X)*V_)x = b using woodbury formula from linear_algebra module
         sol = SMW<>().solve(invA_, U_, XtWX_, V_, b_);
@@ -267,7 +267,7 @@ class MixedSRPDE<SpaceOnly,monolithic> : public RegressionBase<MixedSRPDE<SpaceO
         // store result of smoothing
         f_ = sol.head(m_*n_basis());
         // beta_ = invXtWX().solve(X().transpose() ) * (y_ - mPsi_ * f_); // X().transpose() * W()
-        beta_ = invXtWX_.solve(X_.transpose() * (y_ - mPsi_ * f_)); 
+        beta_ = invXtWX_.solve(X_.transpose() * W_ * (y_ - mPsi_ * f_)); 
 
         beta_coeff_ = F_*beta_;
         alpha_coeff_ = T_*beta_.tail(m_*p); 
