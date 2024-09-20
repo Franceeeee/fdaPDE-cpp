@@ -14,12 +14,19 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
+#include <iostream>
+#include <vector>
+#include <string>
+#include <random>
+#include <cmath>
 #include <cstddef>
 #include <gtest/gtest.h>   // testing framework
 #include <fstream>
 #include <sstream>
 #include <chrono> 
 #include <filesystem>
+#include <limits>
+
 
 #include <fdaPDE/core.h>
 using fdapde::core::advection;
@@ -46,19 +53,183 @@ using fdapde::testing::almost_equal;
 using fdapde::testing::MeshLoader;
 using fdapde::testing::read_csv;
 
+// Lambda function per la valutazione delle covariate
+auto lambda_cov = [](double x, double y) {
+    return 2.0 * x + 3.0 * y;  // Dummy function for covariate
+};
+
+// Lambda function per la parte non parametrica
+auto lambda_np = [](double x, double y) {
+    return std::sin(x * y);  // Dummy non-parametric function
+};
+
+// Funzione per scrivere in CSV
+void write_to_csv(const std::string& filename, const std::vector<std::vector<double>>& data) {
+    std::ofstream file(filename);
+    for (const auto& row : data) {
+        for (size_t i = 0; i < row.size(); ++i) {
+            if (std::isnan(row[i])) {
+                file << "NaN";  // Scrive "NA" nel file se il valore è NaN
+            } else {
+                file << row[i];
+            }
+            if (i < row.size() - 1) {
+                file << ",";
+            }
+        }
+        file << "\n";
+    }
+    file.close();
+}
+
+// Funzione per generare punti casuali nel quadrato unitario [0, 1] x [0, 1]
+std::vector<std::vector<double>> generate_random_points(int n_points, std::mt19937& gen) {
+    std::uniform_real_distribution<> dis(0.0, 1.0);
+    std::vector<std::vector<double>> points(n_points, std::vector<double>(2));
+
+    for (int i = 0; i < n_points; ++i) {
+        points[i][0] = dis(gen);  // x
+        points[i][1] = dis(gen);  // y
+    }
+
+    return points;
+}
+
+// Funzione per creare una maschera di NA basata sulla percentuale
+std::vector<bool> create_na_mask(int size, double na_percentage, std::mt19937& gen) {
+    std::vector<bool> mask(size, false);  // Inizializza la maschera senza NA (false)
+    
+    int num_na = static_cast<int>(std::round(size * na_percentage));  // Numero di NA da inserire
+    std::uniform_int_distribution<> dis(0, size - 1);
+    
+    // Imposta randomicamente i valori della maschera a true per indicare NA
+    for (int i = 0; i < num_na; ++i) {
+        int index;
+        do {
+            index = dis(gen);  // Genera un indice casuale
+        } while (mask[index]);  // Assicura che non venga scelto due volte lo stesso indice
+        mask[index] = true;
+    }
+    
+    return mask;
+}
+
+// Funzione per generare dati per un singolo paziente
+void generate_data_for_patient(int patient_id, const std::vector<double>& a, const std::vector<double>& b, int n_obs, std::mt19937& gen, const std::string& output_dir, double na_percentage) {
+    // Genera i punti casuali nel quadrato unitario
+    std::vector<std::vector<double>> locs = generate_random_points(n_obs, gen);
+    
+    // Matrici W, V e vettore delle osservazioni y
+    std::vector<std::vector<double>> W(n_obs, std::vector<double>(a.size()));
+    std::vector<std::vector<double>> V(n_obs, std::vector<double>(b.size()));
+    std::vector<std::vector<double>> observations(n_obs, std::vector<double>(1));
+    std::vector<std::vector<double>> true_values(n_obs, std::vector<double>(1)); // Salviamo le osservazioni corrette (senza rumore)
+    
+    // Distribuzione per generare le covariate
+    std::uniform_real_distribution<> dis(0.0, 1.0);
+    std::normal_distribution<> noise_dist(0.0, 0.1); // Rumore gaussiano con media 0 e deviazione standard 0.1
+    
+    // Per ogni osservazione, calcoliamo W, V e y
+    for (int i = 0; i < n_obs; ++i) {
+        double y = 0.0;
+
+        // Genera W e V tramite sampling
+        for (size_t j = 0; j < a.size(); ++j) {
+            double cov_value = lambda_cov(locs[i][0], locs[i][1]); // Usa le coordinate delle locazioni
+            W[i][j] = cov_value; 
+            y += W[i][j] * a[j];
+        }
+        for (size_t j = 0; j < b.size(); ++j) {
+            double cov_value = lambda_cov(locs[i][0], locs[i][1]); // Usa le coordinate delle locazioni
+            V[i][j] = cov_value;
+            y += V[i][j] * b[j];
+        }
+
+        // Aggiungi la parte non parametrica f(p)
+        double f_value = lambda_np(locs[i][0], locs[i][1]);
+        y += f_value;
+
+        // Salva l'osservazione corretta
+        true_values[i][0] = y;
+
+        // Aggiungi rumore all'osservazione
+        observations[i][0] = y + noise_dist(gen);
+    }
+
+    // Crea una maschera di NA
+    std::vector<bool> na_mask = create_na_mask(n_obs, na_percentage, gen);
+
+    // Applica la maschera di NA a observations e true_values
+    for (int i = 0; i < n_obs; ++i) {
+        if (na_mask[i]) {
+            observations[i][0] = std::numeric_limits<double>::quiet_NaN();  // Imposta il valore a NaN
+            true_values[i][0] = std::numeric_limits<double>::quiet_NaN();   // Imposta il valore a NaN anche in f_hat
+        }
+    }
+
+
+    // Salva W, V, locazioni, osservazioni e f_hat in CSV
+    write_to_csv(output_dir + "W_" + std::to_string(patient_id) + ".csv", W);
+    write_to_csv(output_dir + "V_" + std::to_string(patient_id) + ".csv", V);
+    write_to_csv(output_dir + "locs_" + std::to_string(patient_id) + ".csv", locs);
+    write_to_csv(output_dir + "observations_" + std::to_string(patient_id) + ".csv", observations);
+    write_to_csv(output_dir + "f_hat" + std::to_string(patient_id) + ".csv", {true_values}); // Salva le osservazioni corrette
+}
+
+// Funzione principale per gestire più pazienti
+void generate_data_for_all_patients(int num_patients, const std::vector<double>& a, const std::vector<double>& b, const std::string& output_dir, int seed, double na_percentage) {
+    // Imposta il generatore casuale con il seed specificato
+    std::mt19937 gen(seed);
+    
+    // Distribuzione normale per il numero di osservazioni per ciascun paziente
+    std::normal_distribution<> obs_dist(1000.0, 300.0);
+    
+    for (int patient_id = 1; patient_id <= num_patients; ++patient_id) {
+        // Campiona il numero di osservazioni per questo paziente
+        int n_obs = std::round(obs_dist(gen));
+        
+        // Assicuriamoci che n_obs sia almeno 1
+        if (n_obs < 1) n_obs = 1;
+
+        std::cout << "Generando dati per il paziente " << patient_id << " con " << n_obs << " osservazioni.\n";
+        
+        // Genera i dati per il paziente corrente
+        generate_data_for_patient(patient_id, a, b, n_obs, gen, output_dir, na_percentage);
+    }
+}
+
 // test monolitico
 TEST(mixed_srpde_test, mille_mono) {
 
-    std::size_t n_patients = 3;
+    // Definisci i coefficienti
+    std::vector<double> a = {2.0, -1.5};  // Coefficienti per W
+    std::vector<double> b = {0.5, 1.2};   // Coefficienti per V
+    
+    // Numero di pazienti
+    int num_patients = 2;
+
+    // Percentuale di NA
+    double na_percentage = 0.1;  // Percentuale di valori NA (10%)
+
+    // Seed casuale
+    int seed = 1234;  // Specifica il seed
+
+    std::size_t n_patients = num_patients;
     std::vector<BlockFrame<double, int>> data;
     data.resize(n_patients);
 
     // define domain 
-    std::string meshID = "c_shaped_1";
+    std::string meshID = "unit_square";
     std::string policyID = "monolithic/";
     std::string locsID = "1000/";
     MeshLoader<Mesh2D> domain(meshID);
     meshID = meshID + "/"; 
+
+    // Output directory
+    std::string output_dir = "../data/models/mixed_srpde/2D_test2/" + meshID + policyID + locsID;
+
+    // Genera dati per tutti i pazienti
+    generate_data_for_all_patients(num_patients, a, b, output_dir, seed, na_percentage);
 
     // import data from files
     for(std::size_t i = 0; i<n_patients; i++){
@@ -66,10 +237,10 @@ TEST(mixed_srpde_test, mille_mono) {
         std::string Vname = "V_" + std::to_string(i+1);
         std::string locsname = "locs_" + std::to_string(i+1);
         std::string yname = "observations_" + std::to_string(i+1);
-        data[i].read_csv<double>(W_BLOCK, "../data/models/mixed_srpde/2D_test1/" + meshID + policyID + locsID + Wname + ".csv");
-        data[i].read_csv<double>(V_BLOCK, "../data/models/mixed_srpde/2D_test1/" + meshID + policyID + locsID + Vname + ".csv");
-        data[i].read_csv<double>(Y_BLOCK, "../data/models/mixed_srpde/2D_test1/" + meshID + policyID + locsID + yname + ".csv");
-        data[i].read_csv<double>(LOCS_BLOCK, "../data/models/mixed_srpde/2D_test1/" + meshID + policyID + locsID + locsname + ".csv");
+        data[i].read_csv<double>(W_BLOCK, "../data/models/mixed_srpde/2D_test2/" + meshID + policyID + locsID + Wname + ".csv");
+        data[i].read_csv<double>(V_BLOCK, "../data/models/mixed_srpde/2D_test2/" + meshID + policyID + locsID + Vname + ".csv");
+        data[i].read_csv<double>(Y_BLOCK, "../data/models/mixed_srpde/2D_test2/" + meshID + policyID + locsID + yname + ".csv");
+        data[i].read_csv<double>(LOCS_BLOCK, "../data/models/mixed_srpde/2D_test2/" + meshID + policyID + locsID + locsname + ".csv");
     }
 
     // define regularizing PDE
@@ -97,7 +268,7 @@ TEST(mixed_srpde_test, mille_mono) {
     model.init();
     model.solve();
     
-    DMatrix<double> f_estimate = read_csv<double>("../data/models/mixed_srpde/2D_test1/" + 
+    DMatrix<double> f_estimate = read_csv<double>("../data/models/mixed_srpde/2D_test2/" + 
     												 meshID + policyID + locsID + "f_hat.csv");
 
     std::cout << "Monolithic: " << (model.f() - f_estimate ).array().abs().maxCoeff() << std::endl;
