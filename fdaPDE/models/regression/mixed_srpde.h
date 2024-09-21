@@ -108,7 +108,6 @@ class MixedSRPDE<SpaceOnly,monolithic> : public RegressionBase<MixedSRPDE<SpaceO
     }
 
     void init_X() {
-
         set_n_locs_cum();
 
         m_ = data_.size();                                             // m_: number of patients
@@ -180,14 +179,14 @@ class MixedSRPDE<SpaceOnly,monolithic> : public RegressionBase<MixedSRPDE<SpaceO
             for (std::size_t k = 0; k < n_locs(i); ++k) {
                 if (nan_mask_(n_locs_cum[i]+k, 0)) {           
                     for (Eigen::SparseMatrix<double>::InnerIterator it(PsiTD_[i], k); it; ++it) {
-                        it.valueRef() = 0; 
-                        std::cout << "(" << it.row() << ", " << it.col() << ") -> " << it.value() << std::endl;  
+                        it.valueRef() = 0;  
                     }
                 }
             }
             PsiTD_[i].prune(0.0);
             Psi_[i] = PsiTD_[i].transpose();
         }
+
         return;
     }
     
@@ -200,7 +199,7 @@ class MixedSRPDE<SpaceOnly,monolithic> : public RegressionBase<MixedSRPDE<SpaceO
         // Kronecker products with the identity
         make_mPsi(); 
         mPsiTD_ = mPsi_.transpose();   
-        
+
         if (runtime().query(runtime_status::is_lambda_changed)) {
             
             auto start = std::chrono::high_resolution_clock::now();
@@ -241,6 +240,7 @@ class MixedSRPDE<SpaceOnly,monolithic> : public RegressionBase<MixedSRPDE<SpaceO
        DMatrix<double> v = X_.transpose() * W_ * x;             // X^\top*W*x
        DMatrix<double> z = invXtWX_.solve(v);                   // (X^\top*W*X)^{-1}*X^\top*W*x
        // compute W*x - W*X*z = W*x - (W*X*(X^\top*W*X)^{-1}*X^\top*W)*x = W(I - H)*x = Q*x
+       std::cout << z << std::endl;
        return W_ * x - W_ * X_ * z;
     }
 
