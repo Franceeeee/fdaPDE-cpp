@@ -157,8 +157,8 @@ void generate_data_for_all_patients(int num_patients, const std::vector<double>&
 // test monolitico
 TEST(mixed_srpde_test, mille_mono_automatico) {
 
-    std::vector<double> a = {2.0, -1.5};  // Coefficienti per W
-    std::vector<double> b = {0.5, 1.2};   // Coefficienti per V
+    std::vector<double> a = {3.0};  // Coefficienti per W
+    std::vector<double> b = {0.5};   // Coefficienti per V
    
     std::size_t n_patients = 4;
     double na_percentage = 0.1;  // percentuale di valori NA 
@@ -202,7 +202,7 @@ TEST(mixed_srpde_test, mille_mono_automatico) {
     // std::cout << "f_estimate done.\n";
     // define regularizing PDE
     auto L = -laplacian<FEM>();
-    DMatrix<double> u = DMatrix<double>::Zero(domain.mesh.n_elements() * n_patients, 1);
+    DMatrix<double> u = DMatrix<double>::Zero(domain.mesh.n_elements() * 3, 1);
     PDE<decltype(domain.mesh), decltype(L), DMatrix<double>, FEM, fem_order<1>> problem(domain.mesh, L, u);
 
     // define model
