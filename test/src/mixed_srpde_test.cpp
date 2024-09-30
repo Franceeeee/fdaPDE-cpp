@@ -160,7 +160,7 @@ TEST(mixed_srpde_test, mille_mono_automatico) {
     std::vector<double> a = {3.0};  // Coefficienti per W
     std::vector<double> b = {0.5};   // Coefficienti per V
    
-    std::size_t n_patients = 4;
+    std::size_t n_patients = 4; // per 4 o più pazienti non sembrano esserci errori numerici
     double na_percentage = 0.1;  // percentuale di valori NA 
     int seed = 1234; 
 
@@ -175,8 +175,16 @@ TEST(mixed_srpde_test, mille_mono_automatico) {
     MeshLoader<Mesh2D> domain(meshID);
     meshID = meshID + "/"; 
 
+    if(!std::filesystem::create_directory("../data/models/mixed_srpde/2D_test2/" + meshID))
+     std::filesystem::create_directory("../data/models/mixed_srpde/2D_test2/" + meshID);
+
+    if(!std::filesystem::create_directory("../data/models/mixed_srpde/2D_test2/" + meshID + policyID))
+     std::filesystem::create_directory("../data/models/mixed_srpde/2D_test2/" + meshID + policyID);
+
     // Output directory
     std::string output_dir = "../data/models/mixed_srpde/2D_test2/" + meshID + policyID + locsID;
+
+    if(!std::filesystem::create_directory(output_dir)) std::filesystem::create_directory(output_dir);
 
     // Genera dati per tutti i pazienti
     generate_data_for_all_patients(n_patients, a, b, output_dir, seed, na_percentage);
@@ -193,13 +201,13 @@ TEST(mixed_srpde_test, mille_mono_automatico) {
         data[i].read_csv<double>(LOCS_BLOCK, "../data/models/mixed_srpde/2D_test2/" + meshID + policyID + locsID + locsname + ".csv");
     }
 
-    // f_hat
+    // //f_hat
     // DMatrix<double> f_estimate = DMatrix<double>::Zero(domain.mesh.n_elements(),1);
     // for (std::size_t i = 0; i < domain.mesh.nodes().size(); i++){
     //     f_estimate(i,0) = lambda_cov(domain.mesh.nodes()(i,0), domain.mesh.nodes()(i,1)) + lambda_np(domain.mesh.nodes()(i,0), domain.mesh.nodes()(i,1));
     //     std::cout << "f_estimate: " << f_estimate(i,0) << std::endl;
     // }
-    // std::cout << "f_estimate done.\n";
+    // std::cout << "f_estimate done.\n"; //COSA NON VA? -> non arriva a questo cout ma printa all'interno del ciclo...
     // define regularizing PDE
     auto L = -laplacian<FEM>();
     DMatrix<double> u = DMatrix<double>::Zero(domain.mesh.n_elements() * 3, 1);
