@@ -59,12 +59,12 @@ using fdapde::testing::read_csv;
 std::vector<double> generate_b_coefficients(int n_patients, int seed) {
     std::mt19937 gen(seed);
 
-    if (n_patients < 1) throw std::invalid_argument("Number of patients must be at least 1.");
+    if (n_patients < 1) throw std::invalid_argument("Number of patients must be at least 1");
     
     std::vector<double> b(n_patients);
 
     if (n_patients == 1){
-        b[0] = 1.;
+        b[0] = 0; 
         return b;
     }
 
@@ -101,12 +101,10 @@ auto lambda_np = [](double x, double y, int id = 0) { // lambda function per la 
     std::mt19937 gen(id);  // Initialize a generator with the patient ID as the seed
     std::uniform_real_distribution<> dis(-5.0, 5.0);  // Uniform distribution
 
-    double a0 = dis(gen);  // Generate a0 based on id
-    //double a1 = dis(gen); //tentativo (disastroso per le stime) di cambiare la fase
-    double a2 = dis(gen);
-    //double a3 = dis(gen); //tentativo (disastroso per le stime) di cambiare la fase
+    double a_sin = dis(gen);  // Generate a0 based on id
+    double a_cos = dis(gen);
 
-    return a0 * std::sin(fdapde::testing::pi * x) + a2 * std::sin(fdapde::testing::pi * y);
+    return a_sin * std::sin(fdapde::testing::pi * x) + a_cos * std::cos(fdapde::testing::pi * y);
 };
   
 void write_to_csv(const std::string& filename, const std::vector<std::vector<double>>& data) {
@@ -167,11 +165,16 @@ void generate_data_for_patient(int patient_id, const std::vector<double>& a, con
             W[i][j] = cov_value;  
             y += W[i][j] * a[j];
         }
-        for (size_t j = 0; j < b.size(); ++j) {
-            double cov_value = lambda_cov(locs[i][0], locs[i][1]);
-            V[i][j] = cov_value;
-            y += V[i][j] * b[j];
-        }
+        // for (size_t j = 0; j < b.size(); ++j) { //a.size() !!?
+            // double cov_value = lambda_cov(locs[i][0], locs[i][1]);
+            // V[i][j] = cov_value;
+            // y += V[i][j] * b[j];
+        // }
+
+        double cov_value = lambda_cov(locs[i][0], locs[i][1]);
+        V[i][0] = cov_value;
+        y += V[i][0] * b[patient_id];
+
         double f_value = lambda_np(locs[i][0], locs[i][1], patient_id);
         y += f_value;
         observations[i][0] = y + noise_dist(gen);
@@ -217,7 +220,7 @@ TEST(mixed_srpde_test, mille_mono_automatico) {
     }
     std::cout << std::endl;
    																					
-    double na_percentage = 0;  // percentuale di valori NA 
+    double na_percentage = 0.;  // percentuale di valori NA 
 
     // define data
     std::vector<BlockFrame<double, int>> data;
