@@ -162,7 +162,7 @@ void generate_data_for_patient(int patient_id, const std::vector<double>& a, con
         double y = 0.0;
         for (size_t j = 0; j < a.size(); ++j) {
             double cov_value = lambda_cov(locs[i][0], locs[i][1]);
-            W[i][j] = cov_value;  
+            W[i][j] = noise_dist(gen);  
             y += W[i][j] * a[j];
         }
         // for (size_t j = 0; j < b.size(); ++j) { //a.size() !!?
@@ -177,7 +177,7 @@ void generate_data_for_patient(int patient_id, const std::vector<double>& a, con
 
         double f_value = lambda_np(locs[i][0], locs[i][1], patient_id);
         y += f_value;
-        observations[i][0] = y + noise_dist(gen);
+        observations[i][0] = y;
     }
 
  
@@ -200,8 +200,8 @@ void generate_data_for_all_patients(int num_patients, const std::vector<double>&
     std::normal_distribution<> obs_dist(1000.0, 300.0);
     for (int patient_id = 0; patient_id < num_patients; ++patient_id) {
         int n_obs = std::round(obs_dist(gen));
-        std::cout << "Generando dati per il paziente " << patient_id << " con " << n_obs << " osservazioni.\n";
-        generate_data_for_patient(patient_id, a, b, n_obs, gen, output_dir, na_percentage);
+        std::cout << "Generando dati per il paziente " << patient_id+1 << " con " << n_obs << " osservazioni.\n";
+        generate_data_for_patient(patient_id+1, a, b, n_obs, gen, output_dir, na_percentage);
     }
 }
 
@@ -277,7 +277,7 @@ TEST(mixed_srpde_test, mille_mono_automatico) {
     
     std::cout << ":)" << std::endl;
     auto L = -laplacian<FEM>();
-    DMatrix<double> u = DMatrix<double>::Zero(domain.mesh.n_elements()*3, 1); //* n_patients
+    DMatrix<double> u = DMatrix<double>::Zero(domain.mesh.n_elements()*3, 1); //  n_patients
     std::cout << "u: " << u.rows() << " " << u.cols() << std::endl;
     PDE<decltype(domain.mesh), decltype(L), DMatrix<double>, FEM, fem_order<1>> problem(domain.mesh, L, u);
 	
