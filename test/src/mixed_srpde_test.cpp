@@ -104,7 +104,7 @@ auto lambda_np = [](double x, double y, int id = 0) { // lambda function per la 
     double a_sin = dis(gen);  // Generate a0 based on id
     double a_cos = dis(gen);
 
-    return a_sin * std::sin(fdapde::testing::pi * x) + a_cos * std::cos(fdapde::testing::pi * y);
+    return (a_sin * std::sin(fdapde::testing::pi * x) + a_cos * std::cos(fdapde::testing::pi * y))*x*y*(1-x)*(1-y);
 };
   
 void write_to_csv(const std::string& filename, const std::vector<std::vector<double>>& data) {
@@ -282,7 +282,7 @@ TEST(mixed_srpde_test, mille_mono_automatico) {
     PDE<decltype(domain.mesh), decltype(L), DMatrix<double>, FEM, fem_order<1>> problem(domain.mesh, L, u);
 	
     // define model
-    double lambda = 0.1; 
+    double lambda = 1; 
 
     // getting dimension of the data (number of total observations N)
     std::size_t sum = 0;
@@ -305,12 +305,24 @@ TEST(mixed_srpde_test, mille_mono_automatico) {
     model.init();
     model.solve();
 
-    std::ofstream output("model_f.csv");
+    std::ofstream output1("model_f.csv");  // Primo file di output
+    output1 << "model_f\n";  // Intestazione con il nome del file
     DMatrix<double> data1 = model.f();
-    for(std::size_t i = 0; i < data1.size(); ++i){
-        output << data1(i) << "\n";
+    for(std::size_t i = 0; i < data1.size(); ++i) {
+        output1 << data1(i) << "\n";  // Scrivi nel primo file
     }
-    output.close();
+    output1.close();  // Chiudi il primo file
+
+    std::ofstream output2("f_.csv");  // Secondo file di output
+    output2 << "f_\n";  // Intestazione con il nome del file
+    DMatrix<double> data2 = f_;  // Usa una variabile diversa per il secondo file
+    for(std::size_t i = 0; i < data2.size(); ++i) {
+        output2 << data2(i) << "\n";  // Scrivi nel secondo file
+    }
+    output2.close();  // Chiudi il secondo file
+
+
+
     std::cout << "model_f created" << std::endl;
 
 
