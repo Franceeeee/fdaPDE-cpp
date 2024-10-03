@@ -104,7 +104,7 @@ auto lambda_np = [](double x, double y, int id = 0) { // lambda function per la 
     double a_sin = dis(gen);  // Generate a0 based on id
     double a_cos = dis(gen);
 
-    return (a_sin * std::sin(fdapde::testing::pi * x) + a_cos * std::cos(fdapde::testing::pi * y))*x*y*(1-x)*(1-y);
+    return a_sin * std::sin(fdapde::testing::pi * x) + a_cos * std::cos(fdapde::testing::pi * y);
 };
   
 void write_to_csv(const std::string& filename, const std::vector<std::vector<double>>& data) {
@@ -151,17 +151,17 @@ std::vector<bool> create_na_mask(int size, double na_percentage, std::mt19937& g
 void generate_data_for_patient(int patient_id, const std::vector<double>& a, const std::vector<double>& b, int n_obs, std::mt19937& gen, const std::string& output_dir, double na_percentage) {
     std::vector<std::vector<double>> locs = generate_random_points(n_obs, gen);
     std::vector<std::vector<double>> W(n_obs, std::vector<double>(a.size()));
-    std::vector<std::vector<double>> V(n_obs, std::vector<double>(a.size())); 
+    std::vector<std::vector<double>> V(n_obs, std::vector<double>(a.size())); // da sistemare
     std::vector<std::vector<double>> observations(n_obs, std::vector<double>(1));
 
     // distribuzione per generare le covariate
-    std::uniform_real_distribution<> dis(0.0, 1.0);
-    std::normal_distribution<> noise_dist(0.0, 0.1);
+    //std::uniform_real_distribution<> dis(0.0, 1.0);
+    std::normal_distribution<> noise_dist(0.0, 2.0);
     
     for (int i = 0; i < n_obs; ++i) {
         double y = 0.0;
         for (size_t j = 0; j < a.size(); ++j) {
-            double cov_value = lambda_cov(locs[i][0], locs[i][1]);
+            //double cov_value = lambda_cov(locs[i][0], locs[i][1]);
             W[i][j] = noise_dist(gen);  
             y += W[i][j] * a[j];
         }
@@ -171,6 +171,7 @@ void generate_data_for_patient(int patient_id, const std::vector<double>& a, con
             // y += V[i][j] * b[j];
         // }
 
+        // da sistemare, per ora va bene così
         double cov_value = lambda_cov(locs[i][0], locs[i][1]);
         V[i][0] = cov_value;
         y += V[i][0] * b[patient_id];
@@ -212,7 +213,7 @@ TEST(mixed_srpde_test, mille_mono_automatico) {
 	
     std::vector<double> a = {2.0}; // Coefficienti per W n_obs x 2
     							   //
-    //std::vector<double> b = {0.5, 0, -0.5}; // Coefficienti per V
+    // std::vector<double> b = {0.5, 0, -0.5}; // Coefficienti per V
     std::vector<double> b = generate_b_coefficients(n_patients, seed);
     std::cout << "b:" << std::endl;
     for (double value : b) {
@@ -250,7 +251,7 @@ TEST(mixed_srpde_test, mille_mono_automatico) {
     // import data from files
     for(std::size_t i = 0; i<n_patients; i++){
     
-        std::cout<< "----- i = " << i << " -----" << std::endl;
+        //std::cout<< "----- i = " << i << " -----" << std::endl;
          
         std::string Wname = "W_" + std::to_string(i+1);
         std::string Vname = "V_" + std::to_string(i+1);
@@ -272,13 +273,13 @@ TEST(mixed_srpde_test, mille_mono_automatico) {
          	f_(i + j*domain.mesh.nodes().rows(),0) = lambda_np(domain.mesh.nodes()(i,0), domain.mesh.nodes()(i,1),j);
     	}
     }
-    std::cout << "f_estimate done.\n";
+    //std::cout << "f_estimate done.\n";
     //define regularizing PDE
     
-    std::cout << ":)" << std::endl;
+    //std::cout << ":)" << std::endl;
     auto L = -laplacian<FEM>();
     DMatrix<double> u = DMatrix<double>::Zero(domain.mesh.n_elements()*3, 1); //  n_patients
-    std::cout << "u: " << u.rows() << " " << u.cols() << std::endl;
+    //std::cout << "u: " << u.rows() << " " << u.cols() << std::endl;
     PDE<decltype(domain.mesh), decltype(L), DMatrix<double>, FEM, fem_order<1>> problem(domain.mesh, L, u);
 	
     // define model
@@ -289,52 +290,57 @@ TEST(mixed_srpde_test, mille_mono_automatico) {
     for(std::size_t i=0; i<data.size(); i++){
         sum += data[i].template get<double>(LOCS_BLOCK).rows();
     }
-	std::cout << "total obs (sum): " << sum << std::endl;    
+	//std::cout << "total obs (sum): " << sum << std::endl;    
     MixedSRPDE<SpaceOnly,monolithic> model(problem, Sampling::pointwise);
 	
 	model.set_lambda_D(lambda);
-	std::cout << "set lambda" << std::endl;    
+	//std::cout << "set lambda" << std::endl;    
     
 	model.set_data(data);
-    std::cout << "set data" << std::endl;    
+    //std::cout << "set data" << std::endl;    
     
     model.set_N(sum);
-    std::cout << "set N" << std::endl;    
+    //std::cout << "set N" << std::endl;    
     
     // solve smoothing problem
     model.init();
     model.solve();
 
-    std::ofstream output1("model_f.csv");  // Primo file di output
-    output1 << "model_f\n";  // Intestazione con il nome del file
-    DMatrix<double> data1 = model.f();
-    for(std::size_t i = 0; i < data1.size(); ++i) {
-        output1 << data1(i) << "\n";  // Scrivi nel primo file
-    }
-    output1.close();  // Chiudi il primo file
+    // std::ofstream output1("model_f.csv");  // Primo file di output
+    // output1 << "model_f\n";  // Intestazione con il nome del file
+    // DMatrix<double> data1 = model.f();
+    // for(std::size_t i = 0; i < data1.size(); ++i) {
+    //     output1 << data1(i) << "\n";  // Scrivi nel primo file
+    // }
+    // output1.close();  // Chiudi il primo file
 
-    std::ofstream output2("f_.csv");  // Secondo file di output
-    output2 << "f_\n";  // Intestazione con il nome del file
-    DMatrix<double> data2 = f_;  // Usa una variabile diversa per il secondo file
-    for(std::size_t i = 0; i < data2.size(); ++i) {
-        output2 << data2(i) << "\n";  // Scrivi nel secondo file
-    }
-    output2.close();  // Chiudi il secondo file
+    // std::ofstream output2("f_.csv");  // Secondo file di output
+    // output2 << "f_\n";  // Intestazione con il nome del file
+    // DMatrix<double> data2 = f_;  // Usa una variabile diversa per il secondo file
+    // for(std::size_t i = 0; i < data2.size(); ++i) {
+    //     output2 << data2(i) << "\n";  // Scrivi nel secondo file
+    // }
+    // output2.close();  // Chiudi il secondo file
 
 
 
     std::cout << "model_f created" << std::endl;
 
 
-    std::cout << "Monolithic: " << (model.f() - model.f() ).array().abs().maxCoeff() << std::endl;
-    std::cout << "beta: " << model.beta() << std::endl;
-    std::cout << "alpha: " << model.alpha() << std::endl;
+    //std::cout << "Monolithic: " << (model.f() - model.f() ).array().abs().maxCoeff() << std::endl;
+    std::cout << "beta: \n" << model.beta() << std::endl;
+    std::cout << "alpha: \n" << model.alpha() << std::endl;
     //EXPECT_TRUE(  (model.f() - f_estimate ).array().abs().maxCoeff() < 1e-6 );
-    std::cout << f_.rows() << " " << f_.cols() << std::endl; 
-    std::cout << model.f().rows() << " " << model.f().cols() << std::endl; 
+    // std::cout << f_.rows() << " " << f_.cols() << std::endl; 
+    // std::cout << model.f().rows() << " " << model.f().cols() << std::endl; 
     
-    std::cout << "max model.f(): "<< model.f().array().abs().maxCoeff() << std::endl;
-    std::cout << "max f_: "<< (f_).array().abs().maxCoeff() << std::endl; 
+    // std::cout << "max model.f(): "<< model.f().array().abs().maxCoeff() << std::endl;
+    // std::cout << "max f_: "<< (f_).array().abs().maxCoeff() << std::endl; 
+
+    auto differences = (model.f() - f_).array().square().mean();
+    auto rmse = std::sqrt(differences);
+    std::cout<< "RMSE = " << rmse <<std::endl;
+
     EXPECT_TRUE(  (model.f().head(f_.rows()) - f_ ).array().abs().maxCoeff() < 1e-2 );
     
     EXPECT_TRUE(  (model.f() - f_ ).array().abs().maxCoeff() < 1e-2 );
