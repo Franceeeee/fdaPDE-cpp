@@ -269,6 +269,12 @@ class MixedSRPDE<SpaceOnly,monolithic> : public RegressionBase<MixedSRPDE<SpaceO
         // beta_ = invXtWX().solve(X().transpose() ) * (y_ - mPsi_ * f_); // X().transpose() * W()
         beta_ = invXtWX_.solve(X_.transpose() * W_ * (y_ - mPsi_ * f_)); 
 
+        // std::cout<< "beta_ : \n" << beta_ <<std::endl;
+        // std::cout<< "m_*p : \n" << m_*p <<std::endl;
+
+        // std::cout << "Matrix T_:\n" << T_ << std::endl; 
+        std::cout << std::endl;
+
         beta_coeff_ = F_*beta_;
         alpha_coeff_ = T_*beta_.tail(m_*p); 
 
@@ -326,7 +332,7 @@ class MixedSRPDE<SpaceOnly,monolithic> : public RegressionBase<MixedSRPDE<SpaceO
         Ip.setIdentity();
         for (std::size_t i=0; i<m_; i++){
             for(std::size_t j=0; j<m_; j++){
-                if(T_(i*p,j*p) == 0){ T_.block(i*p,j*p,p,p) = -Ip; }
+                if(T_(i*p,j*p) == 0){ T_.block(i*p,j*p,p,p) = -Ip/m_; }
             }
         }
         return;
