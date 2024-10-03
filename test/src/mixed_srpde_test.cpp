@@ -346,6 +346,70 @@ TEST(mixed_srpde_test, mille_mono_automatico) {
     EXPECT_TRUE(  (model.f() - f_ ).array().abs().maxCoeff() < 1e-2 );
     
 }
+
+// test monolitico
+TEST(mixed_srpde_test, mille_mono) {
+
+    std::size_t n_patients = 3;
+    std::vector<BlockFrame<double, int>> data;
+    data.resize(n_patients);
+
+    // define domain 
+    std::string meshID = "c_shaped_1";
+    std::string policyID = "monolithic/";
+    std::string locsID = "1000/";
+    MeshLoader<Mesh2D> domain(meshID);
+    meshID = meshID + "/"; 
+
+    // import data from files
+    for(std::size_t i = 0; i<n_patients; i++){
+        std::string Wname = "W_" + std::to_string(i+1);
+        std::string Vname = "V_" + std::to_string(i+1);
+        std::string locsname = "locs_" + std::to_string(i+1);
+        std::string yname = "observations_" + std::to_string(i+1);
+        data[i].read_csv<double>(W_BLOCK, "../data/models/mixed_srpde/2D_test1/" + meshID + policyID + locsID + Wname + ".csv");
+        data[i].read_csv<double>(V_BLOCK, "../data/models/mixed_srpde/2D_test1/" + meshID + policyID + locsID + Vname + ".csv");
+        data[i].read_csv<double>(Y_BLOCK, "../data/models/mixed_srpde/2D_test1/" + meshID + policyID + locsID + yname + ".csv");
+        data[i].read_csv<double>(LOCS_BLOCK, "../data/models/mixed_srpde/2D_test1/" + meshID + policyID + locsID + locsname + ".csv");
+    }
+
+    // define regularizing PDE
+    auto L = -laplacian<FEM>();
+    DMatrix<double> u = DMatrix<double>::Zero(domain.mesh.n_elements() * n_patients, 1);
+    PDE<decltype(domain.mesh), decltype(L), DMatrix<double>, FEM, fem_order<1>> problem(domain.mesh, L, u);
+
+    // define model
+    double lambda = 1;
+
+    // getting dimension of the data (number of total observations N)
+    std::size_t sum = 0;
+    for(std::size_t i=0; i<data.size(); i++){
+        sum += data[i].template get<double>(LOCS_BLOCK).rows();
+    }
+    
+    MixedSRPDE<SpaceOnly,monolithic> model(problem, Sampling::pointwise);
+
+    model.set_lambda_D(lambda);
+
+    model.set_data(data);
+    model.set_N(sum);
+    
+    // solve smoothing problem
+    model.init();
+    model.solve();
+
+    std::cout << "beta: \n" << model.beta() << std::endl;
+    std::cout << "alpha: \n" << model.alpha() << std::endl;
+    
+    DMatrix<double> f_estimate = read_csv<double>("../data/models/mixed_srpde/2D_test1/" + 
+    												 meshID + policyID + locsID + "f_hat.csv");
+
+    std::cout << "Monolithic: " << (model.f() - f_estimate ).array().abs().maxCoeff() << std::endl;
+    EXPECT_TRUE(  (model.f() - f_estimate ).array().abs().maxCoeff() < 1e-6 );
+}
+
+
+
 /*
 // test iterativo
 TEST(mixed_srpde_test, mille_iter_automatico) {
