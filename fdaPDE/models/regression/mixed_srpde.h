@@ -329,12 +329,12 @@ class MixedSRPDE<SpaceOnly,monolithic> : public RegressionBase<MixedSRPDE<SpaceO
             Z1.sparseView(), Ip_loop.sparseView(),
             Iqp.sparseView(), Z2.sparseView() ); 
         T_.resize(m_*p,m_*p); T_.setIdentity(); T_ = (m_-1.0)/m_ * T_;
-        Ip.setIdentity();
         for (std::size_t i=0; i<m_; i++){
             for(std::size_t j=0; j<m_; j++){
-                if(T_(i*p,j*p) == 0){ T_.block(i*p,j*p,p,p) = -Ip/m_; }
+                if(T_(i*p,j*p) == 0){ T_.block(i*p,j*p,p,p) = -Ip; }
             }
         }
+        std::cout<< "T: \n" << T_ <<std::endl;
         return;
     }
     void set_n_locs_cum() {
