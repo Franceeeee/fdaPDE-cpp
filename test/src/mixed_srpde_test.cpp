@@ -55,7 +55,6 @@ using fdapde::testing::MeshLoader;
 using fdapde::testing::read_csv;
 
 // TEST CON GENERAZIONE INTERNA DEI DATI
-
 std::vector<double> generate_b_coefficients(int n_patients, int seed) {
     std::mt19937 gen(seed);
 
@@ -189,28 +188,31 @@ void generate_data_for_patient(int patient_id, const std::vector<double>& a, con
     write_to_csv(output_dir + "V_" + std::to_string(patient_id) + ".csv", V);
     write_to_csv(output_dir + "locs_" + std::to_string(patient_id) + ".csv", locs);
     write_to_csv(output_dir + "observations_" + std::to_string(patient_id) + ".csv", observations);
-    std::cout << "Generati dati per il paziente " << patient_id << " con " << n_obs << " osservazioni.\n";
+    // std::cout << "Generati dati per il paziente " << patient_id << " con " << n_obs << " osservazioni.\n";
 }
 
-void generate_data_for_all_patients(int num_patients, const std::vector<double>& a, const std::vector<double>& b, const std::string& output_dir, int seed, double na_percentage) {
+void generate_data_for_all_patients(int num_patients, const std::vector<double>& a, const std::vector<double>& b,
+const std::string& output_dir, int seed, double na_percentage, double mu) {
     std::mt19937 gen(seed);
-    std::normal_distribution<> obs_dist(1000.0, 300.0);
+    std::normal_distribution<> obs_dist(mu, mu/4);
 
     for (int patient_id = 0; patient_id < num_patients; ++patient_id) {
         int n_obs = std::round(obs_dist(gen));
-        std::cout << "Generando dati per il paziente " << patient_id << " con " << n_obs << " osservazioni.\n";
+        // std::cout << "Generando dati per il paziente " << patient_id << " con " << n_obs << " osservazioni.\n";
         generate_data_for_patient(patient_id, a, b, n_obs, gen, output_dir, na_percentage);
     }
 }
 
+/*
 // test monolitico
 TEST(mixed_srpde_test, mille_mono_automatico) {
     int seed = 1234; 
 	std::size_t n_patients = 3; //4
+    double mu = 1000.;
 	
     std::vector<double> a = {-3.0, 4.0}; // Coefficienti per X: n_obs x 2
-    std::vector<double> b = {0.5,  0., -0.5}; // Coefficienti per V
-    // std::vector<double> b = generate_b_coefficients(n_patients, seed);
+    // std::vector<double> b = {0.5,  0., -0.5}; // Coefficienti per V
+    std::vector<double> b = generate_b_coefficients(n_patients, seed);
 
     std::cout << "b:" << std::endl;
     for (double value : b) {
@@ -243,7 +245,7 @@ TEST(mixed_srpde_test, mille_mono_automatico) {
 	if(!std::filesystem::create_directory(output_dir)) std::filesystem::create_directory(output_dir);
     
     // Genera dati per tutti i pazienti
-    generate_data_for_all_patients(n_patients, a, b, output_dir, seed, na_percentage);
+    generate_data_for_all_patients(n_patients, a, b, output_dir, seed, na_percentage, mu);
 
     // import data from files
     for(std::size_t i = 0; i<n_patients; i++){
@@ -334,13 +336,15 @@ TEST(mixed_srpde_test, mille_mono_automatico) {
 
 // test iterativo
 TEST(mixed_srpde_test, mille_iter_automatico) {
-
-    std::vector<double> a = {2.0, -1.5};  // Coefficienti per W
-    std::vector<double> b = {0.5, 0., -0.5};   // Coefficienti per V
-   
+       
     std::size_t n_patients = 3;
     double na_percentage = 0.;  // percentuale di valori NA 
     int seed = 1234; 
+    double mu = 1000.;
+
+    std::vector<double> a = {2.0, -1.5};  // Coefficienti per W
+    // std::vector<double> b = {0.5, 0., -0.5};   // Coefficienti per V
+    std::vector<double> b = generate_b_coefficients(n_patients, seed);
 
     // define data
     std::vector<BlockFrame<double, int>> data;
@@ -364,7 +368,7 @@ TEST(mixed_srpde_test, mille_iter_automatico) {
 	if(!std::filesystem::create_directory(output_dir)) std::filesystem::create_directory(output_dir);
 
     // Genera dati per tutti i pazienti
-    generate_data_for_all_patients(n_patients, a, b, output_dir, seed, na_percentage);
+    generate_data_for_all_patients(n_patients, a, b, output_dir, seed, na_percentage, mu);
 
     // import data from files
     for(std::size_t i = 0; i<n_patients; i++){
@@ -438,6 +442,307 @@ TEST(mixed_srpde_test, mille_iter_automatico) {
 
     EXPECT_TRUE(  (model.f().head(f_.rows()) - f_ ).array().abs().maxCoeff() < 1e-2 );
     EXPECT_TRUE(  (model.f() - f_ ).array().abs().maxCoeff() < 1e-2 );
+}*/
+
+// PARAMETRIC TEST 
+struct TestParams {
+    int patientsN;
+    double mu;
+    int seed;
+    double na_percentage;
+    std::string meshID;
+    double lambda;
+};
+
+const std::vector<TestParams> kPets = {
+    // {3, 1000., 1234, 0., "unit_square_coarse", 0.1},
+    // {3, 1000., 32874, 0., "unit_square_coarse", 0.1},
+    // {10, 1000., 12894, 0., "unit_square_coarse", 0.1},
+    // {10, 1000., 18937, 0., "unit_square_coarse", 0.1},
+    // {15, 1000., 32847, 0., "unit_square_coarse", 0.1},
+    // {15, 1000., 23784, 0., "unit_square_coarse", 0.1},
+    // {20, 1000., 2453, 0., "unit_square_coarse", 0.1},
+    // {20, 1000., 6575, 0., "unit_square_coarse", 0.1},
+    // {30, 1000., 4352, 0., "unit_square_coarse", 0.1},
+    // {30, 1000., 1332, 0., "unit_square_coarse", 0.1},
+    // {60, 1000., 2784, 0., "unit_square_coarse", 0.1},
+    // {60, 1000., 23784, 0., "unit_square_coarse", 0.1},
+    // {90, 1000., 32784, 0., "unit_square_coarse", 0.1},
+    // {90, 1000., 274, 0., "unit_square_coarse", 0.1},
+    // {100, 1000., 38247, 0., "unit_square_coarse", 0.1},
+    // {100, 1000., 1389, 0., "unit_square_coarse", 0.1},
+    {500, 1000., 1389, 0., "unit_square_coarse", 0.1},
+};
+
+class MixedSRPDETest : public testing::TestWithParam<TestParams> {
+  // You can implement all the usual fixture class members here.
+  // To access the test parameter, call GetParam() from class TestWithParam<T>.
+};
+
+INSTANTIATE_TEST_SUITE_P(Pets, MixedSRPDETest, testing::ValuesIn(kPets));
+
+TEST_P(MixedSRPDETest, monolithic) {
+
+    TestParams params = GetParam();
+
+    std::stringstream ss;
+    ss << params.patientsN << " " << params.mu << " " << params.seed << " " << "monolithic" << " " << params.na_percentage << " " << params.meshID << " " << params.lambda;
+    
+    std::string filename = "prova_test.txt";
+    // header:
+    // patientsN mu seed policyID na_percentage meshID lambda [b] [beta] rmse duration maxcoeff
+
+    std::string meshID = params.meshID;
+    std::string locsID = "1000";
+    std::string policyID = "monolithic";
+	std::size_t n_patients = params.patientsN;
+    double mu = params.mu;
+    int seed = params.seed;
+
+    auto start = std::chrono::high_resolution_clock::now();
+
+    policyID = policyID + "/"; 
+    locsID = locsID + "/"; 
+	
+    std::vector<double> a = {-3.0, 4.0}; // Coefficienti per X: n_obs x 2
+    std::vector<double> b = generate_b_coefficients(n_patients, params.seed); // Coefficienti per V
+
+    ss << " ["; for (double value : b) { ss << value << " "; } ss << "]";
+   																					
+    double na_percentage = params.na_percentage;  // percentuale di valori NA 
+
+    // define data
+    std::vector<BlockFrame<double, int>> data;
+    data.resize(n_patients);
+
+    // define domain 
+    MeshLoader<Mesh2D> domain(meshID);
+    meshID = meshID + "/"; 
+
+	if(!std::filesystem::create_directory("../data/models/mixed_srpde/2D_test2/" + meshID))
+	 std::filesystem::create_directory("../data/models/mixed_srpde/2D_test2/" + meshID);
+	
+	if(!std::filesystem::create_directory("../data/models/mixed_srpde/2D_test2/" + meshID + policyID))
+	 std::filesystem::create_directory("../data/models/mixed_srpde/2D_test2/" + meshID + policyID);
+	
+    std::string output_dir = "../data/models/mixed_srpde/2D_test2/" + meshID + policyID + locsID;
+	if(!std::filesystem::create_directory(output_dir)) std::filesystem::create_directory(output_dir);
+    
+    generate_data_for_all_patients(n_patients, a, b, output_dir, seed, na_percentage, mu);
+
+    // import data from files
+    for(std::size_t i = 0; i<n_patients; i++){
+        std::string Wname = "W_" + std::to_string(i);
+        std::string Vname = "V_" + std::to_string(i);
+        std::string locsname = "locs_" + std::to_string(i);
+        std::string yname = "observations_" + std::to_string(i);
+        data[i].read_csv<double>(W_BLOCK, "../data/models/mixed_srpde/2D_test2/" + meshID + policyID + locsID + Wname + ".csv");
+        data[i].read_csv<double>(V_BLOCK, "../data/models/mixed_srpde/2D_test2/" + meshID + policyID + locsID + Vname + ".csv");
+        data[i].read_csv<double>(Y_BLOCK, "../data/models/mixed_srpde/2D_test2/" + meshID + policyID + locsID + yname + ".csv");
+        data[i].read_csv<double>(LOCS_BLOCK, "../data/models/mixed_srpde/2D_test2/" + meshID + policyID + locsID + locsname + ".csv");
+    }
+
+    // f_hat
+    DMatrix<double> f_ = DMatrix<double>::Zero(n_patients*domain.mesh.nodes().rows(),1);
+    for (std::size_t j = 0; j < n_patients; j++){
+    	for (std::size_t i = 0; i < domain.mesh.nodes().rows(); i++){
+         	f_(i + j*domain.mesh.nodes().rows(),0) = lambda_np(domain.mesh.nodes()(i,0), domain.mesh.nodes()(i,1),j);
+    	}
+    }
+
+    // define regularizing PDE
+    auto L = -laplacian<FEM>();
+    DMatrix<double> u = DMatrix<double>::Zero(domain.mesh.n_elements()*3, 1);
+    PDE<decltype(domain.mesh), decltype(L), DMatrix<double>, FEM, fem_order<1>> problem(domain.mesh, L, u);
+	
+    // define lambda
+    double lambda = params.lambda; 
+
+    // getting dimension of the data (number of total observations N)
+    std::size_t sum = 0;
+    for(std::size_t i=0; i<data.size(); i++){
+        sum += data[i].template get<double>(LOCS_BLOCK).rows();
+    }
+
+    MixedSRPDE<SpaceOnly,monolithic> model(problem, Sampling::pointwise);
+	
+	model.set_lambda_D(lambda);
+	model.set_data(data);
+    model.set_N(sum);
+    
+    // solve smoothing problem
+    model.init();
+    model.solve();
+
+    auto end = std::chrono::high_resolution_clock::now();
+    std::chrono::duration<double> duration = end - start;
+
+    std::ofstream output1("model_f.csv"); 
+    output1 << "model_f\n";
+    DMatrix<double> data1 = model.f();
+    for(std::size_t i = 0; i < data1.size(); ++i) {
+        output1 << data1(i) << "\n"; }
+    output1.close(); 
+
+    std::ofstream output2("f_.csv"); 
+    output2 << "f_\n"; 
+    DMatrix<double> data2 = f_;  
+    for(std::size_t i = 0; i < data2.size(); ++i) {
+        output2 << data2(i) << "\n"; }
+    output2.close();  
+
+    std::cout << "beta: " << model.beta() << std::endl;
+    std::cout << "alpha: " << model.alpha() << std::endl;
+    
+    auto differences = (model.f() - f_).array().square().mean();
+    auto rmse = std::sqrt(differences);
+    std::cout<< "RMSE = " << rmse <<std::endl;
+
+    std::cout << "max model.f(): "<< model.f().array().abs().maxCoeff() << std::endl;
+    std::cout << "max f_: "<< (f_).array().abs().maxCoeff() << std::endl; 
+
+    ss << " ["; for (double value : model.betanp()) { ss << value << " "; } ss << "] ";
+    ss << rmse << " " << duration.count() << " " <<  (model.f().head(f_.rows()) - f_ ).array().abs().maxCoeff() << std::endl;
+
+    std::cout << "max diff: " << (model.f().head(f_.rows()) - f_ ).array().abs().maxCoeff() << std::endl;
+
+    std::ofstream outputFile; outputFile.open(filename, std::ios_base::app);
+    if (outputFile.is_open()) { outputFile << ss.str();  outputFile.close();
+    } else { std::cerr << "Unable to open file for writing" << std::endl; }
+
+    EXPECT_TRUE(  (model.f().head(f_.rows()) - f_ ).array().abs().maxCoeff() < 1e-2 );
+}
+
+TEST_P(MixedSRPDETest, iterative) {
+
+    TestParams params = GetParam();
+
+    std::stringstream ss;
+    ss << params.patientsN << " " << params.mu << " " << params.seed << " " << "iterative" << " " << params.na_percentage << " " << params.meshID << " " << params.lambda;
+    
+    std::string filename = "prova_test.txt";
+    // header:
+    // patientsN mu seed policyID na_percentage meshID lambda [b] [beta] rmse duration maxcoeff
+
+    std::string meshID = params.meshID;
+    std::string locsID = "1000";
+    std::string policyID = "iterative";
+	std::size_t n_patients = params.patientsN;
+    double mu = params.mu;
+    int seed = params.seed;
+
+    auto start = std::chrono::high_resolution_clock::now();
+
+    policyID = policyID + "/"; 
+    locsID = locsID + "/"; 
+	
+    std::vector<double> a = {-3.0, 4.0}; // Coefficienti per X: n_obs x 2
+    std::vector<double> b = generate_b_coefficients(n_patients, params.seed); // Coefficienti per V
+
+    ss << " ["; for (double value : b) { ss << value << " "; } ss << "]";
+   																					
+    double na_percentage = params.na_percentage;  // percentuale di valori NA 
+
+    // define data
+    std::vector<BlockFrame<double, int>> data;
+    data.resize(n_patients);
+
+    // define domain 
+    MeshLoader<Mesh2D> domain(meshID);
+    meshID = meshID + "/"; 
+
+	if(!std::filesystem::create_directory("../data/models/mixed_srpde/2D_test2/" + meshID))
+	 std::filesystem::create_directory("../data/models/mixed_srpde/2D_test2/" + meshID);
+	
+	if(!std::filesystem::create_directory("../data/models/mixed_srpde/2D_test2/" + meshID + policyID))
+	 std::filesystem::create_directory("../data/models/mixed_srpde/2D_test2/" + meshID + policyID);
+	
+    std::string output_dir = "../data/models/mixed_srpde/2D_test2/" + meshID + policyID + locsID;
+	if(!std::filesystem::create_directory(output_dir)) std::filesystem::create_directory(output_dir);
+    
+    generate_data_for_all_patients(n_patients, a, b, output_dir, seed, na_percentage, mu);
+
+    // import data from files
+    for(std::size_t i = 0; i<n_patients; i++){
+        std::string Wname = "W_" + std::to_string(i);
+        std::string Vname = "V_" + std::to_string(i);
+        std::string locsname = "locs_" + std::to_string(i);
+        std::string yname = "observations_" + std::to_string(i);
+        data[i].read_csv<double>(W_BLOCK, "../data/models/mixed_srpde/2D_test2/" + meshID + policyID + locsID + Wname + ".csv");
+        data[i].read_csv<double>(V_BLOCK, "../data/models/mixed_srpde/2D_test2/" + meshID + policyID + locsID + Vname + ".csv");
+        data[i].read_csv<double>(Y_BLOCK, "../data/models/mixed_srpde/2D_test2/" + meshID + policyID + locsID + yname + ".csv");
+        data[i].read_csv<double>(LOCS_BLOCK, "../data/models/mixed_srpde/2D_test2/" + meshID + policyID + locsID + locsname + ".csv");
+    }
+
+    // f_hat
+    DMatrix<double> f_ = DMatrix<double>::Zero(n_patients*domain.mesh.nodes().rows(),1);
+    for (std::size_t j = 0; j < n_patients; j++){
+    	for (std::size_t i = 0; i < domain.mesh.nodes().rows(); i++){
+         	f_(i + j*domain.mesh.nodes().rows(),0) = lambda_np(domain.mesh.nodes()(i,0), domain.mesh.nodes()(i,1),j);
+    	}
+    }
+
+    // define regularizing PDE
+    auto L = -laplacian<FEM>();
+    DMatrix<double> u = DMatrix<double>::Zero(domain.mesh.n_elements()*3, 1);
+    PDE<decltype(domain.mesh), decltype(L), DMatrix<double>, FEM, fem_order<1>> problem(domain.mesh, L, u);
+	
+    // define lambda
+    double lambda = params.lambda; 
+
+    // getting dimension of the data (number of total observations N)
+    std::size_t sum = 0;
+    for(std::size_t i=0; i<data.size(); i++){
+        sum += data[i].template get<double>(LOCS_BLOCK).rows();
+    }
+
+    MixedSRPDE<SpaceOnly,iterative> model(problem, Sampling::pointwise);
+	
+	model.set_lambda_D(lambda);
+	model.set_data(data);
+    model.set_N(sum);
+    
+    // solve smoothing problem
+    model.init();
+    model.solve();
+
+    auto end = std::chrono::high_resolution_clock::now();
+    std::chrono::duration<double> duration = end - start;
+
+    std::ofstream output1("model_f.csv"); 
+    output1 << "model_f\n";
+    DMatrix<double> data1 = model.f();
+    for(std::size_t i = 0; i < data1.size(); ++i) {
+        output1 << data1(i) << "\n"; }
+    output1.close(); 
+
+    std::ofstream output2("f_.csv"); 
+    output2 << "f_\n"; 
+    DMatrix<double> data2 = f_;  
+    for(std::size_t i = 0; i < data2.size(); ++i) {
+        output2 << data2(i) << "\n"; }
+    output2.close();  
+
+    std::cout << "beta: " << model.beta() << std::endl;
+    std::cout << "alpha: " << model.alpha() << std::endl;
+    
+    auto differences = (model.f() - f_).array().square().mean();
+    auto rmse = std::sqrt(differences);
+    std::cout<< "RMSE = " << rmse <<std::endl;
+
+    std::cout << "max model.f(): "<< model.f().array().abs().maxCoeff() << std::endl;
+    std::cout << "max f_: "<< (f_).array().abs().maxCoeff() << std::endl; 
+
+    ss << " ["; for (double value : model.betanp()) { ss << value << " "; } ss << "] ";
+    ss << rmse << " " << duration.count() << " " <<  (model.f().head(f_.rows()) - f_ ).array().abs().maxCoeff() << std::endl;
+
+    std::cout << "max diff: " << (model.f().head(f_.rows()) - f_ ).array().abs().maxCoeff() << std::endl;
+
+    std::ofstream outputFile; outputFile.open(filename, std::ios_base::app);
+    if (outputFile.is_open()) { outputFile << ss.str();  outputFile.close();
+    } else { std::cerr << "Unable to open file for writing" << std::endl; }
+
+    EXPECT_TRUE(  (model.f().head(f_.rows()) - f_ ).array().abs().maxCoeff() < 1e-2 );
 }
 
 /*
