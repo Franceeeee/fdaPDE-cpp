@@ -350,6 +350,8 @@ class MixedSRPDE<SpaceOnly,monolithic> : public RegressionBase<MixedSRPDE<SpaceO
     std::size_t q() const { return p+m_*qV; }
     std::size_t n_locs(std::size_t i) const { return data_[i].template get<double>(LOCS_BLOCK).rows(); }
     // const DMatrix<double>& locs(std::size_t i) const { return data_[i].template get<double>(LOCS_BLOCK); } 
+    const DVector<double>& f() const { return f_; };
+    const DVector<double>& f(std::size_t i) const {return f_.block(i*n_basis(), 0, n_basis(), 1); }
     const DVector<double> alpha() const { return alpha_coeff_; }
     const DVector<double> beta() const { return beta_coeff_; }
     const DVector<double> betanp() const { return beta_; }
@@ -808,6 +810,8 @@ class MixedSRPDE<SpaceOnly,iterative> : public RegressionBase<MixedSRPDE<SpaceOn
     double alpha(std::size_t k) const { return alpha_; } // fixed to 1 
     
     // const DMatrix<double>& locs(std::size_t i) const { return data_[i].template get<double>(LOCS_BLOCK); } 
+    const DVector<double>& f() const { return f_; };
+    const DVector<double>& f(std::size_t i) const {return f_.block(i*n_basis(), 0, n_basis(), 1); }
 
     const SpMatrix<double> mPsi() const { 
         SpMatrix<double> mpsi;
@@ -834,6 +838,8 @@ class MixedSRPDE<SpaceOnly,iterative> : public RegressionBase<MixedSRPDE<SpaceOn
     const DVector<double> alpha() const { return alpha_coeff_; }
     const DVector<double> beta() const { return beta_coeff_; }
     const DVector<double> betanp() const { return beta_; }
+    const DVector<double> f() const { return f_; }
+    
 
     std::size_t n_locs(std::size_t i) const { return data_[i].template get<double>(LOCS_BLOCK).rows(); }
 

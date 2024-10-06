@@ -133,6 +133,17 @@ std::vector<std::vector<double>> generate_random_points(int n_points, std::mt199
     return points;
 }
 
+std::vector<std::vector<double>> generate_points(int n_points) {
+    std::mt19937 gen(0);
+    std::uniform_real_distribution<> dis(0.0, 1.0);
+    std::vector<std::vector<double>> points(n_points, std::vector<double>(2));
+    for (int i = 0; i < n_points; ++i) {
+        points[i][0] = dis(gen);  // x
+        points[i][1] = dis(gen);  // y
+    }
+    return points;
+}
+
 // maschera di NA
 std::vector<bool> create_na_mask(int size, double na_percentage, std::mt19937& gen) {
     std::vector<bool> mask(size, false);  
@@ -148,7 +159,9 @@ std::vector<bool> create_na_mask(int size, double na_percentage, std::mt19937& g
 
 // generare dati per un singolo paziente
 void generate_data_for_patient(int patient_id, const DVector<double>& a, const DVector<double>& b, int n_obs, std::mt19937& gen, const std::string& output_dir, double na_percentage) {
-    std::vector<std::vector<double>> locs = generate_random_points(n_obs, gen);
+
+    std::vector<std::vector<double>> locs = generate_points(n_obs); // locazioni uguali
+    // std::vector<std::vector<double>> locs = generate_random_points(n_obs, gen); // locazioni diverse
     std::vector<std::vector<double>> X(n_obs, std::vector<double>(a.size()));
     std::vector<std::vector<double>> W(n_obs, std::vector<double>(a.size()-1));
     std::vector<std::vector<double>> V(n_obs, std::vector<double>(a.size()-1)); 
@@ -194,7 +207,8 @@ void generate_data_for_patient(int patient_id, const DVector<double>& a, const D
 void generate_data_for_all_patients(int num_patients, const DVector<double>& a, const DVector<double>& b,
 const std::string& output_dir, int seed, double na_percentage, double mu) {
     std::mt19937 gen(seed);
-    std::normal_distribution<> obs_dist(mu, mu/4);
+    // std::normal_distribution<> obs_dist(mu, mu/4); // locazioni diverse
+    std::normal_distribution<> obs_dist(mu, 0); // locazioni uguali
 
     for (int patient_id = 0; patient_id < num_patients; ++patient_id) {
         int n_obs = std::round(obs_dist(gen));
@@ -487,16 +501,23 @@ struct TestParams {
 //     {40, 1000., 1332, 0., "unit_square_coarse", 0.1},
 // };
 
+std::vector<double> linspace(double start, double end, int n) {
+    std::vector<double> result; result.reserve(n); 
+    double step = (end - start) / (n - 1); 
+    for (int i = 0; i < n; ++i) { result.push_back(start + i * step); } 
+    return result; 
+}
+
 std::vector<TestParams> GenerateTestParamsConditional() {
     std::vector<TestParams> testParamsList;
 
-    std::vector<int> patientsNs = {2, 3, 5, 8, 9, 11, 13, 17, 19, 22, 25, 27, 31, 33, 37, 39};
-    std::vector<double> mus = {100.0, 250.0, 500.0, 750.0, 1000.0, 2000.0};
+    std::vector<int> patientsNs = {5, 10, 15, 20, 25, 30};
+    std::vector<double> mus = {1000.0, 5000.0, 10000.0};
     std::uniform_int_distribution<> seeds(1000, 50000);
     std::mt19937 gen(std::random_device{}());
     std::vector<double> na_percentages = {0.0, 0.05, 0.1, 0.15, 0.2};
-    std::string meshID = "unit_square_coarse";
-    double lambda = 0.1;
+    std::string meshID = "unit_square";
+    std::vector<double> lambdas = linspace(1e-5, 1, 30);
 
     // Example: Only include seeds greater than 2000 for patientsN >= 10
     for (const auto& patientsN : patientsNs) {
@@ -505,8 +526,10 @@ std::vector<TestParams> GenerateTestParamsConditional() {
             //     continue; // Skip invalid combination
             // }
             for(const auto& na_percentage : na_percentages){
-                TestParams params = {patientsN, mu, seeds(gen), na_percentage, meshID, lambda};
-                testParamsList.push_back(params);
+                for(const auto& lambda : lambdas){
+                    TestParams params = {patientsN, mu, seeds(gen), na_percentage, meshID, lambda};
+                    testParamsList.push_back(params);
+                }
             }
         }
     }
@@ -529,7 +552,7 @@ TEST_P(MixedSRPDETest, monolithic) {
     
     std::string filename = "prova_test.txt";
     // header:
-    // patientsN mu seed policyID na_percentage meshID lambda rmse rmse_beta duration maxcoeff
+    // patientsN mu seed policyID na_percentage meshID lambda rmse rmse_beta duration maxcoeff locs
 
     std::string meshID = params.meshID;
     std::string locsID = "1000";
@@ -546,7 +569,7 @@ TEST_P(MixedSRPDETest, monolithic) {
     DVector<double> a(2);
     a(0) = -3.0;
     a(1) = 4.0; // Coefficienti per X: n_obs x 2
-    DVector<double> b = generate_b_coefficients(n_patients, params.seed); // Coefficienti per V
+    DVector<double> b = generate_b_coefficients(n_patients, seed); // Coefficienti per V
 
     // ss << " ["; for (double value : b) { ss << value << " "; } ss << "]";
    																					
@@ -647,7 +670,7 @@ TEST_P(MixedSRPDETest, monolithic) {
     std::cout << "max f_: "<< (f_).array().abs().maxCoeff() << std::endl; 
 
     // ss << " ["; for (double value : model.betanp()) { ss << value << " "; } ss << "] ";
-    ss << " " << rmse << " " << rmse_beta << " " << duration.count() << " " <<  (model.f().head(f_.rows()) - f_ ).array().abs().maxCoeff() << std::endl;
+    ss << " " << rmse << " " << rmse_beta << " " << duration.count() << " " << (model.f().head(f_.rows()) - f_ ).array().abs().maxCoeff() << " same" << std::endl;
 
     std::cout << "max diff: " << (model.f().head(f_.rows()) - f_ ).array().abs().maxCoeff() << std::endl;
 
@@ -785,7 +808,7 @@ TEST_P(MixedSRPDETest, iterative) {
     std::cout << "max f_: "<< (f_).array().abs().maxCoeff() << std::endl; 
 
     // ss << " ["; for (double value : model.betanp()) { ss << value << " "; } ss << "] ";
-    ss << " " << rmse << " " << rmse_beta << " " << duration.count() << " " <<  (model.f().head(f_.rows()) - f_ ).array().abs().maxCoeff() << std::endl;
+    ss << " " << rmse << " " << rmse_beta << " " << duration.count() << " " <<  (model.f().head(f_.rows()) - f_ ).array().abs().maxCoeff() << " same" << std::endl;
 
     std::cout << "max diff: " << (model.f().head(f_.rows()) - f_ ).array().abs().maxCoeff() << std::endl;
 
