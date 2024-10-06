@@ -55,15 +55,15 @@ using fdapde::testing::MeshLoader;
 using fdapde::testing::read_csv;
 
 // TEST CON GENERAZIONE INTERNA DEI DATI
-std::vector<double> generate_b_coefficients(int n_patients, int seed) {
+DVector<double> generate_b_coefficients(int n_patients, int seed) {
     std::mt19937 gen(seed);
 
     if (n_patients < 1) throw std::invalid_argument("Number of patients must be at least 1");
     
-    std::vector<double> b(n_patients);
+    DVector<double> b(n_patients);
 
     if (n_patients == 1){
-        b[0] = 0; 
+        b(0) = 0; 
         return b;
     }
 
@@ -72,14 +72,14 @@ std::vector<double> generate_b_coefficients(int n_patients, int seed) {
 
     // Generate n_patients - 1 random coefficients in the range [-1, 1]
     for (int i = 0; i < n_patients - 1; ++i) {
-        b[i] = dis(gen);
+        b(i) = dis(gen);
     }
 
     // Calculate the sum of the first n_patients - 1 elements
     double sum = std::accumulate(b.begin(), b.end() - 1, 0.0);
 
     // Set the last element to make the sum of the vector 0
-    b[n_patients - 1] = -sum;
+    b(n_patients - 1) = -sum;
 
     return b;
 }
@@ -147,7 +147,7 @@ std::vector<bool> create_na_mask(int size, double na_percentage, std::mt19937& g
 }
 
 // generare dati per un singolo paziente
-void generate_data_for_patient(int patient_id, const std::vector<double>& a, const std::vector<double>& b, int n_obs, std::mt19937& gen, const std::string& output_dir, double na_percentage) {
+void generate_data_for_patient(int patient_id, const DVector<double>& a, const DVector<double>& b, int n_obs, std::mt19937& gen, const std::string& output_dir, double na_percentage) {
     std::vector<std::vector<double>> locs = generate_random_points(n_obs, gen);
     std::vector<std::vector<double>> X(n_obs, std::vector<double>(a.size()));
     std::vector<std::vector<double>> W(n_obs, std::vector<double>(a.size()-1));
@@ -171,7 +171,7 @@ void generate_data_for_patient(int patient_id, const std::vector<double>& a, con
 
         double f_value = lambda_np(locs[i][0], locs[i][1], patient_id);
 
-        observations[i][0] = a[0]*X[i][0] + a[1]*X[i][1] + b[patient_id]*V[i][0] + f_value;
+        observations[i][0] = a(0)*X[i][0] + a(1)*X[i][1] + b(patient_id)*V[i][0] + f_value; // DIMENSIONI DI a qui sono fissate
         observations[i][0] += noise_obs(gen);
     }
 
@@ -191,7 +191,7 @@ void generate_data_for_patient(int patient_id, const std::vector<double>& a, con
     // std::cout << "Generati dati per il paziente " << patient_id << " con " << n_obs << " osservazioni.\n";
 }
 
-void generate_data_for_all_patients(int num_patients, const std::vector<double>& a, const std::vector<double>& b,
+void generate_data_for_all_patients(int num_patients, const DVector<double>& a, const DVector<double>& b,
 const std::string& output_dir, int seed, double na_percentage, double mu) {
     std::mt19937 gen(seed);
     std::normal_distribution<> obs_dist(mu, mu/4);
@@ -454,32 +454,71 @@ struct TestParams {
     double lambda;
 };
 
-const std::vector<TestParams> kPets = {
-    // {3, 1000., 1234, 0., "unit_square_coarse", 0.1},
-    // {3, 1000., 32874, 0., "unit_square_coarse", 0.1},
-    // {10, 1000., 12894, 0., "unit_square_coarse", 0.1},
-    // {10, 1000., 18937, 0., "unit_square_coarse", 0.1},
-    // {15, 1000., 32847, 0., "unit_square_coarse", 0.1},
-    // {15, 1000., 23784, 0., "unit_square_coarse", 0.1},
-    // {20, 1000., 2453, 0., "unit_square_coarse", 0.1},
-    // {20, 1000., 6575, 0., "unit_square_coarse", 0.1},
-    // {30, 1000., 4352, 0., "unit_square_coarse", 0.1},
-    // {30, 1000., 1332, 0., "unit_square_coarse", 0.1},
-    // {60, 1000., 2784, 0., "unit_square_coarse", 0.1},
-    // {60, 1000., 23784, 0., "unit_square_coarse", 0.1},
-    // {90, 1000., 32784, 0., "unit_square_coarse", 0.1},
-    // {90, 1000., 274, 0., "unit_square_coarse", 0.1},
-    // {100, 1000., 38247, 0., "unit_square_coarse", 0.1},
-    // {100, 1000., 1389, 0., "unit_square_coarse", 0.1},
-    {500, 1000., 1389, 0., "unit_square_coarse", 0.1},
-};
+// const std::vector<TestParams> kPets = {
+//     {3, 1000., 1234, 0., "unit_square_coarse", 0.1},
+//     {3, 1000., 32874, 0., "unit_square_coarse", 0.1},
+//     {10, 1000., 12894, 0., "unit_square_coarse", 0.1},
+//     {10, 1000., 18937, 0., "unit_square_coarse", 0.1},
+//     {15, 1000., 32847, 0., "unit_square_coarse", 0.1},
+//     {15, 1000., 23784, 0., "unit_square_coarse", 0.1},
+//     {20, 1000., 2453, 0., "unit_square_coarse", 0.1},
+//     {20, 1000., 6575, 0., "unit_square_coarse", 0.1},
+//     {30, 1000., 4352, 0., "unit_square_coarse", 0.1},
+//     {30, 1000., 1332, 0., "unit_square_coarse", 0.1},
+//     // {60, 1000., 2784, 0., "unit_square_coarse", 0.1},
+//     // {60, 1000., 23784, 0., "unit_square_coarse", 0.1},
+//     // {90, 1000., 32784, 0., "unit_square_coarse", 0.1},
+//     // {90, 1000., 274, 0., "unit_square_coarse", 0.1},
+//     // {100, 1000., 38247, 0., "unit_square_coarse", 0.1},
+//     // {100, 1000., 1389, 0., "unit_square_coarse", 0.1},
+//     // {500, 1000., 1389, 0., "unit_square_coarse", 0.1},
+//     {3, 1000., 1234, 0., "unit_square_coarse", 0.1},
+//     {6, 1000., 32874, 0., "unit_square_coarse", 0.1},
+//     {10, 1000., 4783, 0., "unit_square_coarse", 0.1},
+//     {12, 1000., 12894, 0., "unit_square_coarse", 0.1},
+//     {18, 1000., 18937, 0., "unit_square_coarse", 0.1},
+//     {20, 1000., 28394, 0., "unit_square_coarse", 0.1},
+//     {24, 1000., 32847, 0., "unit_square_coarse", 0.1},
+//     {28, 1000., 23784, 0., "unit_square_coarse", 0.1},
+//     {30, 1000., 482947, 0., "unit_square_coarse", 0.1},
+//     {32, 1000., 2453, 0., "unit_square_coarse", 0.1},
+//     {34, 1000., 6575, 0., "unit_square_coarse", 0.1},
+//     {36, 1000., 4352, 0., "unit_square_coarse", 0.1},
+//     {40, 1000., 1332, 0., "unit_square_coarse", 0.1},
+// };
+
+std::vector<TestParams> GenerateTestParamsConditional() {
+    std::vector<TestParams> testParamsList;
+
+    std::vector<int> patientsNs = {2, 3, 5, 8, 9, 11, 13, 17, 19, 22, 25, 27, 31, 33, 37, 39};
+    std::vector<double> mus = {100.0, 250.0, 500.0, 750.0, 1000.0, 2000.0};
+    std::uniform_int_distribution<> seeds(1000, 50000);
+    std::mt19937 gen(std::random_device{}());
+    std::vector<double> na_percentages = {0.0, 0.05, 0.1, 0.15, 0.2};
+    std::string meshID = "unit_square_coarse";
+    double lambda = 0.1;
+
+    // Example: Only include seeds greater than 2000 for patientsN >= 10
+    for (const auto& patientsN : patientsNs) {
+        for (const auto& mu : mus) {
+            // if (patientsN >= 10 && seed < 2000) {
+            //     continue; // Skip invalid combination
+            // }
+            for(const auto& na_percentage : na_percentages){
+                TestParams params = {patientsN, mu, seeds(gen), na_percentage, meshID, lambda};
+                testParamsList.push_back(params);
+            }
+        }
+    }
+    return testParamsList;
+}
 
 class MixedSRPDETest : public testing::TestWithParam<TestParams> {
   // You can implement all the usual fixture class members here.
   // To access the test parameter, call GetParam() from class TestWithParam<T>.
 };
 
-INSTANTIATE_TEST_SUITE_P(Pets, MixedSRPDETest, testing::ValuesIn(kPets));
+INSTANTIATE_TEST_SUITE_P(Pets, MixedSRPDETest, testing::ValuesIn(GenerateTestParamsConditional()));
 
 TEST_P(MixedSRPDETest, monolithic) {
 
@@ -490,7 +529,7 @@ TEST_P(MixedSRPDETest, monolithic) {
     
     std::string filename = "prova_test.txt";
     // header:
-    // patientsN mu seed policyID na_percentage meshID lambda [b] [beta] rmse duration maxcoeff
+    // patientsN mu seed policyID na_percentage meshID lambda rmse rmse_beta duration maxcoeff
 
     std::string meshID = params.meshID;
     std::string locsID = "1000";
@@ -504,10 +543,12 @@ TEST_P(MixedSRPDETest, monolithic) {
     policyID = policyID + "/"; 
     locsID = locsID + "/"; 
 	
-    std::vector<double> a = {-3.0, 4.0}; // Coefficienti per X: n_obs x 2
-    std::vector<double> b = generate_b_coefficients(n_patients, params.seed); // Coefficienti per V
+    DVector<double> a(2);
+    a(0) = -3.0;
+    a(1) = 4.0; // Coefficienti per X: n_obs x 2
+    DVector<double> b = generate_b_coefficients(n_patients, params.seed); // Coefficienti per V
 
-    ss << " ["; for (double value : b) { ss << value << " "; } ss << "]";
+    // ss << " ["; for (double value : b) { ss << value << " "; } ss << "]";
    																					
     double na_percentage = params.na_percentage;  // percentuale di valori NA 
 
@@ -591,18 +632,22 @@ TEST_P(MixedSRPDETest, monolithic) {
         output2 << data2(i) << "\n"; }
     output2.close();  
 
-    std::cout << "beta: " << model.beta() << std::endl;
-    std::cout << "alpha: " << model.alpha() << std::endl;
+    // std::cout << "beta: " << model.beta() << std::endl;
+    // std::cout << "alpha: " << model.alpha() << std::endl;
     
     auto differences = (model.f() - f_).array().square().mean();
     auto rmse = std::sqrt(differences);
     std::cout<< "RMSE = " << rmse <<std::endl;
 
+    auto differences_beta = (model.beta()-a).array().square().mean();
+    auto rmse_beta = std::sqrt(differences_beta);
+    std::cout<< "RMSE beta = " << rmse_beta <<std::endl;
+
     std::cout << "max model.f(): "<< model.f().array().abs().maxCoeff() << std::endl;
     std::cout << "max f_: "<< (f_).array().abs().maxCoeff() << std::endl; 
 
-    ss << " ["; for (double value : model.betanp()) { ss << value << " "; } ss << "] ";
-    ss << rmse << " " << duration.count() << " " <<  (model.f().head(f_.rows()) - f_ ).array().abs().maxCoeff() << std::endl;
+    // ss << " ["; for (double value : model.betanp()) { ss << value << " "; } ss << "] ";
+    ss << " " << rmse << " " << rmse_beta << " " << duration.count() << " " <<  (model.f().head(f_.rows()) - f_ ).array().abs().maxCoeff() << std::endl;
 
     std::cout << "max diff: " << (model.f().head(f_.rows()) - f_ ).array().abs().maxCoeff() << std::endl;
 
@@ -622,7 +667,7 @@ TEST_P(MixedSRPDETest, iterative) {
     
     std::string filename = "prova_test.txt";
     // header:
-    // patientsN mu seed policyID na_percentage meshID lambda [b] [beta] rmse duration maxcoeff
+    // patientsN mu seed policyID na_percentage meshID lambda rmse rmse_beta duration maxcoeff
 
     std::string meshID = params.meshID;
     std::string locsID = "1000";
@@ -636,10 +681,12 @@ TEST_P(MixedSRPDETest, iterative) {
     policyID = policyID + "/"; 
     locsID = locsID + "/"; 
 	
-    std::vector<double> a = {-3.0, 4.0}; // Coefficienti per X: n_obs x 2
-    std::vector<double> b = generate_b_coefficients(n_patients, params.seed); // Coefficienti per V
+    DVector<double> a(2);
+    a(0) = -3.0;
+    a(1) = 4.0; // Coefficienti per X: n_obs x 2
+    DVector<double> b = generate_b_coefficients(n_patients, params.seed); // Coefficienti per V
 
-    ss << " ["; for (double value : b) { ss << value << " "; } ss << "]";
+    // ss << " ["; for (double value : b) { ss << value << " "; } ss << "]";
    																					
     double na_percentage = params.na_percentage;  // percentuale di valori NA 
 
@@ -723,18 +770,22 @@ TEST_P(MixedSRPDETest, iterative) {
         output2 << data2(i) << "\n"; }
     output2.close();  
 
-    std::cout << "beta: " << model.beta() << std::endl;
-    std::cout << "alpha: " << model.alpha() << std::endl;
+    // std::cout << "beta: " << model.beta() << std::endl;
+    // std::cout << "alpha: " << model.alpha() << std::endl;
     
     auto differences = (model.f() - f_).array().square().mean();
     auto rmse = std::sqrt(differences);
     std::cout<< "RMSE = " << rmse <<std::endl;
 
+    auto differences_beta = (model.beta()-a).array().square().mean();
+    auto rmse_beta = std::sqrt(differences_beta);
+    std::cout<< "RMSE beta = " << rmse_beta <<std::endl;
+
     std::cout << "max model.f(): "<< model.f().array().abs().maxCoeff() << std::endl;
     std::cout << "max f_: "<< (f_).array().abs().maxCoeff() << std::endl; 
 
-    ss << " ["; for (double value : model.betanp()) { ss << value << " "; } ss << "] ";
-    ss << rmse << " " << duration.count() << " " <<  (model.f().head(f_.rows()) - f_ ).array().abs().maxCoeff() << std::endl;
+    // ss << " ["; for (double value : model.betanp()) { ss << value << " "; } ss << "] ";
+    ss << " " << rmse << " " << rmse_beta << " " << duration.count() << " " <<  (model.f().head(f_.rows()) - f_ ).array().abs().maxCoeff() << std::endl;
 
     std::cout << "max diff: " << (model.f().head(f_.rows()) - f_ ).array().abs().maxCoeff() << std::endl;
 
