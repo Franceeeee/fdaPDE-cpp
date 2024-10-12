@@ -211,14 +211,14 @@ void generate_data_for_all_patients(int num_patients, const DVector<double>& a, 
 const std::string& output_dir, int seed, double na_percentage, double mu, bool locsyn) {
     std::mt19937 gen(seed);
     if(locsyn){
-        std::normal_distribution<> obs_dist(mu, mu/4); // locazioni diverse
+        std::normal_distribution<> obs_dist(mu, mu/4); // locazioni diverse (locsyn == 1)
         for (int patient_id = 0; patient_id < num_patients; ++patient_id) {
             int n_obs = std::round(obs_dist(gen));
             // std::cout << "Generando dati per il paziente " << patient_id << " con " << n_obs << " osservazioni.\n";
             generate_data_for_patient(patient_id, a, b, n_obs, gen, output_dir, na_percentage, locsyn);
         }
     } else {
-        std::normal_distribution<> obs_dist(mu, 0); // locazioni uguali
+        std::normal_distribution<> obs_dist(mu, 0); // locazioni uguali (locsyn == 0)
         for (int patient_id = 0; patient_id < num_patients; ++patient_id) {
             int n_obs = std::round(obs_dist(gen));
             // std::cout << "Generando dati per il paziente " << patient_id << " con " << n_obs << " osservazioni.\n";
@@ -227,16 +227,17 @@ const std::string& output_dir, int seed, double na_percentage, double mu, bool l
     }
 }
 
-/*
+
 // test monolitico
 TEST(mixed_srpde_test, mille_mono_automatico) {
     int seed = 1234; 
 	std::size_t n_patients = 3; //4
     double mu = 1000.;
 	
-    std::vector<double> a = {-3.0, 4.0}; // Coefficienti per X: n_obs x 2
-    // std::vector<double> b = {0.5,  0., -0.5}; // Coefficienti per V
-    std::vector<double> b = generate_b_coefficients(n_patients, seed);
+    DVector<double> a(2);
+    a(0) = -3.0;
+    a(1) = 4.0;
+    DVector<double> b = generate_b_coefficients(n_patients, seed);
 
     std::cout << "b:" << std::endl;
     for (double value : b) {
@@ -269,7 +270,7 @@ TEST(mixed_srpde_test, mille_mono_automatico) {
 	if(!std::filesystem::create_directory(output_dir)) std::filesystem::create_directory(output_dir);
     
     // Genera dati per tutti i pazienti
-    generate_data_for_all_patients(n_patients, a, b, output_dir, seed, na_percentage, mu);
+    generate_data_for_all_patients(n_patients, a, b, output_dir, seed, na_percentage, mu, 1);
 
     // import data from files
     for(std::size_t i = 0; i<n_patients; i++){
@@ -316,10 +317,17 @@ TEST(mixed_srpde_test, mille_mono_automatico) {
 	model.set_lambda_D(lambda);
 	model.set_data(data);
     model.set_N(sum);
+
+    auto start = std::chrono::high_resolution_clock::now();
     
     // solve smoothing problem
     model.init();
     model.solve();
+
+    auto end = std::chrono::high_resolution_clock::now();
+    std::chrono::duration<double> duration = end - start;
+
+    std::cout << "duration: " << duration.count() << std::endl;
 
     std::ofstream output1("model_f.csv");  // Primo file di output
     output1 << "model_f\n";  // Intestazione con il nome del file
@@ -358,6 +366,7 @@ TEST(mixed_srpde_test, mille_mono_automatico) {
     
 }
 
+
 // test iterativo
 TEST(mixed_srpde_test, mille_iter_automatico) {
        
@@ -366,9 +375,10 @@ TEST(mixed_srpde_test, mille_iter_automatico) {
     int seed = 1234; 
     double mu = 1000.;
 
-    std::vector<double> a = {2.0, -1.5};  // Coefficienti per W
-    // std::vector<double> b = {0.5, 0., -0.5};   // Coefficienti per V
-    std::vector<double> b = generate_b_coefficients(n_patients, seed);
+    DVector<double> a(2);
+    a(0) = -3.0;
+    a(1) = 4.0;
+    DVector<double> b = generate_b_coefficients(n_patients, seed);
 
     // define data
     std::vector<BlockFrame<double, int>> data;
@@ -392,7 +402,7 @@ TEST(mixed_srpde_test, mille_iter_automatico) {
 	if(!std::filesystem::create_directory(output_dir)) std::filesystem::create_directory(output_dir);
 
     // Genera dati per tutti i pazienti
-    generate_data_for_all_patients(n_patients, a, b, output_dir, seed, na_percentage, mu);
+    generate_data_for_all_patients(n_patients, a, b, output_dir, seed, na_percentage, mu, 1);
 
     // import data from files
     for(std::size_t i = 0; i<n_patients; i++){
@@ -435,9 +445,16 @@ TEST(mixed_srpde_test, mille_iter_automatico) {
     model.set_data(data);
     model.set_N(sum);
     
+    auto start = std::chrono::high_resolution_clock::now();
+
     // solve smoothing problem
     model.init();
     model.solve();
+
+    auto end = std::chrono::high_resolution_clock::now();
+    std::chrono::duration<double> duration = end - start;
+
+    std::cout << "duration: " << duration.count() << std::endl;
 
     std::ofstream output("model_f.csv");
     DMatrix<double> data1 = model.f();
@@ -466,8 +483,9 @@ TEST(mixed_srpde_test, mille_iter_automatico) {
 
     EXPECT_TRUE(  (model.f().head(f_.rows()) - f_ ).array().abs().maxCoeff() < 1e-2 );
     EXPECT_TRUE(  (model.f() - f_ ).array().abs().maxCoeff() < 1e-2 );
-}*/
+}
 
+/*
 // PARAMETRIC TEST 
 struct TestParams {
     int patientsN;
@@ -522,22 +540,21 @@ std::vector<double> linspace(double start, double end, int n) {
 std::vector<TestParams> GenerateTestParamsConditional() {
     std::vector<TestParams> testParamsList;
     std::vector<int> patientsNs = {5, 10, 15, 20, 25, 30};
-    std::vector<double> mus = {1000.0, 5000.0, 10000.0};
+    std::vector<double> mus = {1000.0, 2500.0, 5000.0, 7500.0, 10000.0};
     std::uniform_int_distribution<> seeds(1000, 50000);
     std::mt19937 gen(std::random_device{}());
     std::vector<double> na_percentages = {0.0, 0.05, 0.1, 0.15, 0.2};
     std::string meshID = "unit_square";
-    std::vector<double> lambdas = linspace(1e-5, 1, 30);
+    double lambda = 1.;
+    // std::vector<double> lambdas = linspace(1e-5, 1, 30);
     std::vector<bool> locsyn = {1, 0};
 
     for (const auto& patientsN : patientsNs) {
         for (const auto& mu : mus) {
             for(const auto& na_percentage : na_percentages){
-                for(const auto& lambda : lambdas){
-                    for(const auto& locsy : locsyn){
-                        TestParams params = {patientsN, mu, seeds(gen), na_percentage, meshID, lambda, locsy};
-                        testParamsList.push_back(params);
-                    }
+                for(const auto& locsy : locsyn){
+                    TestParams params = {patientsN, mu, seeds(gen), na_percentage, meshID, lambda, locsy};
+                    testParamsList.push_back(params);
                 }
             }
         }
@@ -867,7 +884,7 @@ TEST_P(MixedSRPDETest, iterative) {
 
     EXPECT_TRUE(  (model.f().head(f_.rows()) - f_ ).array().abs().maxCoeff() < 0.5 );
 }
-
+*/
 /*
 // test iterativo LOCAZIONI DIFFERENTI
 TEST(mixed_srpde_test, mille_iter) {

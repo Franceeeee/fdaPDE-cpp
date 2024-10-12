@@ -373,7 +373,7 @@ class MixedSRPDE<SpaceOnly,iterative> : public RegressionBase<MixedSRPDE<SpaceOn
     int p;                                         // p: group-specific covariates
     double alpha_ = 1;                             // alpha: acceleration parameter
     SparseBlockMatrix<double, 2, 2> P_ {};         // preconditioning matrix of the Richardson scheme
-    fdapde::SparseLU<SpMatrix<double>> invP_ {};   // factorization of matrix P
+    std::vector<fdapde::SparseLU<SpMatrix<double>>> invP_ ;   // factorization of matrix P
     SpMatrix<double> I_;                           // N x N sparse identity matrix 
     DMatrix<double> s_;                            // N x 1 initial condition vector
     DMatrix<double> u_;                            // discretized forcing [1/DeltaT * (u_1 + R_0*s) \ldots u_n]
@@ -603,6 +603,8 @@ class MixedSRPDE<SpaceOnly,iterative> : public RegressionBase<MixedSRPDE<SpaceOn
         DMatrix<double> U_i = DMatrix<double>::Zero(2*n_basis(), q());  // U = PsiTD * X
         DMatrix<double> V_i = DMatrix<double>::Zero(q(), 2*n_basis());  // V = X^T * Psi
 
+        invP_.resize(data_.size());
+
         // auto _start = std::chrono::high_resolution_clock::now();   
         
         for (std::size_t i = 0; i < m_; i++){
@@ -626,7 +628,7 @@ class MixedSRPDE<SpaceOnly,iterative> : public RegressionBase<MixedSRPDE<SpaceOn
             // std::cout << "-		assemblamento P_: " << duration.count() << std::endl;
             // start = std::chrono::high_resolution_clock::now();
 
-            invP_.compute(P_); 
+            invP_[i].compute(P_); 
 
             // duration = std::chrono::high_resolution_clock::now() - start;
             // std::cout << "-		inversione P_: " << duration.count() << std::endl;
@@ -640,7 +642,7 @@ class MixedSRPDE<SpaceOnly,iterative> : public RegressionBase<MixedSRPDE<SpaceOn
             V_i.block(p+i*qV, 0, qV, n_basis()) = Vp(i).transpose()*Psi_[i]; 
             
             // solve system (A_ + U_*(X^T*W_*X)*V_)x = b using woodbury formula from linear_algebra module
-            xi0 = SMW<>().solve(invP_, U_i, XtWX(), V_i, bi);
+            xi0 = SMW<>().solve(invP_[i], U_i, XtWX(), V_i, bi);
             
             x_new.block(i*n_basis(), 0, n_basis(),1) = xi0.head(n_basis());
             x_new.block((i+m_)*n_basis(),0, n_basis(),1) = xi0.tail(n_basis()); 
@@ -714,7 +716,7 @@ class MixedSRPDE<SpaceOnly,iterative> : public RegressionBase<MixedSRPDE<SpaceOn
                     // solve system (A_ + U_*(X^T*W_*X)*V_)x = b using woodbury formula from linear_algebra module
                     // auto ___start = std::chrono::high_resolution_clock::now();
 
-                    zi = SMW<>().solve(invP_, U_i, XtWX(), V_i, bi);
+                    zi = SMW<>().solve(invP_[i], U_i, XtWX(), V_i, bi);
 
                     // std::chrono::duration<double> ___duration = std::chrono::high_resolution_clock::now() - ___start;
         	        // std::cout << "-			costo SMW/unita: " << 
