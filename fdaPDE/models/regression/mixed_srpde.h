@@ -332,15 +332,12 @@ class MixedSRPDE<SpaceOnly,monolithic> : public RegressionBase<MixedSRPDE<SpaceO
         DMatrix<double> Ip = {}; Ip.resize(qV,qV); Ip.setIdentity(); Ip = Ip/m_;
         DMatrix<double> Iqp = {}; Iqp.resize(p,p); Iqp.setIdentity();
         DMatrix<double> Z1 = DMatrix<double>::Zero(qV,p);
-        DMatrix<double> Z2 = DMatrix<double>::Zero(p, m_*p*qV);
+        DMatrix<double> Z2 = DMatrix<double>::Zero(p, m_*qV);
         DMatrix<double> Ip_loop = {}; Ip_loop.resize(qV, m_*qV);
         for (std::size_t i=0; i<m_; i++){ Ip_loop.block(0,i*qV,qV,qV) = Ip; }
         F_ = SparseBlockMatrix<double,2,2>(
             Z1.sparseView(), Ip_loop.sparseView(),
-            Iqp.sparseView(), Z2.sparseView() ); 
-
-        
-        std::cout << "return" << std::endl;
+            Iqp.sparseView(), Z2.sparseView() );       
         T_.resize(m_*qV,m_*qV); T_.setIdentity(); T_ = (m_-1.0)/m_ * T_;
         
         for (std::size_t i=0; i<m_; i++){
