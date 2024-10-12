@@ -55,37 +55,64 @@ using fdapde::testing::MeshLoader;
 using fdapde::testing::read_csv;
 
 // TEST CON GENERAZIONE INTERNA DEI DATI
-DVector<double> generate_b_coefficients(int n_patients, int seed) {
+
+// generazione coefficienti alpha
+DMatrix<double> generate_alpha_coefficients(int n_levels, int qV, int seed) {
+
+    // n_levels: m (rows of matrix alpha)
+    // p: number of columns of Vi (columns of matrix alpha), i=1,...,m
+
     std::mt19937 gen(seed);
 
-    if (n_patients < 1) throw std::invalid_argument("Number of patients must be at least 1");
+    if (n_levels < 1) throw std::invalid_argument("Number of levels must be at least 1");
     
-    DVector<double> b(n_patients);
+    DMatrix<double> alpha(n_levels, qV);
 
-    if (n_patients == 1){
-        b(0) = 0; 
-        return b;
-    }
-
-    // Uniform distribution between -1 and 1
     std::uniform_real_distribution<> dis(-1.0, 1.0);
 
-    // Generate n_patients - 1 random coefficients in the range [-1, 1]
-    for (int i = 0; i < n_patients - 1; ++i) {
-        b(i) = dis(gen);
+    // for each level, alpha_11 + alpha_21 + ... + alpha_M1 = 0
+    for(std::size_t j = 0; j < qV; ++j){
+        double sum = 0.;
+        for(std::size_t i = 0; i < n_levels-1; ++i){
+            alpha(i,j) = dis(gen);
+            sum += alpha(i,j);
+        }
+        alpha(n_levels-1,j) = -sum;
     }
 
-    // Calculate the sum of the first n_patients - 1 elements
-    double sum = std::accumulate(b.begin(), b.end() - 1, 0.0);
-
-    // Set the last element to make the sum of the vector 0
-    b(n_patients - 1) = -sum;
-
-    return b;
+    return alpha;
 }
 
-auto lambda_cov = [](double x, double y) { // valutazione delle covariate
-    return std::sin(2*fdapde::testing::pi*x)*std::sin(2*fdapde::testing::pi*y); };
+DVector<double> generate_beta_coefficients(int n_cols_X, int seed) {
+    std::mt19937 gen(seed);
+
+    if (n_cols_X < 1) throw std::invalid_argument("Must have at least 1 covariate");
+    
+    DVector<double> beta(n_cols_X);
+
+    std::uniform_real_distribution<> dis(-10.0, 10.0);
+
+    for (int i = 0; i < n_cols_X; ++i) {  beta(i) = dis(gen); }
+
+    return beta;
+}
+
+auto lambda_cov = [](double x, double y, int id) { // valutazione delle covariate
+
+    if(id == 0){
+        return std::sin(2*fdapde::testing::pi*x)*std::sin(2*fdapde::testing::pi*y);
+    }
+    else if(id == 1){
+        return std::sin(fdapde::testing::pi*x)*std::sin(fdapde::testing::pi*y);
+    }
+    else if(id == 2){
+        return std::tan(fdapde::testing::pi*x)*std::sin(2*fdapde::testing::pi*y);
+    }
+    else if(id == 3){
+        return std::cos(2*fdapde::testing::pi*x)*std::cos(2*fdapde::testing::pi*y);
+    }
+    return std::cos(fdapde::testing::pi*x)*std::cos(fdapde::testing::pi*y);
+};
 
 auto lambda_np = [](double x, double y, int id = 0) { // lambda function per la parte non parametrica
 	// if(id == 0)
@@ -105,41 +132,42 @@ auto lambda_np = [](double x, double y, int id = 0) { // lambda function per la 
 
     return (a_sin * std::sin(fdapde::testing::pi * x) + a_cos * std::cos(fdapde::testing::pi * y))*x*y*(1-x)*(1-y);
 };
-  
-void write_to_csv(const std::string& filename, const std::vector<std::vector<double>>& data) {
+
+
+void write_DM_to_csv(const std::string& filename, const DMatrix<double>& data) {
     std::ofstream file(filename);
     if (!file.is_open()) {
         std::cerr << "Unable to open file: " << filename << std::endl;
         return;
     }
-    for (std::size_t row_index = 0; row_index < data.size(); ++row_index) {
-        file << "\"" << row_index << "\"";  // Write row index with quotes
-        for (std::size_t col_index = 0; col_index < data[row_index].size(); col_index++) {
-            file << ",\"" << data[row_index][col_index] << "\"";  // Write each value with quotes
+    for (Eigen::Index row_index = 0; row_index < data.rows(); ++row_index) {
+        file << "\"" << row_index << "\"";  
+        for (Eigen::Index col_index = 0; col_index < data.cols(); ++col_index) {
+            file << ",\"" << data(row_index, col_index) << "\""; 
         }
-        file << "\n";  // Newline after each row
+        file << "\n"; 
     }
     file.close();
-}
+};
 
 // generare punti casuali nel quadrato unitario [0, 1] x [0, 1]
-std::vector<std::vector<double>> generate_random_points(int n_points, std::mt19937& gen) {
+DMatrix<double> generate_random_points(int n_points, std::mt19937& gen) {
     std::uniform_real_distribution<> dis(0.0, 1.0);
-    std::vector<std::vector<double>> points(n_points, std::vector<double>(2));
+    DMatrix<double> points(n_points,2);
     for (int i = 0; i < n_points; ++i) {
-        points[i][0] = dis(gen);  // x
-        points[i][1] = dis(gen);  // y
+        points(i,0) = dis(gen);  // x
+        points(i,1) = dis(gen);  // y
     }
     return points;
 }
 
-std::vector<std::vector<double>> generate_points(int n_points) {
+DMatrix<double> generate_points(int n_points) {
     std::mt19937 gen(0);
     std::uniform_real_distribution<> dis(0.0, 1.0);
-    std::vector<std::vector<double>> points(n_points, std::vector<double>(2));
+    DMatrix<double> points(n_points, 2);
     for (int i = 0; i < n_points; ++i) {
-        points[i][0] = dis(gen);  // x
-        points[i][1] = dis(gen);  // y
+        points(i,0) = dis(gen);  // x
+        points(i,1) = dis(gen);  // y
     }
     return points;
 }
@@ -158,17 +186,22 @@ std::vector<bool> create_na_mask(int size, double na_percentage, std::mt19937& g
 }
 
 // generare dati per un singolo paziente
-void generate_data_for_patient(int patient_id, const DVector<double>& a, const DVector<double>& b, int n_obs, std::mt19937& gen, const std::string& output_dir, double na_percentage, bool locsyn) {
-    std::vector<std::vector<double>> locs;
+void generate_data_for_patient(int patient_id, const DVector<double>& beta, const DMatrix<double>& alpha, int n_obs, std::mt19937& gen, const std::string& output_dir, double na_percentage, bool locsyn) {
+
+    DMatrix<double> locs;
     if(locsyn){
         locs = generate_random_points(n_obs, gen); // locazioni diverse
     } else {
         locs = generate_points(n_obs); // locazioni uguali
     }
-    std::vector<std::vector<double>> X(n_obs, std::vector<double>(a.size()));
-    std::vector<std::vector<double>> W(n_obs, std::vector<double>(a.size()-1));
-    std::vector<std::vector<double>> V(n_obs, std::vector<double>(a.size()-1)); 
-    std::vector<std::vector<double>> observations(n_obs, std::vector<double>(1));
+
+    int qV = alpha.cols();
+    int q = beta.rows(); 
+
+    DMatrix<double> X(n_obs, q);
+    DMatrix<double> W(n_obs, q-qV);
+    DMatrix<double> V(n_obs, qV); 
+    DMatrix<double> observations(n_obs, 1);
 
     // distribuzione per generare le covariate
     // std::uniform_real_distribution<> dis(0.0, 1.0);
@@ -177,52 +210,60 @@ void generate_data_for_patient(int patient_id, const DVector<double>& a, const D
     
     // matrice disegno
     for (int i=0; i<n_obs; i++){
-        X[i][0] = lambda_cov(locs[i][0], locs[i][1]);
-        X[i][1] = noise_dist(gen);
-    }
+        double fixed_term = 0;
+        double mixed_term = 0;
 
-    for (int i = 0; i < n_obs; ++i) {
-        W[i][0] = X[i][1];
-        V[i][0] = X[i][0];
+        for(int j=0; j < qV; ++j){
+            X(i,j) = lambda_cov(locs(i,0),locs(i,1),j);
+            V(i,j) = X(i,j);
+            mixed_term += alpha(patient_id,j)*V(i,j);
+            fixed_term += beta(j)*X(i,j);
+        }
+        
+        for(int j=qV; j<q; ++j){
+            X(i,j) = noise_dist(gen);
+            W(i,j-qV) = X(i,j);
+            fixed_term += beta(j)*X(i,j);
+        }
 
-        double f_value = lambda_np(locs[i][0], locs[i][1], patient_id);
+        double f_value = lambda_np(locs(i,0), locs(i,1), patient_id);
 
-        observations[i][0] = a(0)*X[i][0] + a(1)*X[i][1] + b(patient_id)*V[i][0] + f_value; // DIMENSIONI DI a qui sono fissate
-        observations[i][0] += noise_obs(gen);
+        observations(i,0) = fixed_term + mixed_term + f_value;
+        observations(i,0) += noise_obs(gen);
     }
 
  
     std::vector<bool> na_mask = create_na_mask(n_obs, na_percentage, gen);
     for (int i = 0; i < n_obs; ++i) {
         if (na_mask[i]) {
-            observations[i][0] = std::numeric_limits<double>::quiet_NaN();  
+            observations(i,0) = std::numeric_limits<double>::quiet_NaN();  
         }
     }
 
-    write_to_csv(output_dir + "cov_" + std::to_string(patient_id) + ".csv", X);
-    write_to_csv(output_dir + "W_" + std::to_string(patient_id) + ".csv", W);
-    write_to_csv(output_dir + "V_" + std::to_string(patient_id) + ".csv", V);
-    write_to_csv(output_dir + "locs_" + std::to_string(patient_id) + ".csv", locs);
-    write_to_csv(output_dir + "observations_" + std::to_string(patient_id) + ".csv", observations);
+    write_DM_to_csv(output_dir + "X_" + std::to_string(patient_id) + ".csv", X);
+    write_DM_to_csv(output_dir + "W_" + std::to_string(patient_id) + ".csv", W);
+    write_DM_to_csv(output_dir + "V_" + std::to_string(patient_id) + ".csv", V);
+    write_DM_to_csv(output_dir + "locs_" + std::to_string(patient_id) + ".csv", locs);
+    write_DM_to_csv(output_dir + "observations_" + std::to_string(patient_id) + ".csv", observations);
     // std::cout << "Generati dati per il paziente " << patient_id << " con " << n_obs << " osservazioni.\n";
 }
 
-void generate_data_for_all_patients(int num_patients, const DVector<double>& a, const DVector<double>& b,
-const std::string& output_dir, int seed, double na_percentage, double mu, bool locsyn) {
+void generate_data_for_all_patients(int num_patients, const DVector<double>& beta, const DMatrix<double>& alpha,
+                                    const std::string& output_dir, int seed, double na_percentage, double mu, bool locsyn) {
     std::mt19937 gen(seed);
     if(locsyn){
         std::normal_distribution<> obs_dist(mu, mu/4); // locazioni diverse (locsyn == 1)
         for (int patient_id = 0; patient_id < num_patients; ++patient_id) {
             int n_obs = std::round(obs_dist(gen));
             // std::cout << "Generando dati per il paziente " << patient_id << " con " << n_obs << " osservazioni.\n";
-            generate_data_for_patient(patient_id, a, b, n_obs, gen, output_dir, na_percentage, locsyn);
+            generate_data_for_patient(patient_id, beta, alpha, n_obs, gen, output_dir, na_percentage, locsyn);
         }
     } else {
         std::normal_distribution<> obs_dist(mu, 0); // locazioni uguali (locsyn == 0)
         for (int patient_id = 0; patient_id < num_patients; ++patient_id) {
             int n_obs = std::round(obs_dist(gen));
             // std::cout << "Generando dati per il paziente " << patient_id << " con " << n_obs << " osservazioni.\n";
-            generate_data_for_patient(patient_id, a, b, n_obs, gen, output_dir, na_percentage, locsyn);
+            generate_data_for_patient(patient_id, beta, alpha, n_obs, gen, output_dir, na_percentage, locsyn);
         }
     }
 }
@@ -233,17 +274,17 @@ TEST(mixed_srpde_test, mille_mono_automatico) {
     int seed = 1234; 
 	std::size_t n_patients = 3; //4
     double mu = 1000.;
-	
-    DVector<double> a(2);
-    a(0) = -3.0;
-    a(1) = 4.0;
-    DVector<double> b = generate_b_coefficients(n_patients, seed);
 
-    std::cout << "b:" << std::endl;
-    for (double value : b) {
-        std::cout << value << " ";
-    }
-    std::cout << std::endl;
+    int q = 3; // numero colonne X
+    std::cout << "q: " << q << std::endl;
+    int qV = 2; // numero colonne per ogni V_i
+    std::cout << "qV: " << qV << std::endl;
+	
+    DVector<double> beta = generate_beta_coefficients(q, seed); // stesso numero di colonne di X
+    std::cout << "beta:\n" << beta << std::endl;
+
+    DMatrix<double> alpha = generate_alpha_coefficients(n_patients, qV, seed); // righe: n_patients (livelli), colonne: qV
+    std::cout << "alpha:\n" << alpha << std::endl;
    																					
     double na_percentage = 0.;  // percentuale di valori NA 
 
@@ -270,7 +311,7 @@ TEST(mixed_srpde_test, mille_mono_automatico) {
 	if(!std::filesystem::create_directory(output_dir)) std::filesystem::create_directory(output_dir);
     
     // Genera dati per tutti i pazienti
-    generate_data_for_all_patients(n_patients, a, b, output_dir, seed, na_percentage, mu, 1);
+    generate_data_for_all_patients(n_patients, beta, alpha, output_dir, seed, na_percentage, mu, 1);
 
     // import data from files
     for(std::size_t i = 0; i<n_patients; i++){
@@ -304,7 +345,7 @@ TEST(mixed_srpde_test, mille_mono_automatico) {
     PDE<decltype(domain.mesh), decltype(L), DMatrix<double>, FEM, fem_order<1>> problem(domain.mesh, L, u);
 	
     // define lambda
-    double lambda = 0.1; 
+    double lambda = 1; 
 
     // getting dimension of the data (number of total observations N)
     std::size_t sum = 0;
@@ -319,9 +360,11 @@ TEST(mixed_srpde_test, mille_mono_automatico) {
     model.set_N(sum);
 
     auto start = std::chrono::high_resolution_clock::now();
-    
+
     // solve smoothing problem
+    std::cout << "model init" << std::endl;
     model.init();
+    std::cout << "model solve" << std::endl;
     model.solve();
 
     auto end = std::chrono::high_resolution_clock::now();
@@ -348,8 +391,8 @@ TEST(mixed_srpde_test, mille_mono_automatico) {
     std::cout << "model_f created" << std::endl;
 
     // std::cout << "Monolithic: " << (model.f() - model.f() ).array().abs().maxCoeff() << std::endl;
-    std::cout << "beta: " << model.beta() << std::endl;
-    std::cout << "alpha: " << model.alpha() << std::endl;
+    std::cout << "beta: \n" << model.beta() << std::endl;
+    std::cout << "alpha: \n" << model.alpha() << std::endl;
     //EXPECT_TRUE(  (model.f() - f_estimate ).array().abs().maxCoeff() < 1e-6 );
     // std::cout << f_.rows() << " " << f_.cols() << std::endl; 
     // std::cout << model.f().rows() << " " << model.f().cols() << std::endl; 
@@ -375,10 +418,11 @@ TEST(mixed_srpde_test, mille_iter_automatico) {
     int seed = 1234; 
     double mu = 1000.;
 
-    DVector<double> a(2);
-    a(0) = -3.0;
-    a(1) = 4.0;
-    DVector<double> b = generate_b_coefficients(n_patients, seed);
+    DVector<double> beta(3);
+    beta << -3.0, 4.0, 0.5;
+    
+    int p = 2;
+    DMatrix<double> alpha = generate_alpha_coefficients(n_patients, p, seed);
 
     // define data
     std::vector<BlockFrame<double, int>> data;
@@ -402,7 +446,7 @@ TEST(mixed_srpde_test, mille_iter_automatico) {
 	if(!std::filesystem::create_directory(output_dir)) std::filesystem::create_directory(output_dir);
 
     // Genera dati per tutti i pazienti
-    generate_data_for_all_patients(n_patients, a, b, output_dir, seed, na_percentage, mu, 1);
+    generate_data_for_all_patients(n_patients, beta, alpha, output_dir, seed, na_percentage, mu, 1);
 
     // import data from files
     for(std::size_t i = 0; i<n_patients; i++){
@@ -438,7 +482,7 @@ TEST(mixed_srpde_test, mille_iter_automatico) {
         sum += data[i].template get<double>(LOCS_BLOCK).rows();
     }
     
-    MixedSRPDE<SpaceOnly,monolithic> model(problem, Sampling::pointwise);
+    MixedSRPDE<SpaceOnly,iterative> model(problem, Sampling::pointwise);
 
     model.set_lambda_D(lambda);
 

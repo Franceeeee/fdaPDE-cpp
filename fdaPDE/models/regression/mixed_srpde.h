@@ -250,7 +250,7 @@ class MixedSRPDE<SpaceOnly,monolithic> : public RegressionBase<MixedSRPDE<SpaceO
         
         fdapde_assert(y_.rows() != 0);
         DVector<double> sol;
-
+        std::cout << "b: " << b_.rows() << "x" << b_.cols() << std::endl;
         // parametric case
         // update rhs of SR-PDE linear system
         b_.block(0, 0, m_*n_basis(), 1) = -mPsiTD_ * W_ * lmbQ(y_);   // -\Psi^T*D*Q*z
@@ -263,6 +263,7 @@ class MixedSRPDE<SpaceOnly,monolithic> : public RegressionBase<MixedSRPDE<SpaceO
 
         // solve system (A_ + U_*(X^T*W_*X)*V_)x = b using woodbury formula from linear_algebra module
         sol = SMW<>().solve(invA_, U_, XtWX_, V_, b_);
+        std::cout << "sol: " << sol.rows() << "x" << sol.cols() << std::endl;
 
         // store result of smoothing
         f_ = sol.head(m_*n_basis());
@@ -274,10 +275,20 @@ class MixedSRPDE<SpaceOnly,monolithic> : public RegressionBase<MixedSRPDE<SpaceO
 
         // std::cout << "Matrix T_:\n" << T_ << std::endl; 
 
+        std::cout << "nu:\n" << beta_ << std::endl;
+
+        std::cout << "dimensioni F_: " << F_.rows() <<" x " << F_.cols() << std::endl;
+        std::cout << "dimensioni T_: " << T_.rows() <<" x " << T_.cols() << std::endl;
+        std::cout << "dimensioni nu_: " << beta_.rows() <<" x " << beta_.cols() << std::endl;
+        
+        std::cout << "Matrix F_: \n" << F_ << std::endl;
+        std::cout << "Matrix T_: \n" << T_ << std::endl;
+         
         beta_coeff_ = F_*beta_;
-        alpha_coeff_ = T_*beta_.tail(m_*p); 
+        alpha_coeff_ = T_*beta_.tail(m_*qV); 
 
         // store PDE misfit
+        std::cout << "g: " << std::endl;
         g_ = sol.tail(m_*n_basis());
     
         // auto end = std::chrono::high_resolution_clock::now();
@@ -318,22 +329,25 @@ class MixedSRPDE<SpaceOnly,monolithic> : public RegressionBase<MixedSRPDE<SpaceO
     void set_data(const std::vector<BlockFrame<double, int>>& data, bool reindex = false) { data_ = data; }
     void set_N(std::size_t number) { N = number; }
     void set_F_T() {
-        DMatrix<double> Ip = {}; Ip.resize(p,p); Ip.setIdentity(); Ip = Ip/m_;
-        DMatrix<double> Iqp = {}; Iqp.resize(qV,qV); Iqp.setIdentity();
-        DMatrix<double> Z1 = DMatrix<double>::Zero(p, qV);
-        DMatrix<double> Z2 = DMatrix<double>::Zero(qV, m_*p);
-        DMatrix<double> Ip_loop = {}; Ip_loop.resize(p, m_*p);
-        for (std::size_t i=0; i<m_; i++){ Ip_loop.block(0,i*p,p,p) = Ip; }
+        DMatrix<double> Ip = {}; Ip.resize(qV,qV); Ip.setIdentity(); Ip = Ip/m_;
+        DMatrix<double> Iqp = {}; Iqp.resize(p,p); Iqp.setIdentity();
+        DMatrix<double> Z1 = DMatrix<double>::Zero(qV,p);
+        DMatrix<double> Z2 = DMatrix<double>::Zero(p, m_*p*qV);
+        DMatrix<double> Ip_loop = {}; Ip_loop.resize(qV, m_*qV);
+        for (std::size_t i=0; i<m_; i++){ Ip_loop.block(0,i*qV,qV,qV) = Ip; }
         F_ = SparseBlockMatrix<double,2,2>(
             Z1.sparseView(), Ip_loop.sparseView(),
             Iqp.sparseView(), Z2.sparseView() ); 
-        T_.resize(m_*p,m_*p); T_.setIdentity(); T_ = (m_-1.0)/m_ * T_;
+
+        
+        std::cout << "return" << std::endl;
+        T_.resize(m_*qV,m_*qV); T_.setIdentity(); T_ = (m_-1.0)/m_ * T_;
+        
         for (std::size_t i=0; i<m_; i++){
             for(std::size_t j=0; j<m_; j++){
-                if(T_(i*p,j*p) == 0){ T_.block(i*p,j*p,p,p) = -Ip; }
+                if(T_(i*qV,j*qV) == 0){ T_.block(i*qV,j*qV,qV,qV) = -Ip; }
             }
         }
-        // std::cout<< "T: \n" << T_ <<std::endl;
         return;
     }
     void set_n_locs_cum() {
@@ -462,6 +476,25 @@ class MixedSRPDE<SpaceOnly,iterative> : public RegressionBase<MixedSRPDE<SpaceOn
         return;
     }
 
+    void set_F_T() {
+        DMatrix<double> Ip = {}; Ip.resize(qV,qV); Ip.setIdentity(); Ip = Ip/m_;
+        DMatrix<double> Iqp = {}; Iqp.resize(p,p); Iqp.setIdentity();
+        DMatrix<double> Z1 = DMatrix<double>::Zero(qV,p);
+        DMatrix<double> Z2 = DMatrix<double>::Zero(p, m_*p*qV);
+        DMatrix<double> Ip_loop = {}; Ip_loop.resize(qV, m_*qV);
+        for (std::size_t i=0; i<m_; i++){ Ip_loop.block(0,i*qV,qV,qV) = Ip; }
+        F_ = SparseBlockMatrix<double,2,2>(
+            Z1.sparseView(), Ip_loop.sparseView(),
+            Iqp.sparseView(), Z2.sparseView() ); 
+        T_.resize(m_*qV,m_*qV); T_.setIdentity(); T_ = (m_-1.0)/m_ * T_;
+        for (std::size_t i=0; i<m_; i++){
+            for(std::size_t j=0; j<m_; j++){
+                if(T_(i*qV,j*qV) == 0){ T_.block(i*qV,j*qV,qV,qV) = -Ip; }
+            }
+        }
+        return;
+    }
+
     void analyze_data() { 
 
         set_n_locs_cum();
@@ -531,37 +564,8 @@ class MixedSRPDE<SpaceOnly,iterative> : public RegressionBase<MixedSRPDE<SpaceOn
         b_ = DMatrix<double>::Zero(2*n_basis()*m_, 1);
 
         // matrix for retrieve initial coefficients (alpha and beta)
-        DMatrix<double> Ip = {};
-        Ip.resize(p,p);
-        Ip.setIdentity();
-        Ip = Ip/m_;
-        DMatrix<double> Iqp = {};
-        Iqp.resize(qV,qV);
-        Iqp.setIdentity();
-        DMatrix<double> Z1 = DMatrix<double>::Zero(p, qV);
-        DMatrix<double> Z2 = DMatrix<double>::Zero(qV, m_*p);
-        DMatrix<double> Ip_loop = {};
-        Ip_loop.resize(p, m_*p);
-        for (std::size_t i=0; i<m_; i++){
-            Ip_loop.block(0,i*p,p,p) = Ip;
-        }
-        F_ = SparseBlockMatrix<double,2,2>(
-            Z1.sparseView(), Ip_loop.sparseView(),
-            Iqp.sparseView(), Z2.sparseView()
-        ); 
-        T_.resize(m_*p,m_*p);
-        T_.setIdentity();
-        T_ = (m_-1.0)/m_ * T_;
-        Ip.setIdentity();
-        for (std::size_t i=0; i<m_; i++){
-            for(std::size_t j=0; j<m_; j++){
-                if(T_(i*p,j*p) == 0){
-                    T_.block(i*p,j*p,p,p) = -Ip;
-                }
-            }
-        }
-        // std::chrono::duration<double> duration = std::chrono::high_resolution_clock::now() - start;
-        // std::cout << "- assemblamento delle matrici per i coefficienti beta: " << duration.count() << std::endl;
+        set_F_T();
+
         return; 
     }
 
@@ -742,18 +746,11 @@ class MixedSRPDE<SpaceOnly,iterative> : public RegressionBase<MixedSRPDE<SpaceOn
             g_ = x_new.bottomRows(n_basis()*m_);
        
        		// __start = std::chrono::high_resolution_clock::now();
-
-            beta_ = invXtWX().solve(X().transpose() * (y_ - mPsi_ * f_)); 
-
-       		// __duration = std::chrono::high_resolution_clock::now() - __start;
-        	// std::cout << "-		compute nu: " << __duration.count() << std::endl;
-        	// __start = std::chrono::high_resolution_clock::now();
-
-            beta_coeff_ = F_*beta_;
-            alpha_coeff_ = T_*beta_.tail(m_*p); 
-
-            // __duration = std::chrono::high_resolution_clock::now() - __start;
-        	// std::cout << "-		compute beta & alpha: " << __duration.count() << std::endl;
+            if(has_covariates()){   // if(p>0) ?
+                beta_ = invXtWX().solve(X().transpose() * (y_ - mPsi_ * f_)); 
+                beta_coeff_ = F_*beta_;
+                alpha_coeff_ = T_*beta_.tail(m_*p); 
+            }
 
             // correzione covariate            
             for(std::size_t i = 0; i < m_; i++) {
