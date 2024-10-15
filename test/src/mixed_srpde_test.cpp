@@ -275,9 +275,9 @@ TEST(mixed_srpde_test, mille_mono_automatico) {
 	std::size_t n_patients = 3; //4
     double mu = 1000.;
 
-    int q = 3; // numero colonne X
+    int q = 4; // numero colonne X
     std::cout << "q: " << q << std::endl;
-    int qV = 2; // numero colonne per ogni V_i
+    int qV = 4; // numero colonne per ogni V_i
     std::cout << "qV: " << qV << std::endl;
 	
     DVector<double> beta = generate_beta_coefficients(q, seed); // stesso numero di colonne di X
@@ -418,11 +418,14 @@ TEST(mixed_srpde_test, mille_iter_automatico) {
     int seed = 1234; 
     double mu = 1000.;
 
-    DVector<double> beta(3);
-    beta << -3.0, 4.0, 0.5;
+    int q = 4;
+    int qV = 4;
+
+    DVector<double> beta = generate_beta_coefficients(q, seed);
+    std::cout << "beta:\n"  << beta << std::endl;
     
-    int p = 2;
-    DMatrix<double> alpha = generate_alpha_coefficients(n_patients, p, seed);
+    DMatrix<double> alpha = generate_alpha_coefficients(n_patients, qV, seed);
+    std::cout << "alpha:\n" << alpha << std::endl;
 
     // define data
     std::vector<BlockFrame<double, int>> data;
@@ -430,7 +433,7 @@ TEST(mixed_srpde_test, mille_iter_automatico) {
 
     // define domain 
     std::string meshID = "unit_square_coarse";
-    std::string policyID = "richardson/";
+    std::string policyID = "iterative/";
     std::string locsID = "1000/";
     MeshLoader<Mesh2D> domain(meshID);
     meshID = meshID + "/"; 
@@ -450,6 +453,7 @@ TEST(mixed_srpde_test, mille_iter_automatico) {
 
     // import data from files
     for(std::size_t i = 0; i<n_patients; i++){
+        std::cout<< "----- i = " << i << " -----" << std::endl;
         std::string Wname = "W_" + std::to_string(i);
         std::string Vname = "V_" + std::to_string(i);
         std::string locsname = "locs_" + std::to_string(i);
@@ -467,6 +471,7 @@ TEST(mixed_srpde_test, mille_iter_automatico) {
          	f_(i + j*domain.mesh.nodes().rows(),0) = lambda_np(domain.mesh.nodes()(i,0), domain.mesh.nodes()(i,1),j);
     	}
     }
+    std::cout << "f_ done" << std::endl;
 
     // define regularizing PDE
     auto L = -laplacian<FEM>();
