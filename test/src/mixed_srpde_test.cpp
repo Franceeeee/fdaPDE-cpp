@@ -277,7 +277,7 @@ TEST(mixed_srpde_test, mille_mono_automatico) {
 
     int q = 4; // numero colonne X
     std::cout << "q: " << q << std::endl;
-    int qV = 4; // numero colonne per ogni V_i
+    int qV = 3; // numero colonne per ogni V_i
     std::cout << "qV: " << qV << std::endl;
 	
     DVector<double> beta = generate_beta_coefficients(q, seed); // stesso numero di colonne di X
@@ -415,11 +415,11 @@ TEST(mixed_srpde_test, mille_iter_automatico) {
        
     std::size_t n_patients = 3;
     double na_percentage = 0.;  // percentuale di valori NA 
-    int seed = 1234; 
+    int seed = 1240; 
     double mu = 1000.;
 
     int q = 4;
-    int qV = 4;
+    int qV = 3;
 
     DVector<double> beta = generate_beta_coefficients(q, seed);
     std::cout << "beta:\n"  << beta << std::endl;

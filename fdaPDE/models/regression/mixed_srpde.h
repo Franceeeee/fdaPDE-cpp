@@ -414,7 +414,19 @@ class MixedSRPDE<SpaceOnly,iterative> : public RegressionBase<MixedSRPDE<SpaceOn
         
     }
 
-    DMatrix<double> aux(const DMatrix<double>& x, std::size_t i, const DMatrix<double> v, DMatrix<double> u) const{
+    DMatrix<double> aux(const DMatrix<double>& x, std::size_t i) const{
+       	DMatrix<double> v = DMatrix<double>::Zero(N,1);
+       	for(std::size_t k = 0; k < m_; ++k){
+       		v.block(n_locs_cum[k], 0, n_locs(k), 1) = Psi_[k]*x.block(k*n_basis(), 0, n_basis(), 1);	
+       	}
+
+       	DMatrix<double> u = DMatrix<double>::Zero(q(),1);
+
+       	for(std::size_t k = 0; k < m_; ++k){
+       		u.block(0, 0, p, 1) += Wg(k).transpose()*v.block(n_locs_cum[k], 0, n_locs(k),1);	
+       		u.block(k*qV+p, 0, qV, 1) = Vp(k).transpose()*v.block(n_locs_cum[k], 0, n_locs(k), 1);	
+       	}
+
        	DMatrix<double> z = invXtWX().solve(u);         
 		DMatrix<double> w = Wg(i)*z.block(0, 0, p, 1) + Vp(i)*z.block(i*qV+p, 0, qV, 1);
         return Psi_[i].transpose()*w; 
@@ -460,25 +472,6 @@ class MixedSRPDE<SpaceOnly,iterative> : public RegressionBase<MixedSRPDE<SpaceOn
             }
         // } break;
         // }
-        return;
-    }
-
-    void set_F_T() {
-        DMatrix<double> Ip = {}; Ip.resize(qV,qV); Ip.setIdentity(); Ip = Ip/m_;
-        DMatrix<double> Iqp = {}; Iqp.resize(p,p); Iqp.setIdentity();
-        DMatrix<double> Z1 = DMatrix<double>::Zero(qV,p);
-        DMatrix<double> Z2 = DMatrix<double>::Zero(p, m_*qV);
-        DMatrix<double> Ip_loop = {}; Ip_loop.resize(qV, m_*qV);
-        for (std::size_t i=0; i<m_; i++){ Ip_loop.block(0,i*qV,qV,qV) = Ip; }
-        F_ = SparseBlockMatrix<double,2,2>(
-            Z1.sparseView(), Ip_loop.sparseView(),
-            Iqp.sparseView(), Z2.sparseView() ); 
-        T_.resize(m_*qV,m_*qV); T_.setIdentity(); T_ = (m_-1.0)/m_ * T_;
-        for (std::size_t i=0; i<m_; i++){
-            for(std::size_t j=0; j<m_; j++){
-                if(T_(i*qV,j*qV) == 0){ T_.block(i*qV,j*qV,qV,qV) = -Ip; }
-            }
-        }
         return;
     }
 
@@ -553,6 +546,8 @@ class MixedSRPDE<SpaceOnly,iterative> : public RegressionBase<MixedSRPDE<SpaceOn
         // matrix for retrieve initial coefficients (alpha and beta)
         set_F_T();
 
+        std::chrono::duration<double> duration = std::chrono::high_resolution_clock::now() - start;
+        // std::cout << "- assemblamento delle matrici per i coefficienti beta: " << duration.count() << std::endl;
         return; 
     }
 
@@ -585,16 +580,6 @@ class MixedSRPDE<SpaceOnly,iterative> : public RegressionBase<MixedSRPDE<SpaceOn
         invP_.resize(data_.size());
 
         // auto _start = std::chrono::high_resolution_clock::now();   
-
-        
-        DMatrix<double> v = DMatrix<double>::Zero(N,1);
-       	DMatrix<double> u = DMatrix<double>::Zero(q(),1);
-
-       	for(std::size_t k = 0; k < m_; ++k){
-       		u.block(0, 0, p, 1) += Wg(k).transpose()*v.block(n_locs_cum[k], 0, n_locs(k),1);	
-       		u.block(k*qV+p, 0, qV, 1) = Vp(k).transpose()*v.block(n_locs_cum[k], 0, n_locs(k), 1);	
-       	}
-        
         
         for (std::size_t i = 0; i < m_; i++){
 
@@ -647,11 +632,10 @@ class MixedSRPDE<SpaceOnly,iterative> : public RegressionBase<MixedSRPDE<SpaceOn
         // std::chrono::duration<double> _duration = std::chrono::high_resolution_clock::now() - _start;
         // std::cout << "-		inizializzazione: " << _duration.count() << std::endl;
 		// _start = std::chrono::high_resolution_clock::now();
-
+        
         // correzione covariate
 		for(std::size_t i = 0; i < m_; i++){
-            v.block(n_locs_cum[i], 0, n_locs(i), 1) = Psi_[i]*x_new.block(i*n_basis(), 0, n_basis(), 1);
-			r.block(i*n_basis(),0, n_basis(), 1) -= aux(x_new, i, v, u); 
+			r.block(i*n_basis(),0, n_basis(), 1) -= aux(x_new, i); 
 		}
 	
 		// _duration = std::chrono::high_resolution_clock::now() - _start;
@@ -663,9 +647,12 @@ class MixedSRPDE<SpaceOnly,iterative> : public RegressionBase<MixedSRPDE<SpaceOn
 
         beta_ = invXtWX().solve(X().transpose() * (y_ - mPsi_ * f_)); 
         
+        std::cout << "nu:\n" << beta_ << std::endl;
         beta_coeff_ = F_*beta_;
+        std::cout << "beta_coeff:\n" << beta_coeff_ << std::endl;
         alpha_coeff_ = T_*beta_.tail(m_*qV); 
-
+        std::cout << "alpha_coeff:\n" << alpha_coeff_ << std::endl;
+        
         DVector<double> z;
         z = DMatrix<double>::Zero(r.rows(), 1);
 
@@ -687,11 +674,11 @@ class MixedSRPDE<SpaceOnly,iterative> : public RegressionBase<MixedSRPDE<SpaceOn
         while (k < max_iter_ && !exit_) /* ischia pag 25 */ {
             // auto __start = std::chrono::high_resolution_clock::now();
             for(std::size_t i = 0; i < m_; i++){
-                    // bi = DMatrix<double>::Zero(2*n_basis(), 1);
-                    // xi0 = DMatrix<double>::Zero(2*n_basis(), 1); 
+                    bi = DMatrix<double>::Zero(2*n_basis(), 1);
+                    xi0 = DMatrix<double>::Zero(2*n_basis(), 1); 
 
-                    // U_i = DMatrix<double>::Zero(2*n_basis(), q()); // re-initialization
-                    // V_i = DMatrix<double>::Zero(q(), 2*n_basis());
+                    U_i = DMatrix<double>::Zero(2*n_basis(), q()); // re-initialization
+                    V_i = DMatrix<double>::Zero(q(), 2*n_basis());
                                       
                     // valutare implementazione di lmbQ(yi)
                     bi.block(0,0,n_basis(),1) = r.block(i*n_basis(), 0, n_basis(), 1) ; 
@@ -733,19 +720,22 @@ class MixedSRPDE<SpaceOnly,iterative> : public RegressionBase<MixedSRPDE<SpaceOn
             g_ = x_new.bottomRows(n_basis()*m_);
        
        		// __start = std::chrono::high_resolution_clock::now();
-            if(has_covariates()){   // if(p>0) ?
-                
-                beta_ = invXtWX().solve(X().transpose() * (y_ - mPsi_ * f_)); 
 
-                beta_coeff_ = F_*beta_;
-                alpha_coeff_ = T_*beta_.tail(m_*qV); 
-                    
-            }
+            beta_ = invXtWX().solve(X().transpose() * (y_ - mPsi_ * f_)); 
+
+       		// __duration = std::chrono::high_resolution_clock::now() - __start;
+        	// std::cout << "-		compute nu: " << __duration.count() << std::endl;
+        	// __start = std::chrono::high_resolution_clock::now();
+
+            beta_coeff_ = F_*beta_;
+            alpha_coeff_ = T_*beta_.tail(m_*qV); 
+
+            // __duration = std::chrono::high_resolution_clock::now() - __start;
+        	// std::cout << "-		compute beta & alpha: " << __duration.count() << std::endl;
 
             // correzione covariate            
             for(std::size_t i = 0; i < m_; i++) {
-                v.block(n_locs_cum[i], 0, n_locs(i), 1) = Psi_[i]*x_new.block(i*n_basis(), 0, n_basis(), 1);
-                r.block(i*n_basis(),0, n_basis(), 1) -= aux(z, i, v, u); 
+                r.block(i*n_basis(),0, n_basis(), 1) -= aux(z, i); 
             }
             
             Jold = Jnew;
@@ -822,6 +812,24 @@ class MixedSRPDE<SpaceOnly,iterative> : public RegressionBase<MixedSRPDE<SpaceOn
         mpsi.setFromTriplets(triplet_list.begin(), triplet_list.end());
         mpsi.makeCompressed();
         return mpsi;
+    }
+
+    void set_F_T(){
+        DMatrix<double> Ip = {}; Ip.resize(qV,qV); Ip.setIdentity(); Ip = Ip/m_;
+        DMatrix<double> Iqp = {}; Iqp.resize(p,p); Iqp.setIdentity();
+        DMatrix<double> Z1 = DMatrix<double>::Zero(qV,p);
+        DMatrix<double> Z2 = DMatrix<double>::Zero(p, m_*qV);
+        DMatrix<double> Ip_loop = {}; Ip_loop.resize(qV, m_*qV);
+        for (std::size_t i=0; i<m_; i++){ Ip_loop.block(0,i*qV,qV,qV) = Ip; }
+        F_ = SparseBlockMatrix<double,2,2>(
+            Z1.sparseView(), Ip_loop.sparseView(),
+            Iqp.sparseView(), Z2.sparseView() ); 
+        T_.resize(m_*qV,m_*qV); T_.setIdentity(); T_ = (m_-1.0)/m_ * T_;
+        for (std::size_t i=0; i<m_; i++){
+            for(std::size_t j=0; j<m_; j++){
+                if(T_(i*qV,j*qV) == 0){ T_.block(i*qV,j*qV,qV,qV) = -Ip; }
+            }
+        }
     }
 
     const DVector<double> alpha() const { return alpha_coeff_; }
