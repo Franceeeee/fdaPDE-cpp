@@ -99,19 +99,27 @@ DVector<double> generate_beta_coefficients(int n_cols_X, int seed) {
 
 auto lambda_cov = [](double x, double y, int id) { // valutazione delle covariate
 
-    if(id == 0){
-        return std::sin(2*fdapde::testing::pi*x)*std::sin(2*fdapde::testing::pi*y);
-    }
-    else if(id == 1){
-        return std::sin(fdapde::testing::pi*x)*std::sin(fdapde::testing::pi*y);
-    }
-    else if(id == 2){
-        return std::tan(fdapde::testing::pi*x)*std::sin(2*fdapde::testing::pi*y);
-    }
-    else if(id == 3){
-        return std::cos(2*fdapde::testing::pi*x)*std::cos(2*fdapde::testing::pi*y);
-    }
-    return std::cos(fdapde::testing::pi*x)*std::cos(fdapde::testing::pi*y);
+    // if(id == 0){
+    //     return std::sin(2*fdapde::testing::pi*x)*std::sin(2*fdapde::testing::pi*y);
+    // }
+    // else if(id == 1){
+    //     return std::sin(fdapde::testing::pi*x)*std::sin(fdapde::testing::pi*y);
+    // }
+    // else if(id == 2){
+    //     return std::tan(fdapde::testing::pi*x)*std::sin(2*fdapde::testing::pi*y);
+    // }
+    // else if(id == 3){
+    //     return std::cos(2*fdapde::testing::pi*x)*std::cos(2*fdapde::testing::pi*y);
+    // }
+
+    
+    std::mt19937 gen(id);  // Initialize a generator with the patient ID as the seed
+    std::uniform_real_distribution<> dis(-5.0, 5.0);  // Uniform distribution
+
+    double coeff1 = dis(gen);  // Generate a0 based on id
+    double coeff2 = dis(gen);
+
+    return std::cos(fdapde::testing::pi*x*coeff1)*std::cos(fdapde::testing::pi*y*coeff2);
 };
 
 auto lambda_np = [](double x, double y, int id = 0) { // lambda function per la parte non parametrica
@@ -271,13 +279,15 @@ void generate_data_for_all_patients(int num_patients, const DVector<double>& bet
 
 // test monolitico
 TEST(mixed_srpde_test, mille_mono_automatico) {
+    std::size_t n_patients = 10;
+    double na_percentage = 0.;  // percentuale di valori NA 
     int seed = 1234; 
-	std::size_t n_patients = 3; //4
     double mu = 1000.;
+    bool different_num_obs = 1; // 1 means different = TRUE
 
-    int q = 4; // numero colonne X
+    int q = 2; // numero colonne X
     std::cout << "q: " << q << std::endl;
-    int qV = 3; // numero colonne per ogni V_i
+    int qV = 1; // numero colonne per ogni V_i
     std::cout << "qV: " << qV << std::endl;
 	
     DVector<double> beta = generate_beta_coefficients(q, seed); // stesso numero di colonne di X
@@ -286,14 +296,12 @@ TEST(mixed_srpde_test, mille_mono_automatico) {
     DMatrix<double> alpha = generate_alpha_coefficients(n_patients, qV, seed); // righe: n_patients (livelli), colonne: qV
     std::cout << "alpha:\n" << alpha << std::endl;
    																					
-    double na_percentage = 0.;  // percentuale di valori NA 
-
     // define data
     std::vector<BlockFrame<double, int>> data;
     data.resize(n_patients);
 
     // define domain 
-    std::string meshID = "unit_square_coarse";
+    std::string meshID = "fine_mesh";
     std::string policyID = "monolithic/";
     std::string locsID = "1000/";
     MeshLoader<Mesh2D> domain(meshID);
@@ -311,7 +319,7 @@ TEST(mixed_srpde_test, mille_mono_automatico) {
 	if(!std::filesystem::create_directory(output_dir)) std::filesystem::create_directory(output_dir);
     
     // Genera dati per tutti i pazienti
-    generate_data_for_all_patients(n_patients, beta, alpha, output_dir, seed, na_percentage, mu, 1);
+    generate_data_for_all_patients(n_patients, beta, alpha, output_dir, seed, na_percentage, mu, different_num_obs);
 
     // import data from files
     for(std::size_t i = 0; i<n_patients; i++){
@@ -413,13 +421,15 @@ TEST(mixed_srpde_test, mille_mono_automatico) {
 // test iterativo
 TEST(mixed_srpde_test, mille_iter_automatico) {
        
-    std::size_t n_patients = 3;
+    std::size_t n_patients = 10;
     double na_percentage = 0.;  // percentuale di valori NA 
-    int seed = 1240; 
+    int seed = 1234; 
     double mu = 1000.;
+    bool different_num_obs = 1; // 1 means different = TRUE
 
-    int q = 4;
-    int qV = 3;
+
+    int q = 2;
+    int qV = 1;
 
     DVector<double> beta = generate_beta_coefficients(q, seed);
     std::cout << "beta:\n"  << beta << std::endl;
@@ -432,7 +442,7 @@ TEST(mixed_srpde_test, mille_iter_automatico) {
     data.resize(n_patients);
 
     // define domain 
-    std::string meshID = "unit_square_coarse";
+    std::string meshID = "fine_mesh";
     std::string policyID = "iterative/";
     std::string locsID = "1000/";
     MeshLoader<Mesh2D> domain(meshID);
@@ -449,7 +459,7 @@ TEST(mixed_srpde_test, mille_iter_automatico) {
 	if(!std::filesystem::create_directory(output_dir)) std::filesystem::create_directory(output_dir);
 
     // Genera dati per tutti i pazienti
-    generate_data_for_all_patients(n_patients, beta, alpha, output_dir, seed, na_percentage, mu, 1);
+    generate_data_for_all_patients(n_patients, beta, alpha, output_dir, seed, na_percentage, mu, different_num_obs);
 
     // import data from files
     for(std::size_t i = 0; i<n_patients; i++){
