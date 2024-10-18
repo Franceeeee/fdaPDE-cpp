@@ -647,11 +647,11 @@ class MixedSRPDE<SpaceOnly,iterative> : public RegressionBase<MixedSRPDE<SpaceOn
 
         beta_ = invXtWX().solve(X().transpose() * (y_ - mPsi_ * f_)); 
         
-        std::cout << "nu:\n" << beta_ << std::endl;
+        // std::cout << "nu:\n" << beta_ << std::endl;
         beta_coeff_ = F_*beta_;
-        std::cout << "beta_coeff:\n" << beta_coeff_ << std::endl;
+        // std::cout << "beta_coeff:\n" << beta_coeff_ << std::endl;
         alpha_coeff_ = T_*beta_.tail(m_*qV); 
-        std::cout << "alpha_coeff:\n" << alpha_coeff_ << std::endl;
+        // std::cout << "alpha_coeff:\n" << alpha_coeff_ << std::endl;
         
         DVector<double> z;
         z = DMatrix<double>::Zero(r.rows(), 1);
