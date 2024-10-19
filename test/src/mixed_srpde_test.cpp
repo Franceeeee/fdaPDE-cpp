@@ -56,6 +56,23 @@ using fdapde::testing::read_csv;
 
 // TEST CON GENERAZIONE INTERNA DEI DATI
 
+template <typename T> DMatrix<T> read_mtx(const std::string& file_name) {
+    SpMatrix<T> buff;
+    Eigen::loadMarket(buff, file_name);
+    return buff;
+}
+
+template<typename T> void saveTxt(const DMatrix<T>& M, const std::string& filename){
+    
+    std::ofstream file(filename);
+    
+    for(std::size_t i = 0; i < M.rows(); ++i) {
+            for(std::size_t j=0; j < M.cols(); ++j) file << M(i,j) << " ";
+            file << "\n";  
+    }
+    file.close();
+}
+/*
 // generazione coefficienti alpha
 DMatrix<double> generate_alpha_coefficients(int n_levels, int qV, int seed) {
 
@@ -82,7 +99,9 @@ DMatrix<double> generate_alpha_coefficients(int n_levels, int qV, int seed) {
 
     return alpha;
 }
+*/
 
+/*
 DVector<double> generate_beta_coefficients(int n_cols_X, int seed) {
     std::mt19937 gen(seed);
 
@@ -96,7 +115,9 @@ DVector<double> generate_beta_coefficients(int n_cols_X, int seed) {
 
     return beta;
 }
+*/
 
+/*
 auto lambda_cov = [](double x, double y, int id) { // valutazione delle covariate
 
     // if(id == 0){
@@ -121,7 +142,9 @@ auto lambda_cov = [](double x, double y, int id) { // valutazione delle covariat
 
     return std::cos(fdapde::testing::pi*x*coeff1)*std::cos(fdapde::testing::pi*y*coeff2);
 };
+*/
 
+/*
 auto lambda_np = [](double x, double y, int id = 0) { // lambda function per la parte non parametrica
 	// if(id == 0)
     // 	return std::sin(fdapde::testing::pi*x)*std::sin(fdapde::testing::pi*y); 
@@ -140,8 +163,9 @@ auto lambda_np = [](double x, double y, int id = 0) { // lambda function per la 
 
     return (a_sin * std::sin(fdapde::testing::pi * x) + a_cos * std::cos(fdapde::testing::pi * y))*x*y*(1-x)*(1-y);
 };
+*/
 
-
+/*
 void write_DM_to_csv(const std::string& filename, const DMatrix<double>& data) {
     std::ofstream file(filename);
     if (!file.is_open()) {
@@ -157,8 +181,9 @@ void write_DM_to_csv(const std::string& filename, const DMatrix<double>& data) {
     }
     file.close();
 };
-
+*/
 // generare punti casuali nel quadrato unitario [0, 1] x [0, 1]
+/*
 DMatrix<double> generate_random_points(int n_points, std::mt19937& gen) {
     std::uniform_real_distribution<> dis(0.0, 1.0);
     DMatrix<double> points(n_points,2);
@@ -168,7 +193,8 @@ DMatrix<double> generate_random_points(int n_points, std::mt19937& gen) {
     }
     return points;
 }
-
+*/
+/*
 DMatrix<double> generate_points(int n_points) {
     std::mt19937 gen(0);
     std::uniform_real_distribution<> dis(0.0, 1.0);
@@ -275,9 +301,514 @@ void generate_data_for_all_patients(int num_patients, const DVector<double>& bet
         }
     }
 }
+*/
 
+TEST(mixed_srpde_test, monolitich_different_locations) {
+    std::cout << " --- start --- " << std::endl; 
+    int seed = 0; 
+    std::mt19937 gen(seed);
+    
+    std::size_t m = 3;
+    //     
+    std::vector<BlockFrame<double, int>> data;
+    data.resize(m);
+    // 
+    DMatrix<double> beta = DMatrix<double>::Zero(2,1);
+    beta(0,0) = -2.; beta(1,0) = 1.;
+
+    DMatrix<double> alpha = DMatrix<double>::Zero(3,1);
+    alpha(0,0) = -0.5; alpha(1,0) = 0.; alpha(2,0) = 0.5;
+
+    DMatrix<int> n_obs = DMatrix<int>::Zero(3,1);
+    n_obs(0,0) = 100; n_obs(1,0) = 100; n_obs(2,0) = 100;
+    
+    auto uniform_locs = [&gen](std::size_t n) {
+        std::uniform_real_distribution<> dis(0.0, 1.0);
+        DMatrix<double> locs = DMatrix<double>::Zero(n,2);
+        for (std::size_t i = 0; i < n; ++i) {
+            locs(i,0) = dis(gen);  // x
+            locs(i,1) = dis(gen);  // y
+        }
+        return locs;
+    };
+
+    auto f = [](DMatrix<double> locs, int id = 0) { // lambda function per la parte non parametrica
+	    DMatrix<double> res = DMatrix<double>::Zero(locs.rows(),1);
+            for(std::size_t i = 0; i < locs.rows(); ++i){
+                if(id == 0)
+                    res(i,0) = std::sin(fdapde::testing::pi*locs(i,0))*
+                                    std::sin(fdapde::testing::pi*locs(i,1));
+                else if (id == 1)
+                    res(i,0) = std::cos(fdapde::testing::pi*locs(i,0))*
+                                    std::cos(fdapde::testing::pi*locs(i,1));
+                else if (id == 2)
+                    res(i,0) = 1.0 - locs(i,0) - locs(i,1);
+        }
+            return res;
+    };
+    
+    auto noise = [&gen](std::size_t n, double sigma){
+        DMatrix<double> res = DMatrix<double>::Zero(n,1);
+        std::normal_distribution<> __noise(0.0, sigma);
+        for(std::size_t i = 0; i < n; ++i){
+            res(i,0) = __noise(gen);
+        }
+        return res;
+    };
+
+    auto x1_ =  [](DMatrix<double> locs){
+        DMatrix<double> res = DMatrix<double>::Zero(locs.rows(),1);
+        for(std::size_t i = 0; i < locs.rows(); ++i){
+                    res(i,0) = std::sin(2*fdapde::testing::pi*locs(i,0))*
+                                std::cos(2*fdapde::testing::pi*locs(i,1));
+        }   
+        return res;
+    };
+
+    /*
+    auto x2_ = [&noise, &gen](DMatrix<double> locs){
+        DMatrix<double> res = DMatrix<double>::Zero(locs.rows(),1);
+        for(std::size_t i = 0; i < locs.rows(); ++i){
+            res(i,0) = noise(gen);
+        }
+        return res;
+    };
+    */																			
+    
+    std::string meshID = "unit_square_coarse";
+    std::cout << " --- domain --- " << std::endl;
+    MeshLoader<Mesh2D> domain(meshID);
+    meshID = meshID + "/"; 
+
+	if(!std::filesystem::create_directory("../data/models/mixed_srpde/2D_test2/" + meshID))
+	 std::filesystem::create_directory("../data/models/mixed_srpde/2D_test2/" + meshID);
+	
+    // input
+    std::string input_dir = "../data/models/mixed_srpde/2D_test2/" + meshID + "input/";
+    if(!std::filesystem::create_directory(input_dir)) {
+        std::filesystem::create_directory(input_dir);
+
+        Eigen::saveMarket(beta, input_dir + "beta.mtx");
+        Eigen::saveMarket(alpha, input_dir + "alpha.mtx");
+        Eigen::saveMarket(n_obs, input_dir + "n_obs.mtx");
+    
+        saveTxt<double>(beta, input_dir + "beta.txt");
+        saveTxt<double>(alpha, input_dir + "alpha.txt");
+        saveTxt<int>(n_obs, input_dir + "n_obs.txt");
+    
+        // generete data
+        for(std::size_t j = 0; j < m; ++j){
+            DMatrix<double> locs = uniform_locs(n_obs(j));
+            DMatrix<double> DesignMatrix = DMatrix<double>::Zero(n_obs(j),2);
+            
+            DesignMatrix.col(0) = x1_(locs); // va in V
+            DesignMatrix.col(1) = noise(n_obs(j), 1.0);
+
+            std::cout << "DesignMatrix:" << DesignMatrix.rows() << " " <<DesignMatrix.cols() << std::endl;
+            DMatrix<double> f_ = f(locs, j);
+            double sigma = 0.05*std::abs(f_.array().maxCoeff() - f_.array().minCoeff()); 
+            std::normal_distribution<> noise_obs(0.0, sigma);
+
+            auto obs = DesignMatrix * beta + DesignMatrix.col(0)*alpha(j,0)  + f_ + noise(n_obs(j),sigma); 
+
+            Eigen::saveMarket(locs, input_dir + "locs_" + std::to_string(j) + ".mtx");
+            Eigen::saveMarket(DesignMatrix, input_dir + "DesignMatrix_" + std::to_string(j) + ".mtx");
+            Eigen::saveMarket(DesignMatrix.col(1), input_dir + "W_" + std::to_string(j) + ".mtx");
+            Eigen::saveMarket(DesignMatrix.col(0), input_dir + "V_" + std::to_string(j) + ".mtx");
+            Eigen::saveMarket(f_, input_dir + "f_" + std::to_string(j) + ".mtx");
+            Eigen::saveMarket(obs, input_dir + "obs_" + std::to_string(j) + ".mtx");
+
+            saveTxt<double>(locs, input_dir + "locs_" + std::to_string(j) + ".txt");
+            saveTxt<double>(DesignMatrix, input_dir + "DesignMatrix_" + std::to_string(j) + ".txt");
+            saveTxt<double>(DesignMatrix.col(1), input_dir + "W_" + std::to_string(j) + ".txt");
+            saveTxt<double>(DesignMatrix.col(0), input_dir + "V_" + std::to_string(j) + ".txt");
+            saveTxt<double>(f_, input_dir + "f_" + std::to_string(j) + ".txt");
+            saveTxt<double>(obs, input_dir + "obs_" + std::to_string(j) + ".txt");
+
+        } 
+    }
+     
+    // Output directory
+    std::string output_dir = "../data/models/mixed_srpde/2D_test2/" + meshID + "output/";
+	if(!std::filesystem::create_directory(output_dir)) std::filesystem::create_directory(output_dir);
+    
+    // import data from files
+    for(std::size_t j = 0; j<m; j++){
+        std::cout<< "----- j = " << j << " -----" << std::endl;
+        std::string Wname = input_dir + "W_" + std::to_string(j) + ".mtx";
+        std::string Vname = input_dir + "V_" + std::to_string(j) + ".mtx";
+        std::string locsname = input_dir + "locs_" + std::to_string(j) + ".mtx";
+        std::string yname = input_dir +  "obs_" + std::to_string(j) + ".mtx";
+        auto W = read_mtx<double>(Wname);
+        auto V = read_mtx<double>(Vname);
+        auto locs = read_mtx<double>(locsname);
+        auto obs = read_mtx<double>(yname);
+        
+        std::cout << "W:" << W.rows() << " " <<W.cols() << std::endl;
+        std::cout << "V:" << V.rows() << " " <<V.cols() << std::endl;
+        std::cout << "locs:" << locs.rows() << " " <<locs.cols() << std::endl;
+        std::cout << "obs:" << obs.rows() << " " <<obs.cols() << std::endl;
+        
+        data[j].insert(W_BLOCK, W);
+        data[j].insert(V_BLOCK, V);
+        data[j].insert(Y_BLOCK, obs);
+        data[j].insert(LOCS_BLOCK, locs);
+
+        std::cout << "W:" << data[j].template get<double>(W_BLOCK).rows() << " " <<
+                               data[j].template get<double>(W_BLOCK).cols() << std::endl;
+        std::cout << "V:" << data[j].template get<double>(V_BLOCK).rows() << " " <<
+                               data[j].template get<double>(V_BLOCK).cols() << std::endl;
+        std::cout << "locs:" << data[j].template get<double>(LOCS_BLOCK).rows() << " " <<
+                               data[j].template get<double>(LOCS_BLOCK).cols() << std::endl;
+        std::cout << "obs:" << data[j].template get<double>(Y_BLOCK).rows() << " " <<
+                               data[j].template get<double>(Y_BLOCK).cols() << std::endl;
+        
+    }
+    
+    // f_hat
+    DMatrix<double> f_ = DMatrix<double>::Zero(m*domain.mesh.nodes().rows(),1);
+    for(std::size_t j = 0; j < m; ++j){
+        f_.block(j*domain.mesh.nodes().rows(),0, domain.mesh.nodes().rows(),1) = f(domain.mesh.nodes(),j);
+    }
+    /*
+    for (std::size_t j = 0; j < m; j++){
+    	for (std::size_t i = 0; i < domain.mesh.nodes().rows(); i++){
+         	f_(i + j*domain.mesh.nodes().rows(),0) = lambda_np(domain.mesh.nodes()(i,0), domain.mesh.nodes()(i,1),j);
+    	}
+    }
+    +/
+    */
+    // define regularizing PDE
+    auto L = -laplacian<FEM>();
+    DMatrix<double> u = DMatrix<double>::Zero(domain.mesh.n_elements()*3, 1);
+    PDE<decltype(domain.mesh), decltype(L), DMatrix<double>, FEM, fem_order<1>> problem(domain.mesh, L, u);
+	
+    // define lambda
+    double lambda = 1; 
+
+    // getting dimension of the data (number of total observations N)
+    std::size_t sum = 0;
+    for(std::size_t i=0; i<data.size(); i++){
+        sum += data[i].template get<double>(LOCS_BLOCK).rows();
+    }
+
+    MixedSRPDE<SpaceOnly,monolithic> model(problem, Sampling::pointwise);
+	
+	model.set_lambda_D(lambda);
+	model.set_data(data);
+    model.set_N(sum);
+
+    auto start = std::chrono::high_resolution_clock::now();
+
+    // solve smoothing problem
+    std::cout << "model init" << std::endl;
+    model.init();
+    std::cout << "model solve" << std::endl;
+    model.solve();
+
+    auto end = std::chrono::high_resolution_clock::now();
+    std::chrono::duration<double> duration = end - start;
+
+    std::cout << "duration: " << duration.count() << std::endl;
+
+    std::ofstream output1("model_f.csv");  // Primo file di output
+    output1 << "model_f\n";  // Intestazione con il nome del file
+    DMatrix<double> data1 = model.f();
+    for(std::size_t i = 0; i < data1.size(); ++i) {
+        output1 << data1(i) << "\n";  // Scrivi nel primo file
+    }
+    output1.close();  // Chiudi il primo file
+
+    std::ofstream output2("f_.csv");  // Secondo file di output
+    output2 << "f_\n";  // Intestazione con il nome del file
+    DMatrix<double> data2 = f_;  // Usa una variabile diversa per il secondo file
+    for(std::size_t i = 0; i < data2.size(); ++i) {
+        output2 << data2(i) << "\n";  // Scrivi nel secondo file
+    }
+    output2.close();  // Chiudi il secondo file
+
+    for(std::size_t j = 0; j < m; ++j){
+        Eigen::saveMarket(model.f().block(j*domain.mesh.nodes().rows(),0, domain.mesh.nodes().rows(),1),
+                          output_dir + "estimate_f_" + std::to_string(j) + ".mtx");
+        saveTxt<double>(model.f().block(j*domain.mesh.nodes().rows(),0, domain.mesh.nodes().rows(),1),
+                          output_dir + "estimate_f_" + std::to_string(j) + ".txt");
+
+        EXPECT_TRUE( (model.f().block(j*domain.mesh.nodes().rows(),0, domain.mesh.nodes().rows(),1) -
+                            f_.block(j*domain.mesh.nodes().rows(),0, domain.mesh.nodes().rows(),1)).array().square().mean() < 1e-2);
+    }
+
+    Eigen::saveMarket(model.f(), output_dir + "estimate_f.mtx");
+    saveTxt<double>(model.f(), output_dir + "estimate_f.txt");
+    
+    Eigen::saveMarket(model.beta(), output_dir + "beta.mtx");
+    saveTxt<double>(model.beta(), output_dir + "beta.txt");
+    
+    Eigen::saveMarket(model.alpha(), output_dir + "beta.mtx");
+    saveTxt<double>(model.alpha(), output_dir + "alpha.txt");
+    
+    // std::cout << "Monolithic: " << (model.f() - model.f() ).array().abs().maxCoeff() << std::endl;
+    std::cout << "beta: \n" << model.beta() << std::endl;
+    std::cout << "alpha: \n" << model.alpha() << std::endl;
+    
+    EXPECT_TRUE(  (model.alpha() - alpha).array().square().mean() < 1e-2 );
+    EXPECT_TRUE(  (model.beta() - beta).array().square().mean() < 1e-2 );
+
+}
+
+TEST(mixed_srpde_test, iterative_different_locations) {
+    std::cout << " --- start --- " << std::endl; 
+    int seed = 0; 
+    std::mt19937 gen(seed);
+    
+    std::size_t m = 3;
+    //     
+    std::vector<BlockFrame<double, int>> data;
+    data.resize(m);
+    // 
+    DMatrix<double> beta = DMatrix<double>::Zero(2,1);
+    beta(0,0) = -2.; beta(1,0) = 1.;
+
+    DMatrix<double> alpha = DMatrix<double>::Zero(3,1);
+    alpha(0,0) = -0.5; alpha(1,0) = 0.; alpha(2,0) = 0.5;
+
+    DMatrix<int> n_obs = DMatrix<int>::Zero(3,1);
+    n_obs(0,0) = 100; n_obs(1,0) = 100; n_obs(2,0) = 100;
+    
+    auto uniform_locs = [&gen](std::size_t n) {
+        std::uniform_real_distribution<> dis(0.0, 1.0);
+        DMatrix<double> locs = DMatrix<double>::Zero(n,2);
+        for (std::size_t i = 0; i < n; ++i) {
+            locs(i,0) = dis(gen);  // x
+            locs(i,1) = dis(gen);  // y
+        }
+        return locs;
+    };
+
+    auto f = [](DMatrix<double> locs, int id = 0) { // lambda function per la parte non parametrica
+	    DMatrix<double> res = DMatrix<double>::Zero(locs.rows(),1);
+            for(std::size_t i = 0; i < locs.rows(); ++i){
+                if(id == 0)
+                    res(i,0) = std::sin(fdapde::testing::pi*locs(i,0))*
+                                    std::sin(fdapde::testing::pi*locs(i,1));
+                else if (id == 1)
+                    res(i,0) = std::cos(fdapde::testing::pi*locs(i,0))*
+                                    std::cos(fdapde::testing::pi*locs(i,1));
+                else if (id == 2)
+                    res(i,0) = 1.0 - locs(i,0) - locs(i,1);
+        }
+            return res;
+    };
+    
+    auto noise = [&gen](std::size_t n, double sigma){
+        DMatrix<double> res = DMatrix<double>::Zero(n,1);
+        std::normal_distribution<> __noise(0.0, sigma);
+        for(std::size_t i = 0; i < n; ++i){
+            res(i,0) = __noise(gen);
+        }
+        return res;
+    };
+
+    auto x1_ =  [](DMatrix<double> locs){
+        DMatrix<double> res = DMatrix<double>::Zero(locs.rows(),1);
+        for(std::size_t i = 0; i < locs.rows(); ++i){
+                    res(i,0) = std::sin(2*fdapde::testing::pi*locs(i,0))*
+                                std::cos(2*fdapde::testing::pi*locs(i,1));
+        }   
+        return res;
+    };
+
+    /*
+    auto x2_ = [&noise, &gen](DMatrix<double> locs){
+        DMatrix<double> res = DMatrix<double>::Zero(locs.rows(),1);
+        for(std::size_t i = 0; i < locs.rows(); ++i){
+            res(i,0) = noise(gen);
+        }
+        return res;
+    };
+    */																			
+    
+    std::string meshID = "unit_square_coarse";
+    std::cout << " --- domain --- " << std::endl;
+    MeshLoader<Mesh2D> domain(meshID);
+    meshID = meshID + "/"; 
+
+	if(!std::filesystem::create_directory("../data/models/mixed_srpde/2D_test2/" + meshID))
+	 std::filesystem::create_directory("../data/models/mixed_srpde/2D_test2/" + meshID);
+	
+    // input
+    std::string input_dir = "../data/models/mixed_srpde/2D_test2/" + meshID + "input/";
+    if(!std::filesystem::create_directory(input_dir)) {
+        std::filesystem::create_directory(input_dir);
+
+        Eigen::saveMarket(beta, input_dir + "beta.mtx");
+        Eigen::saveMarket(alpha, input_dir + "alpha.mtx");
+        Eigen::saveMarket(n_obs, input_dir + "n_obs.mtx");
+    
+        saveTxt<double>(beta, input_dir + "beta.txt");
+        saveTxt<double>(alpha, input_dir + "alpha.txt");
+        saveTxt<int>(n_obs, input_dir + "n_obs.txt");
+    
+        // generete data
+        for(std::size_t j = 0; j < m; ++j){
+            DMatrix<double> locs = uniform_locs(n_obs(j));
+            DMatrix<double> DesignMatrix = DMatrix<double>::Zero(n_obs(j),2);
+            
+            DesignMatrix.col(0) = x1_(locs); // va in V
+            DesignMatrix.col(1) = noise(n_obs(j), 1.0);
+
+            std::cout << "DesignMatrix:" << DesignMatrix.rows() << " " <<DesignMatrix.cols() << std::endl;
+            DMatrix<double> f_ = f(locs, j);
+            double sigma = 0.05*std::abs(f_.array().maxCoeff() - f_.array().minCoeff()); 
+            std::normal_distribution<> noise_obs(0.0, sigma);
+
+            auto obs = DesignMatrix * beta + DesignMatrix.col(0)*alpha(j,0)  + f_ + noise(n_obs(j),sigma); 
+
+            Eigen::saveMarket(locs, input_dir + "locs_" + std::to_string(j) + ".mtx");
+            Eigen::saveMarket(DesignMatrix, input_dir + "DesignMatrix_" + std::to_string(j) + ".mtx");
+            Eigen::saveMarket(DesignMatrix.col(1), input_dir + "W_" + std::to_string(j) + ".mtx");
+            Eigen::saveMarket(DesignMatrix.col(0), input_dir + "V_" + std::to_string(j) + ".mtx");
+            Eigen::saveMarket(f_, input_dir + "f_" + std::to_string(j) + ".mtx");
+            Eigen::saveMarket(obs, input_dir + "obs_" + std::to_string(j) + ".mtx");
+
+            saveTxt<double>(locs, input_dir + "locs_" + std::to_string(j) + ".txt");
+            saveTxt<double>(DesignMatrix, input_dir + "DesignMatrix_" + std::to_string(j) + ".txt");
+            saveTxt<double>(DesignMatrix.col(1), input_dir + "W_" + std::to_string(j) + ".txt");
+            saveTxt<double>(DesignMatrix.col(0), input_dir + "V_" + std::to_string(j) + ".txt");
+            saveTxt<double>(f_, input_dir + "f_" + std::to_string(j) + ".txt");
+            saveTxt<double>(obs, input_dir + "obs_" + std::to_string(j) + ".txt");
+
+        } 
+    }
+     
+    // Output directory
+    std::string output_dir = "../data/models/mixed_srpde/2D_test2/" + meshID + "output/";
+	if(!std::filesystem::create_directory(output_dir)) std::filesystem::create_directory(output_dir);
+    
+    // import data from files
+    for(std::size_t j = 0; j<m; j++){
+        std::cout<< "----- j = " << j << " -----" << std::endl;
+        std::string Wname = input_dir + "W_" + std::to_string(j) + ".mtx";
+        std::string Vname = input_dir + "V_" + std::to_string(j) + ".mtx";
+        std::string locsname = input_dir + "locs_" + std::to_string(j) + ".mtx";
+        std::string yname = input_dir +  "obs_" + std::to_string(j) + ".mtx";
+        auto W = read_mtx<double>(Wname);
+        auto V = read_mtx<double>(Vname);
+        auto locs = read_mtx<double>(locsname);
+        auto obs = read_mtx<double>(yname);
+        
+        std::cout << "W:" << W.rows() << " " <<W.cols() << std::endl;
+        std::cout << "V:" << V.rows() << " " <<V.cols() << std::endl;
+        std::cout << "locs:" << locs.rows() << " " <<locs.cols() << std::endl;
+        std::cout << "obs:" << obs.rows() << " " <<obs.cols() << std::endl;
+        
+        data[j].insert(W_BLOCK, W);
+        data[j].insert(V_BLOCK, V);
+        data[j].insert(Y_BLOCK, obs);
+        data[j].insert(LOCS_BLOCK, locs);
+
+        std::cout << "W:" << data[j].template get<double>(W_BLOCK).rows() << " " <<
+                               data[j].template get<double>(W_BLOCK).cols() << std::endl;
+        std::cout << "V:" << data[j].template get<double>(V_BLOCK).rows() << " " <<
+                               data[j].template get<double>(V_BLOCK).cols() << std::endl;
+        std::cout << "locs:" << data[j].template get<double>(LOCS_BLOCK).rows() << " " <<
+                               data[j].template get<double>(LOCS_BLOCK).cols() << std::endl;
+        std::cout << "obs:" << data[j].template get<double>(Y_BLOCK).rows() << " " <<
+                               data[j].template get<double>(Y_BLOCK).cols() << std::endl;
+        
+    }
+    
+    // f_hat
+    DMatrix<double> f_ = DMatrix<double>::Zero(m*domain.mesh.nodes().rows(),1);
+    for(std::size_t j = 0; j < m; ++j){
+        f_.block(j*domain.mesh.nodes().rows(),0, domain.mesh.nodes().rows(),1) = f(domain.mesh.nodes(),j);
+    }
+    /*
+    for (std::size_t j = 0; j < m; j++){
+    	for (std::size_t i = 0; i < domain.mesh.nodes().rows(); i++){
+         	f_(i + j*domain.mesh.nodes().rows(),0) = lambda_np(domain.mesh.nodes()(i,0), domain.mesh.nodes()(i,1),j);
+    	}
+    }
+    +/
+    */
+    // define regularizing PDE
+    auto L = -laplacian<FEM>();
+    DMatrix<double> u = DMatrix<double>::Zero(domain.mesh.n_elements()*3, 1);
+    PDE<decltype(domain.mesh), decltype(L), DMatrix<double>, FEM, fem_order<1>> problem(domain.mesh, L, u);
+	
+    // define lambda
+    double lambda = 1; 
+
+    // getting dimension of the data (number of total observations N)
+    std::size_t sum = 0;
+    for(std::size_t i=0; i<data.size(); i++){
+        sum += data[i].template get<double>(LOCS_BLOCK).rows();
+    }
+
+    MixedSRPDE<SpaceOnly,iterative> model(problem, Sampling::pointwise);
+	
+	model.set_lambda_D(lambda);
+	model.set_data(data);
+    model.set_N(sum);
+
+    auto start = std::chrono::high_resolution_clock::now();
+
+    // solve smoothing problem
+    std::cout << "model init" << std::endl;
+    model.init();
+    std::cout << "model solve" << std::endl;
+    model.solve();
+
+    auto end = std::chrono::high_resolution_clock::now();
+    std::chrono::duration<double> duration = end - start;
+
+    std::cout << "duration: " << duration.count() << std::endl;
+
+    std::ofstream output1("model_f.csv");  // Primo file di output
+    output1 << "model_f\n";  // Intestazione con il nome del file
+    DMatrix<double> data1 = model.f();
+    for(std::size_t i = 0; i < data1.size(); ++i) {
+        output1 << data1(i) << "\n";  // Scrivi nel primo file
+    }
+    output1.close();  // Chiudi il primo file
+
+    std::ofstream output2("f_.csv");  // Secondo file di output
+    output2 << "f_\n";  // Intestazione con il nome del file
+    DMatrix<double> data2 = f_;  // Usa una variabile diversa per il secondo file
+    for(std::size_t i = 0; i < data2.size(); ++i) {
+        output2 << data2(i) << "\n";  // Scrivi nel secondo file
+    }
+    output2.close();  // Chiudi il secondo file
+
+    for(std::size_t j = 0; j < m; ++j){
+        Eigen::saveMarket(model.f().block(j*domain.mesh.nodes().rows(),0, domain.mesh.nodes().rows(),1),
+                          output_dir + "estimate_f_" + std::to_string(j) + ".mtx");
+        saveTxt<double>(model.f().block(j*domain.mesh.nodes().rows(),0, domain.mesh.nodes().rows(),1),
+                          output_dir + "estimate_f_" + std::to_string(j) + ".txt");
+
+        EXPECT_TRUE( (model.f().block(j*domain.mesh.nodes().rows(),0, domain.mesh.nodes().rows(),1) -
+                            f_.block(j*domain.mesh.nodes().rows(),0, domain.mesh.nodes().rows(),1)).array().square().mean() < 1e-2);
+    }
+
+    Eigen::saveMarket(model.f(), output_dir + "estimate_f.mtx");
+    saveTxt<double>(model.f(), output_dir + "estimate_f.txt");
+    
+    Eigen::saveMarket(model.beta(), output_dir + "beta.mtx");
+    saveTxt<double>(model.beta(), output_dir + "beta.txt");
+    
+    Eigen::saveMarket(model.alpha(), output_dir + "beta.mtx");
+    saveTxt<double>(model.alpha(), output_dir + "alpha.txt");
+    
+    // std::cout << "Monolithic: " << (model.f() - model.f() ).array().abs().maxCoeff() << std::endl;
+    std::cout << "beta: \n" << model.beta() << std::endl;
+    std::cout << "alpha: \n" << model.alpha() << std::endl;
+    
+    EXPECT_TRUE(  (model.alpha() - alpha).array().square().mean() < 1e-2 );
+    EXPECT_TRUE(  (model.beta() - beta).array().square().mean() < 1e-2 );
+
+}
 
 // test monolitico
+/*
 TEST(mixed_srpde_test, mille_mono_automatico) {
     std::size_t n_patients = 10;
     double na_percentage = 0.;  // percentuale di valori NA 
@@ -416,9 +947,10 @@ TEST(mixed_srpde_test, mille_mono_automatico) {
     EXPECT_TRUE(  (model.f() - f_ ).array().abs().maxCoeff() < 1e-2 );
     
 }
-
+*/
 
 // test iterativo
+/*
 TEST(mixed_srpde_test, mille_iter_automatico) {
        
     std::size_t n_patients = 10;
@@ -543,7 +1075,7 @@ TEST(mixed_srpde_test, mille_iter_automatico) {
     EXPECT_TRUE(  (model.f().head(f_.rows()) - f_ ).array().abs().maxCoeff() < 1e-2 );
     EXPECT_TRUE(  (model.f() - f_ ).array().abs().maxCoeff() < 1e-2 );
 }
-
+*/
 /*
 // PARAMETRIC TEST 
 struct TestParams {

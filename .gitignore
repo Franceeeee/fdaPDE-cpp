@@ -13,4 +13,6 @@ test/build/
 test/CMakeFiles/
 test/_deps/
 test/libs/
+test/data/models/mixed_srpde/
+test/lib/
 *.DS_Store

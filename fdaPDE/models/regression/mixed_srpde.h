@@ -205,7 +205,7 @@ class MixedSRPDE<SpaceOnly,monolithic> : public RegressionBase<MixedSRPDE<SpaceO
             // auto start = std::chrono::high_resolution_clock::now();
 
             A_ = SparseBlockMatrix<double, 2, 2>(
-                    -mPsiTD_  * W_ * mPsi_, lambda_D() * R1().transpose(),
+                    -1/N*mPsiTD_  * W_ * mPsi_, lambda_D() * R1().transpose(), //!!!
                     lambda_D() * R1(),        lambda_D() * R0()            );
 
             // auto end = std::chrono::high_resolution_clock::now();
@@ -253,7 +253,7 @@ class MixedSRPDE<SpaceOnly,monolithic> : public RegressionBase<MixedSRPDE<SpaceO
         std::cout << "b: " << b_.rows() << "x" << b_.cols() << std::endl;
         // parametric case
         // update rhs of SR-PDE linear system
-        b_.block(0, 0, m_*n_basis(), 1) = -mPsiTD_ * W_ * lmbQ(y_);   // -\Psi^T*D*Q*z
+        b_.block(0, 0, m_*n_basis(), 1) = -1/N*mPsiTD_ * W_ * lmbQ(y_);   // !!! -\Psi^T*D*Q*z
         
         // matrices U and V for application of woodbury formula
         U_ = DMatrix<double>::Zero(2 * m_ * n_basis(), q());
