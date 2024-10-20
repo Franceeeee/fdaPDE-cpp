@@ -64,7 +64,7 @@ class MixedSRPDE<SpaceOnly,monolithic> : public RegressionBase<MixedSRPDE<SpaceO
 
     int q_;          // q_: "input" DesignMatrix columns -> q_ - p_ = r_
     
-    DMatrix<double> Wg {};
+    //DMatrix<double> Wg {};
     
     SpMatrix<double> I_;   // N x N sparse identity matrix 
 
@@ -117,25 +117,13 @@ class MixedSRPDE<SpaceOnly,monolithic> : public RegressionBase<MixedSRPDE<SpaceO
         q_ = r_ + p_;
         X_ = DMatrix<double>::Zero(N, q()); // q = r_+m*p_
 
-        // populating y
         y_.resize(N,1);
         for(std::size_t i=0; i<m_; i++){
             y_.block(n_locs_cum[i],0,n_locs(i),1) = data_[i].template get<double>(Y_BLOCK);
-        }
-
-        // populating Wg
-        Wg.resize(N,r_);
-        for(std::size_t i = 0; i < m_; i++){
-            Wg.block(n_locs_cum[i], 0, n_locs(i), r_) = data_[i].template get<double>(W_BLOCK);
+            X_.block(n_locs_cum[i], 0, n_locs(i), r_) = data_[i].template get<double>(W_BLOCK);
+            X_.block(n_locs_cum[i], r_+i*p_, n_locs(i), p_) = data_[i].template get<double>(V_BLOCK);
         }
         
-        // populating X
-        X_.leftCols(r_) = Wg; // matrix W: first column of X
-        for ( int i = 0; i < m_ ; i++ ) { // cycle over the number of patients that adds q patient-specific covariates to X_ at each loop
-            X_.block(n_locs_cum[i], r_+i*p_, n_locs(i), p_) = data_[i].template get<double>(V_BLOCK); // matrix V: diagonal block matrix with V1,V2,...,Vm on the diagonal
-        }
-
-        // matrixes for retrieve initial coefficients (alpha and beta)
         set_F_T();
     }
     
@@ -394,17 +382,13 @@ class MixedSRPDE<SpaceOnly,iterative> : public RegressionBase<MixedSRPDE<SpaceOn
         mPsiTD_ = mPsi_.transpose();
 
         y_.resize(N,1);
+        X_ = DMatrix<double>::Zero(N, q());
         for(std::size_t i=0; i<m_; i++){
             y_.block(n_locs_cum[i],0,n_locs(i),1) = data_[i].template get<double>(Y_BLOCK);
-        }
-
-        X_ = DMatrix<double>::Zero(N, q());
-
-        for ( int i = 0; i < m_ ; i++ ) { // cycle over the number of patients that adds q patient-specific covariates to X_ at each loop
             X_.block(n_locs_cum[i], 0, n_locs(i), r_) = Wg(i);
             X_.block(n_locs_cum[i], r_+i*p_, n_locs(i), p_ ) = Vp(i); // matrix V: diagonal block matrix with V1,V2,...,Vm on the diagonal
         }
-        
+
     }
 
     // iterative scheme 
@@ -518,11 +502,54 @@ class MixedSRPDE<SpaceOnly,iterative> : public RegressionBase<MixedSRPDE<SpaceOn
 
         b_ = DMatrix<double>::Zero(2*n_basis()*m_, 1);
 
-        // matrix for retrieve initial coefficients (alpha and beta)
-        set_F_T();
+        invP_.resize(data_.size());
+        _U.resize(data_.size());
+        _V.resize(data_.size());
+        // Initialization
+        auto _start = std::chrono::high_resolution_clock::now();
+        auto _start_ = std::chrono::high_resolution_clock::now();
+        std::chrono::duration<double> _duration_ = std::chrono::high_resolution_clock::now() - _start_;
 
+        for (std::size_t i = 0; i < m_; i++){
+
+            _U[i] = DMatrix<double>::Zero(2*n_basis(), q()); 
+            _V[i] = DMatrix<double>::Zero(q(), 2*n_basis());
+        
+            // start = std::chrono::high_resolution_clock::now();
+            _start_ = std::chrono::high_resolution_clock::now();    
+            P_ = SparseBlockMatrix<double, 2, 2>(
+                -PsiTD_[i]*Psi_[i],                     lambda_D() * pde_.stiff().transpose(),
+                lambda_D() * pde_.stiff(),             lambda_D() * pde_.mass()                 );
+            _duration_ = std::chrono::high_resolution_clock::now() - _start_;
+            std::cout << "-		    build P_: " << _duration_.count() << std::endl;
+            // duration = std::chrono::high_resolution_clock::now() - start;
+            // start = std::chrono::high_resolution_clock::now();
+            _start_ = std::chrono::high_resolution_clock::now();
+            invP_[i].compute(P_); 
+            _duration_ = std::chrono::high_resolution_clock::now() - _start_;
+            std::cout << "-		    build invP_: " << _duration_.count() << std::endl;
+
+            _start_ = std::chrono::high_resolution_clock::now();
+            _U[i].block(0, 0, n_basis(), r_) = PsiTD_[i]*Wg(i);
+            _U[i].block(0, r_+i*p_, n_basis(), p_ ) = PsiTD_[i]*Vp(i);
+            _duration_ = std::chrono::high_resolution_clock::now() - _start_;
+            std::cout << "-		    build _U[i]: " << _duration_.count() << std::endl;
+            _start_ = std::chrono::high_resolution_clock::now();
+            _V[i].block(0, 0, r_, n_basis()) = Wg(i).transpose()*Psi_[i];
+            _V[i].block(r_+i*p_, 0, p_, n_basis()) = Vp(i).transpose()*Psi_[i]; 
+            _duration_ = std::chrono::high_resolution_clock::now() - _start_;
+            std::cout << "-		    build _V[i]: " << _duration_.count() << std::endl;
+        }
+        std::chrono::duration<double> _duration = std::chrono::high_resolution_clock::now() - _start;
+        std::cout << "-		    P[i], invP[i], U[i], V[i]: " << _duration.count() << std::endl;
+        // matrix for retrieve initial coefficients (alpha and beta)
+        _start = std::chrono::high_resolution_clock::now();
+        set_F_T();
+        _duration = std::chrono::high_resolution_clock::now() - _start;
+        std::cout << "-		    build F & T: " << _duration.count() << std::endl;
+        
         std::chrono::duration<double> duration = std::chrono::high_resolution_clock::now() - start;
-        // std::cout << "- assemblamento delle matrici per i coefficienti beta: " << duration.count() << std::endl;
+        std::cout << "-     init model: " << duration.count() << std::endl;
         return; 
     }
 
@@ -550,41 +577,26 @@ class MixedSRPDE<SpaceOnly,iterative> : public RegressionBase<MixedSRPDE<SpaceOn
         DVector<double> ri = DMatrix<double>::Zero(2*n_basis(),1);
         DVector<double> zi = DMatrix<double>::Zero(2*n_basis(),1);
          
-        invP_.resize(data_.size());
-        _U.resize(data_.size());
-        _V.resize(data_.size());
-        // Initialization
+        // invP_.resize(data_.size());
+        // _U.resize(data_.size());
+        // _V.resize(data_.size());
+        // // Initialization
         auto _start = std::chrono::high_resolution_clock::now();
+        auto _start_ = std::chrono::high_resolution_clock::now();
+        std::chrono::duration<double> _duration_ = std::chrono::high_resolution_clock::now() - _start_;
+
         std::cout << " --- initialization ---" << std::endl; 
         for (std::size_t i = 0; i < m_; i++){
 
-            _U[i] = DMatrix<double>::Zero(2*n_basis(), q()); 
-            _V[i] = DMatrix<double>::Zero(q(), 2*n_basis());
-        
-            // start = std::chrono::high_resolution_clock::now();    
-            P_ = SparseBlockMatrix<double, 2, 2>(
-                -PsiTD_[i]*Psi_[i],                     lambda_D() * pde_.stiff().transpose(),
-                lambda_D() * pde_.stiff(),             lambda_D() * pde_.mass()                 );
-            
-            // duration = std::chrono::high_resolution_clock::now() - start;
-            // std::cout << "-		assemblamento P_: " << duration.count() << std::endl;
-            // start = std::chrono::high_resolution_clock::now();
-            
-            invP_[i].compute(P_); 
-
             bi.block(0,0,n_basis(),1) = b_.block(i*n_basis(), 0, n_basis(), 1);
-            
-            _U[i].block(0, 0, n_basis(), r_) = PsiTD_[i]*Wg(i);
-            _U[i].block(0, r_+i*p_, n_basis(), p_ ) = PsiTD_[i]*Vp(i);
-        
-            _V[i].block(0, 0, r_, n_basis()) = Wg(i).transpose()*Psi_[i];
-            _V[i].block(r_+i*p_, 0, p_, n_basis()) = Vp(i).transpose()*Psi_[i]; 
-             
-            
+                        
             // solve system (A_ + U_*(X^T*W_*X)*V_)x = b using woodbury formula from linear_algebra module
+            _start_ = std::chrono::high_resolution_clock::now();
             zi = SMW<>().solve(invP_[i], _U[i], XtWX(), _V[i], bi);
-             
-        
+            _duration_ = std::chrono::high_resolution_clock::now() - _start_;
+            std::cout << "-		    SMW: " << _duration_.count() << std::endl;
+            
+            _start_ = std::chrono::high_resolution_clock::now();
             x_new.block(i*n_basis(), 0, n_basis(),1) = zi.head(n_basis());
             x_new.block((i+m_)*n_basis(),0, n_basis(),1) = zi.tail(n_basis()); 
              
@@ -595,13 +607,19 @@ class MixedSRPDE<SpaceOnly,iterative> : public RegressionBase<MixedSRPDE<SpaceOn
             // correzione cov fuori
             r.block(n_basis()*(m_+i),0, n_basis(),1) -= (lambda_D()*pde_.stiff()*zi.head(n_basis()) +
                                                           lambda_D()*pde_.mass()*zi.tail(n_basis()) );
-             
+            
+            _duration_ = std::chrono::high_resolution_clock::now() - _start_;
+            std::cout << "-		    linear algebra: " << _duration_.count() << std::endl;
         }
 		
         std::chrono::duration<double> _duration = std::chrono::high_resolution_clock::now() - _start;
         std::cout << "-		inizializzazione: " << _duration.count() << std::endl;
 		_start = std::chrono::high_resolution_clock::now();
         
+        _start = std::chrono::high_resolution_clock::now();
+        auto tmp = Wg(0).rows();
+        _duration = std::chrono::high_resolution_clock::now() - _start;
+        std::cout << "-		access data frame: " << _duration.count() << "" << std::endl;
         bi = DMatrix<double>::Zero(2*n_basis(), 1);
 
         // correzione covariate
@@ -627,11 +645,8 @@ class MixedSRPDE<SpaceOnly,iterative> : public RegressionBase<MixedSRPDE<SpaceOn
 
         beta_ = invXtWX().solve(X().transpose() * (y_ - mPsi_ * f_)); 
         
-        // std::cout << "nu:\n" << beta_ << std::endl;
         beta_coeff_ = F_*beta_;
-        // std::cout << "beta_coeff:\n" << beta_coeff_ << std::endl;
         alpha_coeff_ = T_*beta_.tail(m_*p_); 
-        // std::cout << "alpha_coeff:\n" << alpha_coeff_ << std::endl;
         
         DVector<double> z;
         z = DMatrix<double>::Zero(r.rows(), 1);
@@ -653,11 +668,18 @@ class MixedSRPDE<SpaceOnly,iterative> : public RegressionBase<MixedSRPDE<SpaceOn
             auto __start = std::chrono::high_resolution_clock::now();
             for(std::size_t i = 0; i < m_; i++){                  
                     // valutare implementazione di lmbQ(yi)
+                    _start_ = std::chrono::high_resolution_clock::now();
                     bi.block(0,0,n_basis(),1) = r.block(i*n_basis(), 0, n_basis(), 1) ; 
-                    bi.block(n_basis(), 0, n_basis(), 1) = r.block( (i+m_)*n_basis(), 0, n_basis(), 1) ;
-                    
-                    zi = SMW<>().solve(invP_[i], _U[i], XtWX(), _V[i], bi);
+                    bi.block(n_basis(), 0, n_basis(), 1) = r.block( (i+m_)*n_basis(), 0, n_basis(), 1);
+                    _duration_ = std::chrono::high_resolution_clock::now() - _start_;
+                    std::cout << "-		    update b_i: " << _duration_.count() << std::endl;
 
+                    _start_ = std::chrono::high_resolution_clock::now();
+                    zi = SMW<>().solve(invP_[i], _U[i], XtWX(), _V[i], bi);
+                    _duration_ = std::chrono::high_resolution_clock::now() - _start_;
+                    std::cout << "-		    SMW: " << _duration_.count() << std::endl;
+
+                    _start_ = std::chrono::high_resolution_clock::now();
                     x_new.block(n_basis()*i,0, n_basis(),1) += alpha(k)*zi.head(n_basis());  
                     x_new.block(n_basis()*(m_+i),0, n_basis(),1) += alpha(k)*zi.tail(n_basis());
                     
@@ -668,7 +690,10 @@ class MixedSRPDE<SpaceOnly,iterative> : public RegressionBase<MixedSRPDE<SpaceOn
                                                                             lambda_D()*pde_.mass()*zi.tail(n_basis()) );
                     
                     z.block(i*n_basis(),0, n_basis(),1) = zi.head(n_basis());  
-                    z.block(n_basis()*(m_+i),0, n_basis(),1) = zi.tail(n_basis()); 
+                    z.block(n_basis()*(m_+i),0, n_basis(),1) = zi.tail(n_basis());
+                    _duration_ = std::chrono::high_resolution_clock::now() - _start_;
+                    std::cout << "-		    linear algebra: " << _duration_.count() << std::endl;
+ 
                     
             }
 
