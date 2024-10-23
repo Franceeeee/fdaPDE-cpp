@@ -91,7 +91,7 @@ TEST(mixed_srpde_test, monolitich_same_locations) {
     int seed = 0; 
     std::mt19937 gen(seed);
     
-auto uniform_locs = [&gen](std::size_t n) {
+    auto uniform_locs = [&gen](std::size_t n) {
         std::uniform_real_distribution<> dis(0.0, 1.0);
         DMatrix<double> locs = DMatrix<double>::Zero(n,2);
         for (std::size_t i = 0; i < n; ++i) {
@@ -99,9 +99,9 @@ auto uniform_locs = [&gen](std::size_t n) {
             locs(i,1) = dis(gen);  // y
         }
         return locs;
-};
+    };
 
-auto f = [](DMatrix<double> locs, int id = 0) { 
+    auto f = [](DMatrix<double> locs, int id = 0) { 
 	    DMatrix<double> res = DMatrix<double>::Zero(locs.rows(),1);
             for(std::size_t i = 0; i < locs.rows(); ++i){
                 if(id == 0)
@@ -116,7 +116,7 @@ auto f = [](DMatrix<double> locs, int id = 0) {
             return res;
     };
     
-auto noise = [&gen](std::size_t n, double sigma){
+    auto noise = [&gen](std::size_t n, double sigma){
         DMatrix<double> res = DMatrix<double>::Zero(n,1);
         std::normal_distribution<> __noise(0.0, sigma);
         for(std::size_t i = 0; i < n; ++i){
@@ -125,7 +125,7 @@ auto noise = [&gen](std::size_t n, double sigma){
         return res;
     };
 
-auto x1_ =  [](DMatrix<double> locs){
+    auto x1_ =  [](DMatrix<double> locs){
         DMatrix<double> res = DMatrix<double>::Zero(locs.rows(),1);
         for(std::size_t i = 0; i < locs.rows(); ++i){
                     res(i,0) = 1-(locs(i,0)-0.5)*(locs(i,0)-0.5) -(locs(i,1)-0.5)*(locs(i,1)-0.5); 
@@ -272,12 +272,11 @@ auto x1_ =  [](DMatrix<double> locs){
             sum += data[i].template get<double>(LOCS_BLOCK).rows();
         }
 
-        MixedSRPDE<SpaceOnly,monolithic> model(problem, Sampling::pointwise);
+        MixedSRPDE<monolithic> model(problem, Sampling::pointwise);
 	
 	    model.set_lambda_D(lambda);
 	    model.set_data(data);
-        model.set_N(sum);
-
+        
         // solve smoothing problem
         auto start = std::chrono::high_resolution_clock::now();
         model.init();
@@ -403,12 +402,11 @@ TEST(mixed_srpde_test, iterative_same_locations) {
         for(std::size_t i=0; i<data.size(); i++){
             sum += data[i].template get<double>(LOCS_BLOCK).rows();
         }
-        MixedSRPDE<SpaceOnly,iterative> model(problem, Sampling::pointwise);
+        MixedSRPDE<iterative> model(problem, Sampling::pointwise);
 	
 	    model.set_lambda_D(lambda);
 	    model.set_data(data);
-        model.set_N(sum);
-
+        
         // solve smoothing problem
         auto start = std::chrono::high_resolution_clock::now();
         model.init();
@@ -448,8 +446,7 @@ TEST(mixed_srpde_test, iterative_same_locations) {
     }
     }
 }
-*/
-/*
+
 TEST(mixed_srpde_test, monolitich_same_locations_noise_covs) {
     
     std::size_t m = 3;
@@ -652,12 +649,11 @@ auto x1_ =  [](DMatrix<double> locs){
             sum += data[i].template get<double>(LOCS_BLOCK).rows();
         }
 
-        MixedSRPDE<SpaceOnly,monolithic> model(problem, Sampling::pointwise);
+        MixedSRPDE<monolithic> model(problem, Sampling::pointwise);
 	
 	    model.set_lambda_D(lambda);
 	    model.set_data(data);
-        model.set_N(sum);
-
+        
         // solve smoothing problem
         auto start = std::chrono::high_resolution_clock::now();
         model.init();
@@ -783,12 +779,11 @@ TEST(mixed_srpde_test, iterative_same_locations_noise_covs) {
         for(std::size_t i=0; i<data.size(); i++){
             sum += data[i].template get<double>(LOCS_BLOCK).rows();
         }
-        MixedSRPDE<SpaceOnly,iterative> model(problem, Sampling::pointwise);
+        MixedSRPDE<iterative> model(problem, Sampling::pointwise);
 	
 	    model.set_lambda_D(lambda);
 	    model.set_data(data);
-        model.set_N(sum);
-
+        
         // solve smoothing problem
         auto start = std::chrono::high_resolution_clock::now();
         model.init();
@@ -829,6 +824,8 @@ TEST(mixed_srpde_test, iterative_same_locations_noise_covs) {
     }
 }
 */
+
+
 TEST(mixed_srpde_test, monolitich_different_locations) {
 
     std::size_t m = 3;
@@ -848,7 +845,7 @@ TEST(mixed_srpde_test, monolitich_different_locations) {
     int seed = 0; 
     std::mt19937 gen(seed);
     
-auto uniform_locs = [&gen](std::size_t n) {
+    auto uniform_locs = [&gen](std::size_t n) {
         std::uniform_real_distribution<> dis(0.0, 1.0);
         DMatrix<double> locs = DMatrix<double>::Zero(n,2);
         for (std::size_t i = 0; i < n; ++i) {
@@ -856,9 +853,9 @@ auto uniform_locs = [&gen](std::size_t n) {
             locs(i,1) = dis(gen);  // y
         }
         return locs;
-};
+    };
 
-auto f = [](DMatrix<double> locs, int id = 0) { 
+    auto f = [](DMatrix<double> locs, int id = 0) { 
 	    DMatrix<double> res = DMatrix<double>::Zero(locs.rows(),1);
             for(std::size_t i = 0; i < locs.rows(); ++i){
                 if(id == 0)
@@ -871,9 +868,9 @@ auto f = [](DMatrix<double> locs, int id = 0) {
                                     std::cos(fdapde::testing::pi*locs(i,1));//std::cos(fdapde::testing::pi*locs(i,0))*std::cos(fdapde::testing::pi*locs(i,1));
         }
             return res;
-    };
+        };
     
-auto noise = [&gen](std::size_t n, double sigma){
+    auto noise = [&gen](std::size_t n, double sigma){
         DMatrix<double> res = DMatrix<double>::Zero(n,1);
         std::normal_distribution<> __noise(0.0, sigma);
         for(std::size_t i = 0; i < n; ++i){
@@ -882,7 +879,7 @@ auto noise = [&gen](std::size_t n, double sigma){
         return res;
     };
 
-auto x1_ =  [](DMatrix<double> locs){
+    auto x1_ =  [](DMatrix<double> locs){
         DMatrix<double> res = DMatrix<double>::Zero(locs.rows(),1);
         for(std::size_t i = 0; i < locs.rows(); ++i){
                     res(i,0) = 1-(locs(i,0)-0.5)*(locs(i,0)-0.5) -(locs(i,1)-0.5)*(locs(i,1)-0.5); 
@@ -1001,11 +998,11 @@ auto x1_ =  [](DMatrix<double> locs){
         sum += data[i].template get<double>(LOCS_BLOCK).rows();
     }
 
-    MixedSRPDE<SpaceOnly,monolithic> model(problem, Sampling::pointwise);
+    //MixedSRPDE<SpaceOnly,monolithic> model(problem, Sampling::pointwise);
+    MixedSRPDE<monolithic> model(problem, Sampling::pointwise);
 	
 	model.set_lambda_D(lambda);
 	model.set_data(data);
-    model.set_N(sum);
 
     // solve smoothing problem
     auto start = std::chrono::high_resolution_clock::now();
@@ -1127,12 +1124,11 @@ TEST(mixed_srpde_test, iterative_different_locations) {
         sum += data[i].template get<double>(LOCS_BLOCK).rows();
     }
 
-    MixedSRPDE<SpaceOnly,iterative> model(problem, Sampling::pointwise);
+    MixedSRPDE<iterative> model(problem, Sampling::pointwise);
 	
 	model.set_lambda_D(lambda);
 	model.set_data(data);
-    model.set_N(sum);
-
+    
     // solve smoothing problem
     auto start = std::chrono::high_resolution_clock::now();
     model.init();
@@ -1170,6 +1166,8 @@ TEST(mixed_srpde_test, iterative_different_locations) {
     EXPECT_TRUE(  (model.beta() - beta).array().square().mean() < 1e-2 );
 
 }
+
+
 
 /*
 TEST(mixed_srpde_test, monolitich_same_locations_X_i_empty) {
@@ -1342,12 +1340,11 @@ auto x1_ =  [](DMatrix<double> locs){
         sum += data[i].template get<double>(LOCS_BLOCK).rows();
     }
 
-    MixedSRPDE<SpaceOnly,monolithic> model(problem, Sampling::pointwise);
+    MixedSRPDE<monolithic> model(problem, Sampling::pointwise);
 	
 	model.set_lambda_D(lambda);
 	model.set_data(data);
-    model.set_N(sum);
-
+    
     auto start = std::chrono::high_resolution_clock::now();
 
     // solve smoothing problem
