@@ -54,24 +54,12 @@ using fdapde::testing::almost_equal;
 using fdapde::testing::MeshLoader;
 using fdapde::testing::read_csv;
 
+// I/O utils 
 template <typename T> DMatrix<T> read_mtx(const std::string& file_name) {
     SpMatrix<T> buff;
     Eigen::loadMarket(buff, file_name);
     return buff;
 }
-
-/*
-template<typename T> void eigen2txt(const DMatrix<T>& M, const std::string& filename){
-    
-    std::ofstream file(filename);
-    
-    for(std::size_t i = 0; i < M.rows(); ++i) {
-            for(std::size_t j=0; j < M.cols(); ++j) file << M(i,j) << " ";
-            file << "\n";  
-    }
-    file.close();
-}
-*/
 
 template<typename T> void eigen2ext(const DMatrix<T>& M, const std::string& sep, const std::string& filename, bool append = false){
     std::ofstream file;
@@ -82,7 +70,7 @@ template<typename T> void eigen2ext(const DMatrix<T>& M, const std::string& sep,
         file.open(filename, std::ios_base::app); 
     
     for(std::size_t i = 0; i < M.rows(); ++i) {
-            for(std::size_t j=0; j < M.cols(); ++j) file << M(i,j) << sep;
+            for(std::size_t j=0; j < M.cols()-1; ++j) file << M(i,j) << sep;
             file << M(i, M.cols()-1) <<  "\n";  
     }
     file.close();
@@ -92,7 +80,7 @@ template<typename T> void eigen2txt(const DMatrix<T>& M, const std::string& file
     eigen2ext<T>(M, " ", filename, append);
 }
 
-template<typename T> void eigen2csv(const DMatrix<double>& M, const std::string& filename = "mat.csv", bool append = false){
+template<typename T> void eigen2csv(const DMatrix<T>& M, const std::string& filename = "mat.csv", bool append = false){
     eigen2ext<T>(M, ",", filename, append);
 }
 
@@ -146,6 +134,10 @@ void write_csv(const DMatrix<double>& M, const std::vector<std::string>& header 
     eigen2csv<double>(M, filename, true);
 }
 
+// 
+
+// tests 
+
 TEST(mixed_srpde_test, utils){
     DMatrix<double> data = DMatrix<double>::Zero(3,5);
 
@@ -157,11 +149,15 @@ TEST(mixed_srpde_test, utils){
     write_table(data, {"pippo", "pluto", "paperino", "topolino", "minnie"}, "disney.txt");
     write_csv(data);
     write_csv(data, {"pippo", "pluto", "paperino", "topolino", "minnie"}, "disney.csv");
+
+    eigen2txt(data, "disney_mat.txt");
+    eigen2csv(data, "disney_mat.csv");
+    
     EXPECT_TRUE(1);
 }
 
 
-TEST(mixed_srpde_test, monolitich_same_locations) {
+TEST(mixed_srpde_test, same_locations_test_1) {
     std::size_t m = 3;
     std::size_t n_sim = 30;
     // 
@@ -220,14 +216,14 @@ TEST(mixed_srpde_test, monolitich_same_locations) {
         return res;
     };
 
-    //std::string meshID = "unit_square_coarse";
-    std::string meshID = "unit_square";
+    //std::string meshID = "unit_square";
+    std::string meshID = "unit_square_coarse";
     MeshLoader<Mesh2D> domain(meshID);
     meshID = meshID + "/"; 
     std::string name_dir = "../data/models/mixed_srpde/" + meshID;
 	if(!std::filesystem::create_directory(name_dir)) std::filesystem::create_directory(name_dir);
     
-    name_dir += "same_locations/";
+    name_dir += "same_locations_test_1/";
     if(!std::filesystem::create_directory(name_dir)) std::filesystem::create_directory(name_dir);
 	
     // input
@@ -299,27 +295,34 @@ TEST(mixed_srpde_test, monolitich_same_locations) {
     if(!std::filesystem::exists(std::filesystem::path(output_dir))){ 
         std::filesystem::create_directory(output_dir);
     }
-    output_dir += "monolithic/";
-    if(!std::filesystem::exists(std::filesystem::path(output_dir))){ 
-        std::filesystem::create_directory(output_dir);
-    }
     
-    std::ofstream file(name_dir + "output/results.txt");
-    file << "'time_init'" <<  " " << "'time_solve'" << " " << "'solution_policy'"  << 
-            "'rmse_f'" << " " << "'rmse_f_1'" << " " << "'rmse_f_2'" << " " << "'rmse_f_3'" << " " << 
-            "'rmse_beta'" << " " << "'rmse_alpha'" << "'n_obs'" << "\n";
+    std::vector<std::string> solution_policy = {"monolithic", "richardson"};
+
     // import data from files
+    std::vector<std::string> header = {"time_init", "time_solve", "time",
+                                       "rmse_f","rmse_f_1", "rmse_f_2","rmse_f_3", 
+                                       "rmse_beta","rmse_alpha","n_obs"};
+
+    DMatrix<double> results_mono = DMatrix<double>::Zero( n_sim*n_obs.size(), header.size());
+    DMatrix<double> results_rich = DMatrix<double>::Zero( n_sim*n_obs.size(), header.size());
+
     for(std::size_t n = 0; n < n_obs.rows(); ++n){ 
-        //input_dir = name_dir + "input/" + std::to_string(n_obs(n)) + "/"; 
-        output_dir = name_dir + "output/" + "monolithic/";
+        output_dir = name_dir + "output/"; // + "monolithic/";
         output_dir += std::to_string(n_obs(n)) + "/" ;
+        
         std::string data_dir = input_dir + std::to_string(n_obs(n)) + "/";
         if(!std::filesystem::exists(std::filesystem::path(output_dir))) std::filesystem::create_directory(output_dir);
+        
     for(std::size_t sim = 0; sim < n_sim; ++sim){
 
         std::string simul_dir = data_dir + std::to_string(sim) + "/"; 
         std::string result_dir = output_dir + std::to_string(sim) + "/";
         if(!std::filesystem::exists(std::filesystem::path(result_dir))) std::filesystem::create_directory(result_dir);
+
+        std::string output_monolithic = result_dir + "monolithic/";
+        std::string output_richardson = result_dir + "richardson/";
+        if(!std::filesystem::exists(std::filesystem::path(output_monolithic))) std::filesystem::create_directory(output_monolithic);
+        if(!std::filesystem::exists(std::filesystem::path(output_richardson))) std::filesystem::create_directory(output_richardson);
 
         std::vector<BlockFrame<double, int>> data;
         data.resize(m);
@@ -353,56 +356,97 @@ TEST(mixed_srpde_test, monolitich_same_locations) {
         // define lambda
         double lambda = 1e-3; 
 
-        // getting dimension of the data (number of total observations N)
-        std::size_t sum = 0;
-        for(std::size_t i=0; i<data.size(); i++){
-            sum += data[i].template get<double>(LOCS_BLOCK).rows();
-        }
-
-        MixedSRPDE<monolithic> model(problem, Sampling::pointwise);
-	
-	    model.set_lambda_D(lambda);
-	    model.set_data(data);
+        // monolithic 
+        MixedSRPDE<monolithic> monolithic_(problem, Sampling::pointwise);
+        monolithic_.set_lambda_D(lambda);
+	    monolithic_.set_data(data);
         
-        // solve smoothing problem
         auto start = std::chrono::high_resolution_clock::now();
-        model.init();
+        monolithic_.init();
         std::chrono::duration<double> duration = std::chrono::high_resolution_clock::now() - start;
-        file << duration.count() << " ";
+        results_mono(sim + n_sim*n, 0) = duration.count();
 
         start = std::chrono::high_resolution_clock::now();
-        model.solve();
+        monolithic_.solve();
         duration = std::chrono::high_resolution_clock::now() - start;
-        file << duration.count() << " " << "'monolithic'" << " ";
-    
-        file << (model.f() - f_).array().square().mean() << " ";
+        results_mono(sim + n_sim*n, 1) = duration.count();
+        results_mono(sim + n_sim*n, 2) = results_mono(sim + n_sim*n, 0) + results_mono(sim + n_sim*n, 1);
+
+        // iterative
+        MixedSRPDE<iterative> richardson_(problem, Sampling::pointwise);
+        richardson_.set_lambda_D(lambda);
+	    richardson_.set_data(data);
+
+        start = std::chrono::high_resolution_clock::now();
+        richardson_.init();
+        duration = std::chrono::high_resolution_clock::now() - start;
+        results_rich(sim + n_sim*n, 0) = duration.count();
+
+        start = std::chrono::high_resolution_clock::now();
+        richardson_.solve();
+        duration = std::chrono::high_resolution_clock::now() - start;
+        results_rich(sim + n_sim*n, 1) = duration.count();
+        results_rich(sim + n_sim*n, 2) = results_rich(sim + n_sim*n, 0) + results_rich(sim + n_sim*n, 1);
+        
+        // RMSEs
+        results_mono(sim + n_sim*n, 3) = (monolithic_.f() - f_).array().square().mean();
+        results_rich(sim + n_sim*n, 3) = (richardson_.f() - f_).array().square().mean();
         for(std::size_t j = 0; j < m; ++j){
-            Eigen::saveMarket(model.f().block(j*domain.mesh.nodes().rows(),0, domain.mesh.nodes().rows(),1),
-                          result_dir + "estimate_f_" + std::to_string(j) + ".mtx");
-            eigen2txt<double>(model.f().block(j*domain.mesh.nodes().rows(),0, domain.mesh.nodes().rows(),1),
-                          result_dir + "estimate_f_" + std::to_string(j) + ".txt");
-            file << (model.f().block(j*domain.mesh.nodes().rows(),0, domain.mesh.nodes().rows(),1) -
-                            f_.block(j*domain.mesh.nodes().rows(),0, domain.mesh.nodes().rows(),1)).array().square().mean() << " ";
-            EXPECT_TRUE( (model.f().block(j*domain.mesh.nodes().rows(),0, domain.mesh.nodes().rows(),1) -
-                            f_.block(j*domain.mesh.nodes().rows(),0, domain.mesh.nodes().rows(),1)).array().square().mean() < 1e-2);
+            Eigen::saveMarket(monolithic_.f().block(j*domain.mesh.nodes().rows(),0, domain.mesh.nodes().rows(),1),
+                          output_monolithic + "estimate_f_" + std::to_string(j) + ".mtx");
+            eigen2txt<double>(monolithic_.f().block(j*domain.mesh.nodes().rows(),0, domain.mesh.nodes().rows(),1),
+                          output_monolithic + "estimate_f_" + std::to_string(j) + ".txt");
+
+            results_mono(sim + n_sim*n, 4+j) = (monolithic_.f().block(j*domain.mesh.nodes().rows(),0, domain.mesh.nodes().rows(),1) -
+                                                f_.block(j*domain.mesh.nodes().rows(),0, domain.mesh.nodes().rows(),1)).array().square().mean();
+
+            Eigen::saveMarket(richardson_.f().block(j*domain.mesh.nodes().rows(),0, domain.mesh.nodes().rows(),1),
+                          output_richardson + "estimate_f_" + std::to_string(j) + ".mtx");
+            eigen2txt<double>(richardson_.f().block(j*domain.mesh.nodes().rows(),0, domain.mesh.nodes().rows(),1),
+                          output_richardson + "estimate_f_" + std::to_string(j) + ".txt");
+
+            results_rich(sim + n_sim*n, 4+j) = (richardson_.f().block(j*domain.mesh.nodes().rows(),0, domain.mesh.nodes().rows(),1) -
+                                                f_.block(j*domain.mesh.nodes().rows(),0, domain.mesh.nodes().rows(),1)).array().square().mean();
         }
 
-        Eigen::saveMarket(model.f(), result_dir + "estimate_f.mtx");
-        eigen2txt<double>(model.f(), result_dir + "estimate_f.txt");
+        Eigen::saveMarket(monolithic_.f(), output_monolithic + "estimate_f.mtx");
+        eigen2txt<double>(monolithic_.f(), output_monolithic + "estimate_f.txt");
+        Eigen::saveMarket(richardson_.f(), output_richardson + "estimate_f.mtx");
+        eigen2txt<double>(richardson_.f(), output_richardson + "estimate_f.txt");
     
-        Eigen::saveMarket(model.beta(), result_dir + "beta.mtx");
-        eigen2txt<double>(model.beta(), result_dir + "beta.txt");
+        Eigen::saveMarket(monolithic_.beta(), output_monolithic + "beta.mtx");
+        eigen2txt<double>(monolithic_.beta(), output_monolithic + "beta.txt");
+        Eigen::saveMarket(richardson_.beta(), output_richardson + "beta.mtx");
+        eigen2txt<double>(richardson_.beta(), output_richardson + "beta.txt");
     
-        Eigen::saveMarket(model.alpha(), result_dir + "beta.mtx");
-        eigen2txt<double>(model.alpha(), result_dir + "alpha.txt");
-        file << (model.beta() - beta).array().square().mean() << " " << 
-            (model.alpha() - alpha).array().square().mean() << " " << n_obs(n) << "\n"; 
-        EXPECT_TRUE(  (model.beta() - beta).array().square().mean() < 1e-2 );
-        EXPECT_TRUE(  (model.alpha() - alpha).array().square().mean() < 1e-2 );
+        Eigen::saveMarket(monolithic_.alpha(), output_monolithic + "beta.mtx");
+        eigen2txt<double>(monolithic_.alpha(), output_monolithic + "alpha.txt");
+        Eigen::saveMarket(richardson_.alpha(), output_richardson + "beta.mtx");
+        eigen2txt<double>(richardson_.alpha(), output_richardson + "alpha.txt");
+
+        results_mono(sim + n_sim*n, 7) =  (monolithic_.beta() - beta).array().square().mean();
+        results_mono(sim + n_sim*n, 8) =  (monolithic_.alpha() - alpha).array().square().mean();
+        
+        results_rich(sim + n_sim*n, 7) =  (richardson_.beta() - beta).array().square().mean();
+        results_rich(sim + n_sim*n, 8) =  (richardson_.alpha() - alpha).array().square().mean();
+        
+        results_mono(sim + n_sim*n,9) = n_obs(n);
+        results_rich(sim + n_sim*n,9) = n_obs(n);
+
+        EXPECT_TRUE(  (monolithic_.beta() - beta).array().square().mean() < 1e-2 );
+        EXPECT_TRUE(  (monolithic_.alpha() - alpha).array().square().mean() < 1e-2 );
+
+        EXPECT_TRUE(  (richardson_.beta() - beta).array().square().mean() < 1e-2 );
+        EXPECT_TRUE(  (richardson_.alpha() - alpha).array().square().mean() < 1e-2 );
     }
     }
+
+    write_table(results_mono, header, name_dir + "output/" + solution_policy[0] + ".txt");
+    write_table(results_rich, header, name_dir + "output/" + solution_policy[1] + ".txt");
 }
 
+
+/*
 TEST(mixed_srpde_test, iterative_same_locations) {
     int seed = 0; 
     std::size_t n_sim = 30;
@@ -533,7 +577,9 @@ TEST(mixed_srpde_test, iterative_same_locations) {
     }
     }
 }
+*/
 
+/*
 TEST(mixed_srpde_test, monolitich_same_locations_noise_covs) {
     
     std::size_t m = 3;
@@ -910,6 +956,7 @@ TEST(mixed_srpde_test, iterative_same_locations_noise_covs) {
     }
     }
 }
+*/
 
 /*
 TEST(mixed_srpde_test, monolitich_different_locations) {

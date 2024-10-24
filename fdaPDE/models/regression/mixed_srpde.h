@@ -540,7 +540,7 @@ class MixedSRPDE<iterative> : public MixedRegressionBase<MixedSRPDE<iterative>> 
             auto start = std::chrono::high_resolution_clock::now();
         
             fdapde_assert(y_.rows() != 0);
-
+            
             DVector<double> x_new = DMatrix<double>::Zero(2*n_basis()*m_, 1); 
             b_.block(0, 0, n_basis()*m_, 1) = -mPsiTD_ * lmbQ(y_); 
             
@@ -613,22 +613,17 @@ class MixedSRPDE<iterative> : public MixedRegressionBase<MixedSRPDE<iterative>> 
             std::cout << "-		residuo: " << _duration.count() << std::endl;
             
             // store result of smoothing
-            std::cout << "\t f & g " << std::endl;
             f_ = x_new.head(m_*n_basis());      // f0        
             g_ = x_new.tail(m_*n_basis());      // g0
 
-            std::cout << "\t nu " << std::endl;
             beta_ = invXtWX().solve(X().transpose() * (y_ - mPsi_ * f_)); 
             
-            std::cout << "\t beta & alpha " << std::endl;
             beta_coeff_ = F_*beta_;
             alpha_coeff_ = T_*beta_.tail(m_*p_); 
             
-            std::cout << "\t z " << std::endl;
             DVector<double> z;
             z = DMatrix<double>::Zero(r.rows(), 1);
 
-            std::cout << "\t J " << std::endl;
             Jnew = J(f_,g_);
             Jold = 2 * Jnew;
         
