@@ -54,15 +54,14 @@ using fdapde::testing::almost_equal;
 using fdapde::testing::MeshLoader;
 using fdapde::testing::read_csv;
 
-// TEST CON GENERAZIONE INTERNA DEI DATI
-
 template <typename T> DMatrix<T> read_mtx(const std::string& file_name) {
     SpMatrix<T> buff;
     Eigen::loadMarket(buff, file_name);
     return buff;
 }
 
-template<typename T> void saveTxt(const DMatrix<T>& M, const std::string& filename){
+/*
+template<typename T> void eigen2txt(const DMatrix<T>& M, const std::string& filename){
     
     std::ofstream file(filename);
     
@@ -72,8 +71,96 @@ template<typename T> void saveTxt(const DMatrix<T>& M, const std::string& filena
     }
     file.close();
 }
+*/
 
-/*
+template<typename T> void eigen2ext(const DMatrix<T>& M, const std::string& sep, const std::string& filename, bool append = false){
+    std::ofstream file;
+
+    if(!append) 
+        file.open(filename);
+    else
+        file.open(filename, std::ios_base::app); 
+    
+    for(std::size_t i = 0; i < M.rows(); ++i) {
+            for(std::size_t j=0; j < M.cols(); ++j) file << M(i,j) << sep;
+            file << M(i, M.cols()-1) <<  "\n";  
+    }
+    file.close();
+}
+
+template<typename T> void eigen2txt(const DMatrix<T>& M, const std::string& filename = "mat.txt", bool append = false){
+    eigen2ext<T>(M, " ", filename, append);
+}
+
+template<typename T> void eigen2csv(const DMatrix<double>& M, const std::string& filename = "mat.csv", bool append = false){
+    eigen2ext<T>(M, ",", filename, append);
+}
+
+template< typename T> void vector2ext(const std::vector<T>& V, const std::string& sep, const std::string& filename, bool append = false){
+    std::ofstream file;
+
+    if(!append) 
+        file.open(filename);
+    else
+        file.open(filename, std::ios_base::app);
+    
+    for(std::size_t i = 0; i < V.size()-1; ++i) file << V[i] << sep;
+    
+    file << V[V.size()-1] << "\n";  
+    
+    file.close();
+}
+
+template< typename T> void vector2txt(const std::vector<T>& V, const std::string& filename = "vec.txt", bool append = false){
+   vector2ext<T>(V, " ", filename, append);
+}
+
+template< typename T> void vector2csv(const std::vector<T>& V, const std::string& filename = "vec.csv", bool append = false){
+   vector2ext<T>(V, ",", filename, append);
+}
+
+void write_table(const DMatrix<double>& M, const std::vector<std::string>& header = {}, const std::string& filename = "data.txt"){
+
+    std::ofstream file(filename);
+
+    if(header.empty() || header.size() != M.cols()){
+        std::vector<std::string> head(M.cols());
+        for(std::size_t i = 0; i < M.cols(); ++i)
+                head[i] =  "V" + std::to_string(i);
+        vector2txt<std::string>(head, filename);    
+    }else vector2txt<std::string>(header, filename);
+    
+    eigen2txt<double>(M, filename, true);
+}
+
+void write_csv(const DMatrix<double>& M, const std::vector<std::string>& header = {}, const std::string& filename = "data.csv"){
+    std::ofstream file(filename);
+
+    if(header.empty() || header.size() != M.cols()){
+        std::vector<std::string> head(M.cols());
+        for(std::size_t i = 0; i < M.cols(); ++i)
+                head[i] =  "V" + std::to_string(i);
+        vector2csv(head, filename);    
+    }else vector2csv(header, filename);
+    
+    eigen2csv<double>(M, filename, true);
+}
+
+TEST(mixed_srpde_test, utils){
+    DMatrix<double> data = DMatrix<double>::Zero(3,5);
+
+    data.row(0) << 1.0, 2.0, 3.0, 4.0, 5.0;
+    data.row(1) << 5.1, 4.2, 3.3, 2.4, 1.5;
+    data.row(2) << 3.0, 1.0, 4.0, 5.0, 6.0; // :-)
+
+    write_table(data);
+    write_table(data, {"pippo", "pluto", "paperino", "topolino", "minnie"}, "disney.txt");
+    write_csv(data);
+    write_csv(data, {"pippo", "pluto", "paperino", "topolino", "minnie"}, "disney.csv");
+    EXPECT_TRUE(1);
+}
+
+
 TEST(mixed_srpde_test, monolitich_same_locations) {
     std::size_t m = 3;
     std::size_t n_sim = 30;
@@ -154,16 +241,16 @@ TEST(mixed_srpde_test, monolitich_same_locations) {
         Eigen::saveMarket(alpha, input_dir + "alpha.mtx");
         Eigen::saveMarket(n_obs, input_dir + "n_obs.mtx");
     
-        saveTxt<double>(beta, input_dir + "beta.txt");
-        saveTxt<double>(alpha, input_dir + "alpha.txt");
-        saveTxt<int>(n_obs, input_dir + "n_obs.txt");
+        eigen2txt<double>(beta, input_dir + "beta.txt");
+        eigen2txt<double>(alpha, input_dir + "alpha.txt");
+        eigen2txt<int>(n_obs, input_dir + "n_obs.txt");
 
         Eigen::saveMarket(x1_(domain.mesh.nodes()), input_dir + "cov_1.mtx");
-        saveTxt<double>(x1_(domain.mesh.nodes()), input_dir + "cov_1.txt");
+        eigen2txt<double>(x1_(domain.mesh.nodes()), input_dir + "cov_1.txt");
         for( std::size_t j=0; j < m; ++j){
             DMatrix<double> f_ = f(domain.mesh.nodes(), j);
             Eigen::saveMarket(f_, input_dir + "f_" + std::to_string(j) + ".mtx");
-            saveTxt<double>(f_, input_dir + "f_" + std::to_string(j) + ".txt");
+            eigen2txt<double>(f_, input_dir + "f_" + std::to_string(j) + ".txt");
         }
 
         for(std::size_t n = 0; n < n_obs.rows(); ++n){
@@ -187,7 +274,7 @@ TEST(mixed_srpde_test, monolitich_same_locations) {
                 DMatrix<double> f_ = f(locs, j);
                 double sigma = 0.05*std::abs(f_.array().maxCoeff() - f_.array().minCoeff()); 
                 auto eps_ = noise(n_obs(n),sigma);
-                saveTxt<double>(eps_, simul_dir + "noise_" + std::to_string(j) + ".txt");
+                eigen2txt<double>(eps_, simul_dir + "noise_" + std::to_string(j) + ".txt");
             
                 auto obs = DesignMatrix * beta + DesignMatrix.col(0)*alpha(j,0)  + f_ + eps_; 
             
@@ -197,11 +284,11 @@ TEST(mixed_srpde_test, monolitich_same_locations) {
                 Eigen::saveMarket(DesignMatrix.col(0), simul_dir + "V_" + std::to_string(j) + ".mtx");
                 Eigen::saveMarket(obs, simul_dir + "obs_" + std::to_string(j) + ".mtx");
 
-                saveTxt<double>(locs, simul_dir + "locs_" + std::to_string(j) + ".txt");
-                saveTxt<double>(DesignMatrix, simul_dir + "DesignMatrix_" + std::to_string(j) + ".txt");
-                saveTxt<double>(DesignMatrix.col(1), simul_dir + "W_" + std::to_string(j) + ".txt");
-                saveTxt<double>(DesignMatrix.col(0), simul_dir + "V_" + std::to_string(j) + ".txt");
-                saveTxt<double>(obs, simul_dir + "obs_" + std::to_string(j) + ".txt");
+                eigen2txt<double>(locs, simul_dir + "locs_" + std::to_string(j) + ".txt");
+                eigen2txt<double>(DesignMatrix, simul_dir + "DesignMatrix_" + std::to_string(j) + ".txt");
+                eigen2txt<double>(DesignMatrix.col(1), simul_dir + "W_" + std::to_string(j) + ".txt");
+                eigen2txt<double>(DesignMatrix.col(0), simul_dir + "V_" + std::to_string(j) + ".txt");
+                eigen2txt<double>(obs, simul_dir + "obs_" + std::to_string(j) + ".txt");
             }
         }
         }
@@ -292,7 +379,7 @@ TEST(mixed_srpde_test, monolitich_same_locations) {
         for(std::size_t j = 0; j < m; ++j){
             Eigen::saveMarket(model.f().block(j*domain.mesh.nodes().rows(),0, domain.mesh.nodes().rows(),1),
                           result_dir + "estimate_f_" + std::to_string(j) + ".mtx");
-            saveTxt<double>(model.f().block(j*domain.mesh.nodes().rows(),0, domain.mesh.nodes().rows(),1),
+            eigen2txt<double>(model.f().block(j*domain.mesh.nodes().rows(),0, domain.mesh.nodes().rows(),1),
                           result_dir + "estimate_f_" + std::to_string(j) + ".txt");
             file << (model.f().block(j*domain.mesh.nodes().rows(),0, domain.mesh.nodes().rows(),1) -
                             f_.block(j*domain.mesh.nodes().rows(),0, domain.mesh.nodes().rows(),1)).array().square().mean() << " ";
@@ -301,13 +388,13 @@ TEST(mixed_srpde_test, monolitich_same_locations) {
         }
 
         Eigen::saveMarket(model.f(), result_dir + "estimate_f.mtx");
-        saveTxt<double>(model.f(), result_dir + "estimate_f.txt");
+        eigen2txt<double>(model.f(), result_dir + "estimate_f.txt");
     
         Eigen::saveMarket(model.beta(), result_dir + "beta.mtx");
-        saveTxt<double>(model.beta(), result_dir + "beta.txt");
+        eigen2txt<double>(model.beta(), result_dir + "beta.txt");
     
         Eigen::saveMarket(model.alpha(), result_dir + "beta.mtx");
-        saveTxt<double>(model.alpha(), result_dir + "alpha.txt");
+        eigen2txt<double>(model.alpha(), result_dir + "alpha.txt");
         file << (model.beta() - beta).array().square().mean() << " " << 
             (model.alpha() - alpha).array().square().mean() << " " << n_obs(n) << "\n"; 
         EXPECT_TRUE(  (model.beta() - beta).array().square().mean() < 1e-2 );
@@ -422,7 +509,7 @@ TEST(mixed_srpde_test, iterative_same_locations) {
         for(std::size_t j = 0; j < m; ++j){
             Eigen::saveMarket(model.f().block(j*domain.mesh.nodes().rows(),0, domain.mesh.nodes().rows(),1),
                               result_dir + "estimate_f_" + std::to_string(j) + ".mtx");
-            saveTxt<double>(model.f().block(j*domain.mesh.nodes().rows(),0, domain.mesh.nodes().rows(),1),
+            eigen2txt<double>(model.f().block(j*domain.mesh.nodes().rows(),0, domain.mesh.nodes().rows(),1),
                           result_dir + "estimate_f_" + std::to_string(j) + ".txt");
             file << (model.f().block(j*domain.mesh.nodes().rows(),0, domain.mesh.nodes().rows(),1) -
                             f_.block(j*domain.mesh.nodes().rows(),0, domain.mesh.nodes().rows(),1)).array().square().mean() << " ";
@@ -431,13 +518,13 @@ TEST(mixed_srpde_test, iterative_same_locations) {
         }
 
         Eigen::saveMarket(model.f(), result_dir + "estimate_f.mtx");
-        saveTxt<double>(model.f(), result_dir + "estimate_f.txt");
+        eigen2txt<double>(model.f(), result_dir + "estimate_f.txt");
     
         Eigen::saveMarket(model.beta(), result_dir + "beta.mtx");
-        saveTxt<double>(model.beta(), result_dir + "beta.txt");
+        eigen2txt<double>(model.beta(), result_dir + "beta.txt");
     
         Eigen::saveMarket(model.alpha(), result_dir + "beta.mtx");
-        saveTxt<double>(model.alpha(), result_dir + "alpha.txt");
+        eigen2txt<double>(model.alpha(), result_dir + "alpha.txt");
         file << (model.beta() - beta).array().square().mean() << " " << 
                 (model.alpha() - alpha).array().square().mean() << " " << n_obs(n) << "\n"; 
     
@@ -528,16 +615,16 @@ auto x1_ =  [](DMatrix<double> locs){
         Eigen::saveMarket(alpha, input_dir + "alpha.mtx");
         Eigen::saveMarket(n_obs, input_dir + "n_obs.mtx");
     
-        saveTxt<double>(beta, input_dir + "beta.txt");
-        saveTxt<double>(alpha, input_dir + "alpha.txt");
-        saveTxt<int>(n_obs, input_dir + "n_obs.txt");
+        eigen2txt<double>(beta, input_dir + "beta.txt");
+        eigen2txt<double>(alpha, input_dir + "alpha.txt");
+        eigen2txt<int>(n_obs, input_dir + "n_obs.txt");
 
         Eigen::saveMarket(x1_(domain.mesh.nodes()), input_dir + "cov_1.mtx");
-        saveTxt<double>(x1_(domain.mesh.nodes()), input_dir + "cov_1.txt");
+        eigen2txt<double>(x1_(domain.mesh.nodes()), input_dir + "cov_1.txt");
         for( std::size_t j=0; j < m; ++j){
             DMatrix<double> f_ = f(domain.mesh.nodes(), j);
             Eigen::saveMarket(f_, input_dir + "f_" + std::to_string(j) + ".mtx");
-            saveTxt<double>(f_, input_dir + "f_" + std::to_string(j) + ".txt");
+            eigen2txt<double>(f_, input_dir + "f_" + std::to_string(j) + ".txt");
         }
 
         for(std::size_t n = 0; n < n_obs.rows(); ++n){
@@ -564,7 +651,7 @@ auto x1_ =  [](DMatrix<double> locs){
                 double sigma = 0.05*std::abs(f_.array().maxCoeff() - f_.array().minCoeff()); 
                 std::cout << sigma << std::endl;
                 auto eps_ = noise(n_obs(n),sigma);
-                saveTxt<double>(eps_, simul_dir + "noise_" + std::to_string(j) + ".txt");
+                eigen2txt<double>(eps_, simul_dir + "noise_" + std::to_string(j) + ".txt");
             
                 auto obs = DesignMatrix * beta + DesignMatrix.col(0)*alpha(j,0)  + f_ + eps_; 
             
@@ -574,11 +661,11 @@ auto x1_ =  [](DMatrix<double> locs){
                 Eigen::saveMarket(DesignMatrix.col(0), simul_dir + "V_" + std::to_string(j) + ".mtx");
                 Eigen::saveMarket(obs, simul_dir + "obs_" + std::to_string(j) + ".mtx");
 
-                saveTxt<double>(locs, simul_dir + "locs_" + std::to_string(j) + ".txt");
-                saveTxt<double>(DesignMatrix, simul_dir + "DesignMatrix_" + std::to_string(j) + ".txt");
-                saveTxt<double>(DesignMatrix.col(1), simul_dir + "W_" + std::to_string(j) + ".txt");
-                saveTxt<double>(DesignMatrix.col(0), simul_dir + "V_" + std::to_string(j) + ".txt");
-                saveTxt<double>(obs, simul_dir + "obs_" + std::to_string(j) + ".txt");
+                eigen2txt<double>(locs, simul_dir + "locs_" + std::to_string(j) + ".txt");
+                eigen2txt<double>(DesignMatrix, simul_dir + "DesignMatrix_" + std::to_string(j) + ".txt");
+                eigen2txt<double>(DesignMatrix.col(1), simul_dir + "W_" + std::to_string(j) + ".txt");
+                eigen2txt<double>(DesignMatrix.col(0), simul_dir + "V_" + std::to_string(j) + ".txt");
+                eigen2txt<double>(obs, simul_dir + "obs_" + std::to_string(j) + ".txt");
             }
         }
         }
@@ -669,7 +756,7 @@ auto x1_ =  [](DMatrix<double> locs){
         for(std::size_t j = 0; j < m; ++j){
             Eigen::saveMarket(model.f().block(j*domain.mesh.nodes().rows(),0, domain.mesh.nodes().rows(),1),
                           result_dir + "estimate_f_" + std::to_string(j) + ".mtx");
-            saveTxt<double>(model.f().block(j*domain.mesh.nodes().rows(),0, domain.mesh.nodes().rows(),1),
+            eigen2txt<double>(model.f().block(j*domain.mesh.nodes().rows(),0, domain.mesh.nodes().rows(),1),
                           result_dir + "estimate_f_" + std::to_string(j) + ".txt");
             file << (model.f().block(j*domain.mesh.nodes().rows(),0, domain.mesh.nodes().rows(),1) -
                             f_.block(j*domain.mesh.nodes().rows(),0, domain.mesh.nodes().rows(),1)).array().square().mean() << " ";
@@ -678,13 +765,13 @@ auto x1_ =  [](DMatrix<double> locs){
         }
 
         Eigen::saveMarket(model.f(), result_dir + "estimate_f.mtx");
-        saveTxt<double>(model.f(), result_dir + "estimate_f.txt");
+        eigen2txt<double>(model.f(), result_dir + "estimate_f.txt");
     
         Eigen::saveMarket(model.beta(), result_dir + "beta.mtx");
-        saveTxt<double>(model.beta(), result_dir + "beta.txt");
+        eigen2txt<double>(model.beta(), result_dir + "beta.txt");
     
         Eigen::saveMarket(model.alpha(), result_dir + "beta.mtx");
-        saveTxt<double>(model.alpha(), result_dir + "alpha.txt");
+        eigen2txt<double>(model.alpha(), result_dir + "alpha.txt");
         file << (model.beta() - beta).array().square().mean() << " " << 
             (model.alpha() - alpha).array().square().mean() << " " << n_obs(n) << "\n"; 
         EXPECT_TRUE(  (model.beta() - beta).array().square().mean() < 1e-2 );
@@ -799,7 +886,7 @@ TEST(mixed_srpde_test, iterative_same_locations_noise_covs) {
         for(std::size_t j = 0; j < m; ++j){
             Eigen::saveMarket(model.f().block(j*domain.mesh.nodes().rows(),0, domain.mesh.nodes().rows(),1),
                               result_dir + "estimate_f_" + std::to_string(j) + ".mtx");
-            saveTxt<double>(model.f().block(j*domain.mesh.nodes().rows(),0, domain.mesh.nodes().rows(),1),
+            eigen2txt<double>(model.f().block(j*domain.mesh.nodes().rows(),0, domain.mesh.nodes().rows(),1),
                           result_dir + "estimate_f_" + std::to_string(j) + ".txt");
             file << (model.f().block(j*domain.mesh.nodes().rows(),0, domain.mesh.nodes().rows(),1) -
                             f_.block(j*domain.mesh.nodes().rows(),0, domain.mesh.nodes().rows(),1)).array().square().mean() << " ";
@@ -808,13 +895,13 @@ TEST(mixed_srpde_test, iterative_same_locations_noise_covs) {
         }
 
         Eigen::saveMarket(model.f(), result_dir + "estimate_f.mtx");
-        saveTxt<double>(model.f(), result_dir + "estimate_f.txt");
+        eigen2txt<double>(model.f(), result_dir + "estimate_f.txt");
     
         Eigen::saveMarket(model.beta(), result_dir + "beta.mtx");
-        saveTxt<double>(model.beta(), result_dir + "beta.txt");
+        eigen2txt<double>(model.beta(), result_dir + "beta.txt");
     
         Eigen::saveMarket(model.alpha(), result_dir + "beta.mtx");
-        saveTxt<double>(model.alpha(), result_dir + "alpha.txt");
+        eigen2txt<double>(model.alpha(), result_dir + "alpha.txt");
         file << (model.beta() - beta).array().square().mean() << " " << 
                 (model.alpha() - alpha).array().square().mean() << " " << n_obs(n) << "\n"; 
     
@@ -823,9 +910,8 @@ TEST(mixed_srpde_test, iterative_same_locations_noise_covs) {
     }
     }
 }
-*/
 
-
+/*
 TEST(mixed_srpde_test, monolitich_different_locations) {
 
     std::size_t m = 3;
@@ -909,12 +995,12 @@ TEST(mixed_srpde_test, monolitich_different_locations) {
         Eigen::saveMarket(alpha, input_dir + "alpha.mtx");
         Eigen::saveMarket(n_obs, input_dir + "n_obs.mtx");
     
-        saveTxt<double>(beta, input_dir + "beta.txt");
-        saveTxt<double>(alpha, input_dir + "alpha.txt");
-        saveTxt<int>(n_obs, input_dir + "n_obs.txt");
+        eigen2txt<double>(beta, input_dir + "beta.txt");
+        eigen2txt<double>(alpha, input_dir + "alpha.txt");
+        eigen2txt<int>(n_obs, input_dir + "n_obs.txt");
 
         Eigen::saveMarket(x1_(domain.mesh.nodes()), input_dir + "cov_1.mtx");
-        saveTxt<double>(x1_(domain.mesh.nodes()), input_dir + "cov_1.txt");
+        eigen2txt<double>(x1_(domain.mesh.nodes()), input_dir + "cov_1.txt");
         
         // generete data    
         //double sigma = 0.1;
@@ -930,7 +1016,7 @@ TEST(mixed_srpde_test, monolitich_different_locations) {
 
             std::cout << sigma << std::endl;
             auto eps_ = noise(n_obs(j),sigma);
-            saveTxt<double>(eps_, input_dir + "noise_" + std::to_string(j) + ".txt");
+            eigen2txt<double>(eps_, input_dir + "noise_" + std::to_string(j) + ".txt");
             
             auto obs = DesignMatrix * beta + DesignMatrix.col(0)*alpha(j,0)  + f_ + eps_; 
 
@@ -940,15 +1026,15 @@ TEST(mixed_srpde_test, monolitich_different_locations) {
             Eigen::saveMarket(DesignMatrix.col(0), input_dir + "V_" + std::to_string(j) + ".mtx");
             Eigen::saveMarket(obs, input_dir + "obs_" + std::to_string(j) + ".mtx");
 
-            saveTxt<double>(locs, input_dir + "locs_" + std::to_string(j) + ".txt");
-            saveTxt<double>(DesignMatrix, input_dir + "DesignMatrix_" + std::to_string(j) + ".txt");
-            saveTxt<double>(DesignMatrix.col(1), input_dir + "W_" + std::to_string(j) + ".txt");
-            saveTxt<double>(DesignMatrix.col(0), input_dir + "V_" + std::to_string(j) + ".txt");
-            saveTxt<double>(obs, input_dir + "obs_" + std::to_string(j) + ".txt");
+            eigen2txt<double>(locs, input_dir + "locs_" + std::to_string(j) + ".txt");
+            eigen2txt<double>(DesignMatrix, input_dir + "DesignMatrix_" + std::to_string(j) + ".txt");
+            eigen2txt<double>(DesignMatrix.col(1), input_dir + "W_" + std::to_string(j) + ".txt");
+            eigen2txt<double>(DesignMatrix.col(0), input_dir + "V_" + std::to_string(j) + ".txt");
+            eigen2txt<double>(obs, input_dir + "obs_" + std::to_string(j) + ".txt");
             
             f_ = f(domain.mesh.nodes(), j);
             Eigen::saveMarket(f_, input_dir + "f_" + std::to_string(j) + ".mtx");
-            saveTxt<double>(f_, input_dir + "f_" + std::to_string(j) + ".txt");
+            eigen2txt<double>(f_, input_dir + "f_" + std::to_string(j) + ".txt");
         } 
     }
      
@@ -1021,7 +1107,7 @@ TEST(mixed_srpde_test, monolitich_different_locations) {
     for(std::size_t j = 0; j < m; ++j){
         Eigen::saveMarket(model.f().block(j*domain.mesh.nodes().rows(),0, domain.mesh.nodes().rows(),1),
                           output_dir + "estimate_f_" + std::to_string(j) + ".mtx");
-        saveTxt<double>(model.f().block(j*domain.mesh.nodes().rows(),0, domain.mesh.nodes().rows(),1),
+        eigen2txt<double>(model.f().block(j*domain.mesh.nodes().rows(),0, domain.mesh.nodes().rows(),1),
                           output_dir + "estimate_f_" + std::to_string(j) + ".txt");
 
         EXPECT_TRUE( (model.f().block(j*domain.mesh.nodes().rows(),0, domain.mesh.nodes().rows(),1) -
@@ -1029,13 +1115,13 @@ TEST(mixed_srpde_test, monolitich_different_locations) {
     }
 
     Eigen::saveMarket(model.f(), output_dir + "estimate_f.mtx");
-    saveTxt<double>(model.f(), output_dir + "estimate_f.txt");
+    eigen2txt<double>(model.f(), output_dir + "estimate_f.txt");
     
     Eigen::saveMarket(model.beta(), output_dir + "beta.mtx");
-    saveTxt<double>(model.beta(), output_dir + "beta.txt");
+    eigen2txt<double>(model.beta(), output_dir + "beta.txt");
     
     Eigen::saveMarket(model.alpha(), output_dir + "beta.mtx");
-    saveTxt<double>(model.alpha(), output_dir + "alpha.txt");
+    eigen2txt<double>(model.alpha(), output_dir + "alpha.txt");
      
     EXPECT_TRUE(  (model.alpha() - alpha).array().square().mean() < 1e-2 );
     EXPECT_TRUE(  (model.beta() - beta).array().square().mean() < 1e-2 );
@@ -1146,7 +1232,7 @@ TEST(mixed_srpde_test, iterative_different_locations) {
     for(std::size_t j = 0; j < m; ++j){
         Eigen::saveMarket(model.f().block(j*domain.mesh.nodes().rows(),0, domain.mesh.nodes().rows(),1),
                           output_dir + "estimate_f_" + std::to_string(j) + ".mtx");
-        saveTxt<double>(model.f().block(j*domain.mesh.nodes().rows(),0, domain.mesh.nodes().rows(),1),
+        eigen2txt<double>(model.f().block(j*domain.mesh.nodes().rows(),0, domain.mesh.nodes().rows(),1),
                           output_dir + "estimate_f_" + std::to_string(j) + ".txt");
 
         EXPECT_TRUE( (model.f().block(j*domain.mesh.nodes().rows(),0, domain.mesh.nodes().rows(),1) -
@@ -1154,19 +1240,19 @@ TEST(mixed_srpde_test, iterative_different_locations) {
     }
 
     Eigen::saveMarket(model.f(), output_dir + "estimate_f.mtx");
-    saveTxt<double>(model.f(), output_dir + "estimate_f.txt");
+    eigen2txt<double>(model.f(), output_dir + "estimate_f.txt");
     
     Eigen::saveMarket(model.beta(), output_dir + "beta.mtx");
-    saveTxt<double>(model.beta(), output_dir + "beta.txt");
+    eigen2txt<double>(model.beta(), output_dir + "beta.txt");
     
     Eigen::saveMarket(model.alpha(), output_dir + "beta.mtx");
-    saveTxt<double>(model.alpha(), output_dir + "alpha.txt");
+    eigen2txt<double>(model.alpha(), output_dir + "alpha.txt");
     
     EXPECT_TRUE(  (model.alpha() - alpha).array().square().mean() < 1e-2 );
     EXPECT_TRUE(  (model.beta() - beta).array().square().mean() < 1e-2 );
 
 }
-
+*/
 
 
 /*
@@ -1253,12 +1339,12 @@ auto x1_ =  [](DMatrix<double> locs){
         Eigen::saveMarket(alpha, input_dir + "alpha.mtx");
         Eigen::saveMarket(n_obs, input_dir + "n_obs.mtx");
     
-        saveTxt<double>(beta, input_dir + "beta.txt");
-        saveTxt<double>(alpha, input_dir + "alpha.txt");
-        saveTxt<int>(n_obs, input_dir + "n_obs.txt");
+        eigen2txt<double>(beta, input_dir + "beta.txt");
+        eigen2txt<double>(alpha, input_dir + "alpha.txt");
+        eigen2txt<int>(n_obs, input_dir + "n_obs.txt");
 
         Eigen::saveMarket(x1_(domain.mesh.nodes()), input_dir + "cov_1.mtx");
-        saveTxt<double>(x1_(domain.mesh.nodes()), input_dir + "cov_1.txt");
+        eigen2txt<double>(x1_(domain.mesh.nodes()), input_dir + "cov_1.txt");
         
         // generete data
         DMatrix<double> locs = uniform_locs(n_obs(0));
@@ -1275,7 +1361,7 @@ auto x1_ =  [](DMatrix<double> locs){
             double sigma = 0.05*std::abs(f_.array().maxCoeff() - f_.array().minCoeff()); 
             std::cout << sigma << std::endl;
             auto eps_ = noise(n_obs(j),sigma);
-            saveTxt<double>(eps_, input_dir + "noise_" + std::to_string(j) + ".txt");
+            eigen2txt<double>(eps_, input_dir + "noise_" + std::to_string(j) + ".txt");
             
             auto obs = DesignMatrix * beta + DesignMatrix*alpha.col(j)  + f_ + eps_; 
             
@@ -1284,14 +1370,14 @@ auto x1_ =  [](DMatrix<double> locs){
             Eigen::saveMarket(DesignMatrix, input_dir + "V_" + std::to_string(j) + ".mtx");
             Eigen::saveMarket(obs, input_dir + "obs_" + std::to_string(j) + ".mtx");
 
-            saveTxt<double>(locs, input_dir + "locs_" + std::to_string(j) + ".txt");
-            saveTxt<double>(DesignMatrix, input_dir + "DesignMatrix_" + std::to_string(j) + ".txt");
-            saveTxt<double>(DesignMatrix, input_dir + "V_" + std::to_string(j) + ".txt");
-            saveTxt<double>(obs, input_dir + "obs_" + std::to_string(j) + ".txt");
+            eigen2txt<double>(locs, input_dir + "locs_" + std::to_string(j) + ".txt");
+            eigen2txt<double>(DesignMatrix, input_dir + "DesignMatrix_" + std::to_string(j) + ".txt");
+            eigen2txt<double>(DesignMatrix, input_dir + "V_" + std::to_string(j) + ".txt");
+            eigen2txt<double>(obs, input_dir + "obs_" + std::to_string(j) + ".txt");
             // plots
             f_ = f(domain.mesh.nodes(), j);
             Eigen::saveMarket(f_, input_dir + "f_" + std::to_string(j) + ".mtx");
-            saveTxt<double>(f_, input_dir + "f_" + std::to_string(j) + ".txt");
+            eigen2txt<double>(f_, input_dir + "f_" + std::to_string(j) + ".txt");
         } 
     }
      
@@ -1318,7 +1404,7 @@ auto x1_ =  [](DMatrix<double> locs){
         data[j].insert(V_BLOCK, V);
         data[j].insert(Y_BLOCK, obs);
         data[j].insert(LOCS_BLOCK, locs);      
-    }//saveTxt<double>(DesignMatrix.col(1), input_dir + "W_" + std::to_string(j) + ".txt");
+    }//eigen2txt<double>(DesignMatrix.col(1), input_dir + "W_" + std::to_string(j) + ".txt");
             
     
     DMatrix<double> f_ = DMatrix<double>::Zero(m*domain.mesh.nodes().rows(),1);
@@ -1363,7 +1449,7 @@ auto x1_ =  [](DMatrix<double> locs){
     for(std::size_t j = 0; j < m; ++j){
         Eigen::saveMarket(model.f().block(j*domain.mesh.nodes().rows(),0, domain.mesh.nodes().rows(),1),
                           output_dir + "estimate_f_" + std::to_string(j) + ".mtx");
-        saveTxt<double>(model.f().block(j*domain.mesh.nodes().rows(),0, domain.mesh.nodes().rows(),1),
+        eigen2txt<double>(model.f().block(j*domain.mesh.nodes().rows(),0, domain.mesh.nodes().rows(),1),
                           output_dir + "estimate_f_" + std::to_string(j) + ".txt");
 
         EXPECT_TRUE( (model.f().block(j*domain.mesh.nodes().rows(),0, domain.mesh.nodes().rows(),1) -
@@ -1371,13 +1457,13 @@ auto x1_ =  [](DMatrix<double> locs){
     }
 
     Eigen::saveMarket(model.f(), output_dir + "estimate_f.mtx");
-    saveTxt<double>(model.f(), output_dir + "estimate_f.txt");
+    eigen2txt<double>(model.f(), output_dir + "estimate_f.txt");
     
     Eigen::saveMarket(model.beta(), output_dir + "beta.mtx");
-    saveTxt<double>(model.beta(), output_dir + "beta.txt");
+    eigen2txt<double>(model.beta(), output_dir + "beta.txt");
     
     Eigen::saveMarket(model.alpha(), output_dir + "beta.mtx");
-    saveTxt<double>(model.alpha(), output_dir + "alpha.txt");
+    eigen2txt<double>(model.alpha(), output_dir + "alpha.txt");
      
     EXPECT_TRUE(  (model.alpha() - alpha).array().square().mean() < 1e-2 );
     EXPECT_TRUE(  (model.beta() - beta).array().square().mean() < 1e-2 );
