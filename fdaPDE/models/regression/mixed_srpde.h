@@ -66,7 +66,6 @@ class MixedRegressionBase : public RegressionBase<MixedRegressionBase<SolutionPo
 
         MixedRegressionBase() = default;
         MixedRegressionBase(const pde_ptr& pde, Sampling s) : Base(pde, s) { };
-        //provo ad aggiungere un constructor specifico
         MixedRegressionBase(const pde_ptr& pde, Sampling s, bool same_locs_value) : Base(pde, s, same_locs_value) { };
 
         void init_sampling(bool forced = true) {
@@ -519,10 +518,8 @@ class MixedSRPDE<iterative> : public MixedRegressionBase<MixedSRPDE<iterative>> 
 
                 // _start_ = std::chrono::high_resolution_clock::now();
                 if(same_locs_value && i!=0){
-                    std::cout<<"same!"<<std::endl;
                     invA_[i] = invA_[0];
                 }else{
-                    std::cout<<"not same :("<<std::endl;
                     invA_[i].compute(A_);                    
                 }
                 // _duration_ = std::chrono::high_resolution_clock::now() - _start_;

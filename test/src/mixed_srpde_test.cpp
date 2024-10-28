@@ -204,7 +204,7 @@ auto x1_(DMatrix<double> locs){
 // }
 
 
-
+/*
 // test with r_ == 0
 TEST(mixed_srpde_test, without_covariates) {
     std::size_t m = 3;
@@ -468,11 +468,11 @@ TEST(mixed_srpde_test, without_covariates) {
 
     write_table(results_mono, header, name_dir + "output/" + solution_policy[0] + ".txt");
     write_table(results_rich, header, name_dir + "output/" + solution_policy[1] + ".txt");
-}
+}*/
 
 
 
-/*
+
 TEST(mixed_srpde_test, same_locations_test_1) {
     std::size_t m = 3;
     std::size_t n_sim = 1;
@@ -689,8 +689,9 @@ TEST(mixed_srpde_test, same_locations_test_1) {
         results_mono(sim + n_sim*n, 2) = results_mono(sim + n_sim*n, 0) + results_mono(sim + n_sim*n, 1);
 
         // iterative
-        bool same = 0;
-        MixedSRPDE<iterative> richardson_(problem, Sampling::pointwise, same);
+        // in this case same_locs = 1, one could try same_locs = 0 to check that everything works
+        bool same_locs = 1;
+        MixedSRPDE<iterative> richardson_(problem, Sampling::pointwise, same_locs);
         richardson_.set_lambda_D(lambda);
 	    richardson_.set_data(data);
 
@@ -761,7 +762,7 @@ TEST(mixed_srpde_test, same_locations_test_1) {
     write_table(results_mono, header, name_dir + "output/" + solution_policy[0] + ".txt");
     write_table(results_rich, header, name_dir + "output/" + solution_policy[1] + ".txt");
 }
-*/
+
 
 /*
 TEST(mixed_srpde_test, iterative_same_locations) {
