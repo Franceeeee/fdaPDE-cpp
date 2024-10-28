@@ -66,6 +66,8 @@ class MixedRegressionBase : public RegressionBase<MixedRegressionBase<SolutionPo
 
         MixedRegressionBase() = default;
         MixedRegressionBase(const pde_ptr& pde, Sampling s) : Base(pde, s) { };
+        //provo ad aggiungere un constructor specifico
+        MixedRegressionBase(const pde_ptr& pde, Sampling s, bool same_locs_value) : Base(pde, s, same_locs_value) { };
 
         void init_sampling(bool forced = true) {
         // switch (s) {
@@ -475,8 +477,8 @@ class MixedSRPDE<iterative> : public MixedRegressionBase<MixedSRPDE<iterative>> 
         using MixedRegressionBase::X;
 
         MixedSRPDE() = default;
-        MixedSRPDE(const pde_ptr& pde, Sampling s) : MixedRegressionBase(pde, s){};
-        
+        MixedSRPDE(const pde_ptr& pde, Sampling s, bool same_locs) : MixedRegressionBase(pde, s, same_locs){};
+
         // commento: mPsi_ e mPsiTD_ vanno costruite per forza?! Riusciamo a lavorare "solo" con Psi_[] e PsiTD_[]
         void init_model(){
             // auto start = std::chrono::high_resolution_clock::now();
@@ -502,10 +504,12 @@ class MixedSRPDE<iterative> : public MixedRegressionBase<MixedSRPDE<iterative>> 
                 //_V[i] = DMatrix<double>::Zero(q(), 2*n_basis());
             
                 // start = std::chrono::high_resolution_clock::now();
-                // _start_ = std::chrono::high_resolution_clock::now();    
-                A_ = SparseBlockMatrix<double, 2, 2>(
+                // _start_ = std::chrono::high_resolution_clock::now(); 
+                if(!same_locs_value || (same_locs_value && i==0)){
+                    A_ = SparseBlockMatrix<double, 2, 2>(
                     -PsiTD_[i]*Psi_[i],                     lambda_D() * pde_.stiff().transpose(),
                     lambda_D() * pde_.stiff(),             lambda_D() * pde_.mass()                 );
+                }   
                 // _duration_ = std::chrono::high_resolution_clock::now() - _start_;
                 // std::cout << "-		    build A_: " << _duration_.count() << std::endl;
                 // duration = std::chrono::high_resolution_clock::now() - start;
@@ -514,7 +518,13 @@ class MixedSRPDE<iterative> : public MixedRegressionBase<MixedSRPDE<iterative>> 
                 // std::cout << A_.rows() << " " << A_.cols() << std::endl;
 
                 // _start_ = std::chrono::high_resolution_clock::now();
-                invA_[i].compute(A_); 
+                if(same_locs_value && i!=0){
+                    std::cout<<"same!"<<std::endl;
+                    invA_[i] = invA_[0];
+                }else{
+                    std::cout<<"not same :("<<std::endl;
+                    invA_[i].compute(A_);                    
+                }
                 // _duration_ = std::chrono::high_resolution_clock::now() - _start_;
                 // std::cout << "-		    build invA_: " << _duration_.count() << std::endl;
 
