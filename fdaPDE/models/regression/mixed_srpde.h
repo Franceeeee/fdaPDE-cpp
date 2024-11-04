@@ -476,7 +476,7 @@ class MixedSRPDE<iterative> : public MixedRegressionBase<MixedSRPDE<iterative>> 
         using MixedRegressionBase::X;
 
         MixedSRPDE() = default;
-        MixedSRPDE(const pde_ptr& pde, Sampling s, bool same_locs) : MixedRegressionBase(pde, s, same_locs){};
+        MixedSRPDE(const pde_ptr& pde, Sampling s, bool same_locs = false) : MixedRegressionBase(pde, s, same_locs) {};
 
         // commento: mPsi_ e mPsiTD_ vanno costruite per forza?! Riusciamo a lavorare "solo" con Psi_[] e PsiTD_[]
         void init_model(){
@@ -510,7 +510,7 @@ class MixedSRPDE<iterative> : public MixedRegressionBase<MixedSRPDE<iterative>> 
                     lambda_D() * pde_.stiff(),             lambda_D() * pde_.mass()                 );
                 }   
                 // _duration_ = std::chrono::high_resolution_clock::now() - _start_;
-                // std::cout << "-		    build A_: " << _duration_.count() << std::endl;
+                // std::cout << "-          build A_: " << _duration_.count() << std::endl;
                 // duration = std::chrono::high_resolution_clock::now() - start;
                 // start = std::chrono::high_resolution_clock::now();
                 
@@ -523,7 +523,7 @@ class MixedSRPDE<iterative> : public MixedRegressionBase<MixedSRPDE<iterative>> 
                     invA_[i].compute(A_);                    
                 }
                 // _duration_ = std::chrono::high_resolution_clock::now() - _start_;
-                // std::cout << "-		    build invA_: " << _duration_.count() << std::endl;
+                // std::cout << "-          build invA_: " << _duration_.count() << std::endl;
 
                 // _start_ = std::chrono::high_resolution_clock::now();
                 if(r_){
@@ -532,24 +532,24 @@ class MixedSRPDE<iterative> : public MixedRegressionBase<MixedSRPDE<iterative>> 
                 _U.block(0, (i+1)*q_ - p_, n_basis(), p_) = PsiTD_[i]*Vp(i);
                 
                 // _duration_ = std::chrono::high_resolution_clock::now() - _start_;
-                // std::cout << "-		    build _U[i]: " << _duration_.count() << std::endl;
+                // std::cout << "-          build _U[i]: " << _duration_.count() << std::endl;
                 // _start_ = std::chrono::high_resolution_clock::now();
                 // _duration_ = std::chrono::high_resolution_clock::now() - _start_;
-                // std::cout << "-		    build _V[i]: " << _duration_.count() << std::endl;
+                // std::cout << "-          build _V[i]: " << _duration_.count() << std::endl;
 
                 // _start_ = std::chrono::high_resolution_clock::now();
                 invG[i].compute(XtWX_ + U_view(_U, i, q_, p_).transpose() * invA_[i].solve(U_view(_U, i, q_, p_)));   // XtWX() serve ?
                 // _duration_ = std::chrono::high_resolution_clock::now() - _start_;
-                // std::cout << "-		    invG[i]: " << _duration_.count() << std::endl;
+                // std::cout << "-          invG[i]: " << _duration_.count() << std::endl;
             }
 
             // std::chrono::duration<double> _duration = std::chrono::high_resolution_clock::now() - _start;
-            // std::cout << "-		    P[i], invP[i], U[i], V[i]: " << _duration.count() << std::endl;
+            // std::cout << "-          P[i], invP[i], U[i], V[i]: " << _duration.count() << std::endl;
             
             // _start = std::chrono::high_resolution_clock::now();
             set_F_T();
             // _duration = std::chrono::high_resolution_clock::now() - _start;
-            // std::cout << "-		    build F & T: " << _duration.count() << std::endl;
+            // std::cout << "-          build F & T: " << _duration.count() << std::endl;
             
             // std::chrono::duration<double> duration = std::chrono::high_resolution_clock::now() - start;
             // std::cout << "-     init model: " << duration.count() << std::endl;
@@ -562,7 +562,8 @@ class MixedSRPDE<iterative> : public MixedRegressionBase<MixedSRPDE<iterative>> 
         
             fdapde_assert(y_.rows() != 0);
             
-            DVector<double> x_new = DMatrix<double>::Zero(2*n_basis()*m_, 1); 
+            DVector<double> x_new = DMatrix<double>::Zero(2*n_basis()*m_, 1);
+            DVector<double> x_old = DMatrix<double>::Zero(2*n_basis()*m_, 1);
             b_.block(0, 0, n_basis()*m_, 1) = -mPsiTD_ * lmbQ(y_); 
             
             DVector<double> r = b_; //DMatrix<double>::Zero(2*m_*n_basis(), 1);
@@ -590,7 +591,7 @@ class MixedSRPDE<iterative> : public MixedRegressionBase<MixedSRPDE<iterative>> 
                 zi = y - invA_[i].solve(U_view(_U, i, q_, p_) * t);
                 // 
                 // _duration_ = std::chrono::high_resolution_clock::now() - _start_;
-                // std::cout << "-		    SMW: " << _duration_.count() << std::endl;
+                // std::cout << "-          SMW: " << _duration_.count() << std::endl;
                 
                 // _start_ = std::chrono::high_resolution_clock::now();
                 x_new.block(i*n_basis(), 0, n_basis(),1) = zi.head(n_basis());
@@ -605,28 +606,28 @@ class MixedSRPDE<iterative> : public MixedRegressionBase<MixedSRPDE<iterative>> 
                                                             lambda_D()*pde_.mass()*zi.tail(n_basis()) );
                 
                 // _duration_ = std::chrono::high_resolution_clock::now() - _start_;
-                // std::cout << "-		    linear algebra: " << _duration_.count() << std::endl;
+                // std::cout << "-          linear algebra: " << _duration_.count() << std::endl;
             }
             // std::chrono::duration<double> _duration = std::chrono::high_resolution_clock::now() - _start;
-            // std::cout << "-		inizializzazione: " << _duration.count() << std::endl;
+            // std::cout << "-      inizializzazione: " << _duration.count() << std::endl;
             // _start = std::chrono::high_resolution_clock::now();
             
             // _start = std::chrono::high_resolution_clock::now();
-            auto tmp = Wg(0).rows();
+            //auto tmp = Wg(0).rows();
             // _duration = std::chrono::high_resolution_clock::now() - _start;
-            // std::cout << "-		access data frame: " << _duration.count() << "" << std::endl;
+            // std::cout << "-      access data frame: " << _duration.count() << "" << std::endl;
             bi = DMatrix<double>::Zero(2*n_basis(), 1);
 
             // correzione covariate
             DMatrix<double> u = DMatrix<double>::Zero(q(),1);
             for(std::size_t i = 0; i < m_; ++i){
                 if(r_){
-                    u.block(0, 0, r_, 1) += Wg(i).transpose()*Psi_[i]*x_new.block(i*n_basis(), 0, n_basis(), 1); 	
+                    u.block(0, 0, r_, 1) += Wg(i).transpose()*Psi_[i]*x_new.block(i*n_basis(), 0, n_basis(), 1);    
                 }
                 u.block(i*p_+r_, 0, p_, 1) = Vp(i).transpose()*Psi_[i]*x_new.block(i*n_basis(), 0, n_basis(), 1);
             }
             DMatrix<double> w = invXtWX().solve(u);         
-		
+        
             for(std::size_t i = 0; i < m_; i++){
                 if(r_){
                     r.block(i*n_basis(),0, n_basis(), 1) -= Psi_[i].transpose()*(Wg(i)*w.block(0, 0, r_, 1) + 
@@ -637,7 +638,7 @@ class MixedSRPDE<iterative> : public MixedRegressionBase<MixedSRPDE<iterative>> 
             }
         
             // _duration = std::chrono::high_resolution_clock::now() - _start;
-            // std::cout << "-		residuo: " << _duration.count() << std::endl;
+            // std::cout << "-      residuo: " << _duration.count() << std::endl;
             
             // store result of smoothing
             f_ = x_new.head(m_*n_basis());      // f0        
@@ -657,54 +658,114 @@ class MixedSRPDE<iterative> : public MixedRegressionBase<MixedSRPDE<iterative>> 
             Jold = 2 * Jnew;
         
             // iteration loop
-            std::size_t k = 1;                                      // iteration number    
+            std::size_t k = 0;                                      // iteration number    
             bool rcheck = r.norm() / b_.norm() < tol_res;           // stop by residual    
             bool Jcheck =  std::abs((Jnew-Jold)/Jnew) < tol_;       // stop by J
             bool exit_ = Jcheck && rcheck;
       
             // _start = std::chrono::high_resolution_clock::now();
 
-            // iterative scheme for minimization of functional 
-            while (k < max_iter_ && !exit_)  {
-                // auto __start = std::chrono::high_resolution_clock::now();
-                for(std::size_t i = 0; i < m_; i++){                  
-                        // valutare implementazione di lmbQ(yi)
-                        // _start_ = std::chrono::high_resolution_clock::now();
+            // PARAMETRI ANDERSON
+            // NB: per acc_param = 1, beta = 0 il metodo è equivalente al solve classico
+            // parametro dell'acceleratore
+            int acc_param = 1;
+            // parametro di rilassamento
+            int beta = 0;
+
+            DMatrix<double> FA = DMatrix<double>::Zero(2*m_*n_basis(), acc_param);
+            DMatrix<double> HA = DMatrix<double>::Zero(2*m_*n_basis(), acc_param);
+
+            // iterative scheme for minimization of functional
+            while (k < max_iter_-1 && !exit_)  {
+
+                int acc_k = std::min(acc_param, static_cast<int>(k));
+                DVector<double> ones = DVector<double>::Ones(acc_k);
+                
+                
+                for(std::size_t i = 0; i < m_; i++){  
+            
                         bi.block(0,0,n_basis(),1) = r.block(i*n_basis(), 0, n_basis(), 1) ; 
                         bi.block(n_basis(), 0, n_basis(), 1) = r.block( (i+m_)*n_basis(), 0, n_basis(), 1);
-                        // _duration_ = std::chrono::high_resolution_clock::now() - _start_;
-                        // std::cout << "-		    update b_i: " << _duration_.count() << std::endl;
 
-                        // _start_ = std::chrono::high_resolution_clock::now();
-                        
                         // SMW a mano :-)
                         DMatrix<double> y = invA_[i].solve(bi);   
                         DMatrix<double> t = invG[i].solve(U_view(_U, i, q_, p_).transpose()*y);
                         zi = y -  invA_[i].solve(U_view(_U, i, q_, p_) * t);
-                        // ----
-                        // _duration_ = std::chrono::high_resolution_clock::now() - _start_;
-                        // std::cout << "-		    SMW: " << _duration_.count() << std::endl;
 
-                        // _start_ = std::chrono::high_resolution_clock::now();
-                        x_new.block(n_basis()*i,0, n_basis(),1) += alpha(k)*zi.head(n_basis());  
-                        x_new.block(n_basis()*(m_+i),0, n_basis(),1) += alpha(k)*zi.tail(n_basis());
-                        
+                        if(acc_k){
+                            DMatrix<double> FA_mk = DMatrix<double>::Zero(2*n_basis(), acc_k);
+                            // DMatrix<double> HA_mk = DMatrix<double>::Zero(2*n_basis(), acc_k);
+
+                            //popoliamo FA
+                            FA_mk.block(0, 0, n_basis(), acc_k) = FA.block(i*n_basis(), 0, n_basis(), acc_k);
+                            FA_mk.block(n_basis(), 0, n_basis(), acc_k) = FA.block( (i+m_)*n_basis(), 0, n_basis(), acc_k);
+
+                            //popoliamo HA
+                            // HA_mk.block(0, 0, n_basis(), acc_k) = HA.block(i*n_basis(), 0, n_basis(), acc_k);
+                            // HA_mk.block(n_basis(), 0, n_basis(), acc_k) = HA.block( (i+m_)*n_basis(), 0, n_basis(), acc_k);
+
+                            DMatrix<double> FtF_mk = FA_mk.transpose()*FA_mk;
+                            invFtF_mk = FtF_mk.inverse();
+
+                            // calcolo degli alpha opt
+                            double lambda = (ones.transpose() * invFtF_mk * ones).value();
+                            lambda = 1.0 / lambda;
+                            DVector<double> a = lambda * invFtF_mk * ones;
+
+                            DVector<double> res_mk_i = DVector<double>::Zero(n_basis());
+                            DVector<double> res_mk_mi = DVector<double>::Zero(n_basis());
+                            DVector<double> x_mk_i = DVector<double>::Zero(n_basis());
+                            DVector<double> x_mk_mi = DVector<double>::Zero(n_basis());
+
+                            for(size_t idx = 0; idx < acc_k; ++idx) {
+                                res_mk_i += a[idx] * FA_mk.block(0, idx, n_basis(), 1);
+                                res_mk_mi += a[idx] * FA_mk.block(n_basis(), idx, n_basis(), 1);
+                                x_mk_i += a[idx] * HA.block(i*n_basis(), idx, n_basis(), 1);
+                                x_mk_mi += a[idx] * HA.block((i+m_)*n_basis(), idx, n_basis(), 1);
+                            }
+                            
+                            x_new.block(n_basis()*i,0, n_basis(),1) =  beta * res_mk_i + x_mk_i; 
+                            x_new.block(n_basis()*(m_+i),0, n_basis(),1) = beta * res_mk_mi + x_mk_mi;
+                        }else{
+                            x_new.block(n_basis()*i,0, n_basis(),1) += alpha(k)*zi.head(n_basis());
+                            x_new.block(n_basis()*(m_+i),0, n_basis(),1) += alpha(k)*zi.tail(n_basis());
+                        }
+
                         r.block(n_basis()*i,0, n_basis(),1) -=  alpha(k) * ((-PsiTD_[i]* Psi_[i]) * zi.head(n_basis()) +
                                                                             lambda_D()*pde_.stiff().transpose()*zi.tail(n_basis()));
                                                                                                 
                         r.block(n_basis()*(m_+i),0, n_basis(),1) -= alpha(k)*(lambda_D()*pde_.stiff()*zi.head(n_basis()) +
                                                                                 lambda_D()*pde_.mass()*zi.tail(n_basis()) );
+
                         
                         z.block(i*n_basis(),0, n_basis(),1) = zi.head(n_basis());  
-                        z.block(n_basis()*(m_+i),0, n_basis(),1) = zi.tail(n_basis());
-                        // _duration_ = std::chrono::high_resolution_clock::now() - _start_;
-                        // std::cout << "-		    linear algebra: " << _duration_.count() << std::endl;
-    
+                        z.block(n_basis()*(m_+i),0, n_basis(),1) = zi.tail(n_basis());    
                         
                 }
 
+                //se la matrice è piena
+                if(acc_k == acc_param){
+                    //anche nel caso acc_param = 1 questa chiamata funziona perchè nessuna colonna viene considerata 
+                    //non ci sono problemi di seg_fault con la chiamata blocka a quanto pare
+
+                    //sposta il blocco 1:n a 0:n-1
+                    FA.block(0,0, 2*m_*n_basis(),acc_k-1) = FA.block(0,1, 2*m_*n_basis(),acc_k-1);
+                    HA.block(0,0, 2*m_*n_basis(),acc_k-1) = HA.block(0,1, 2*m_*n_basis(),acc_k-1);
+                }
+                // std::cout<< "F rows: "<< FA.rows() <<" cols: "<< FA.cols() << std::endl;
+                // std::cout<< "r rows: "<< r.rows() <<" cols: "<< r.cols() << std::endl;
+                // std::cout<< "x_new rows: "<< x_new.rows() <<" cols: "<< x_new.cols() << std::endl;
+
+                //aggiungi ultima colonna
+                int last_col = std::min(acc_k, acc_param-1);
+                FA.block(0,last_col, 2*m_*n_basis(),1) = r;
+                // std::cout<< "assegnamento ad FA riuscito"<<std::endl;
+                HA.block(0,last_col, 2*m_*n_basis(),1) = x_new;
+
+                //std::cout<<"fine aggiornamento matrici"<<std::endl;
+
                 // std::chrono::duration<double> __duration = std::chrono::high_resolution_clock::now() - __start;
-                // std::cout << "-		costo singola iter: " << __duration.count() << std::endl;
+                // std::cout << "-      costo singola iter: " << __duration.count() << std::endl;
             
                 f_ = x_new.topRows(n_basis()*m_);
                 g_ = x_new.bottomRows(n_basis()*m_);
@@ -714,22 +775,22 @@ class MixedSRPDE<iterative> : public MixedRegressionBase<MixedSRPDE<iterative>> 
                 beta_ = invXtWX().solve(X().transpose() * (y_ - mPsi_ * f_)); 
 
                 // __duration = std::chrono::high_resolution_clock::now() - __start;
-                // std::cout << "-		compute nu: " << __duration.count() << std::endl;
+                // std::cout << "-      compute nu: " << __duration.count() << std::endl;
                 // __start = std::chrono::high_resolution_clock::now();
                 
                 beta_coeff_ = F_*beta_;
                 alpha_coeff_ = T_*beta_.tail(m_*p_); 
 
                 // __duration = std::chrono::high_resolution_clock::now() - __start;
-                // std::cout << "-		compute beta & alpha: " << __duration.count() << std::endl;
+                // std::cout << "-      compute beta & alpha: " << __duration.count() << std::endl;
 
                 // correzione covariate 
                 u = DMatrix<double>::Zero(q(),1);
                 for(std::size_t i = 0; i < m_; ++i){
                     if(r_){
-                        u.block(0, 0, r_, 1) += Wg(i).transpose()*Psi_[i]*z.block(i*n_basis(), 0, n_basis(), 1); 	
+                        u.block(0, 0, r_, 1) += Wg(i).transpose()*Psi_[i]*z.block(i*n_basis(), 0, n_basis(), 1);    
                     }
-                    u.block(i*p_+r_, 0, p_, 1) = Vp(i).transpose()*Psi_[i]*z.block(i*n_basis(), 0, n_basis(), 1);	
+                    u.block(i*p_+r_, 0, p_, 1) = Vp(i).transpose()*Psi_[i]*z.block(i*n_basis(), 0, n_basis(), 1);   
                 }
                 w = invXtWX().solve(u);         
             
@@ -741,7 +802,7 @@ class MixedSRPDE<iterative> : public MixedRegressionBase<MixedSRPDE<iterative>> 
                         r.block(i*n_basis(),0, n_basis(), 1) -= Psi_[i].transpose()*(Vp(i)*w.block(i*p_+r_, 0, p_, 1)); 
                     }
                 }
-	          
+              
                 Jold = Jnew;
                 Jnew = J(f_,g_);
 
@@ -753,9 +814,9 @@ class MixedSRPDE<iterative> : public MixedRegressionBase<MixedSRPDE<iterative>> 
             }
 
             // _duration = std::chrono::high_resolution_clock::now() - _start;
-            // std::cout << "-		end while loop: " << _duration.count() << std::endl;
+            // std::cout << "-      end while loop: " << _duration.count() << std::endl;
             
-            std::cout << "iter: " << k << std::endl;
+            std::cout << "iter: " << k+1 << std::endl;
         
             // auto end = std::chrono::high_resolution_clock::now();
             // std::chrono::duration<double> duration = end - start;
@@ -777,6 +838,7 @@ class MixedSRPDE<iterative> : public MixedRegressionBase<MixedSRPDE<iterative>> 
         
         SparseBlockMatrix<double, 2, 2> A_ {};         // system matrix of non-parametric problem (2N x 2N matrix) (in iter P_ deve diventare A_)
         std::vector<fdapde::SparseLU<SpMatrix<double>>> invA_ {};   // factorization of matrix A
+        DMatrix<double> invFtF_mk;
     
         using DenseSolver  = Eigen::PartialPivLU<DMatrix<double>>;
         std::vector<DenseSolver> invG;
@@ -784,7 +846,7 @@ class MixedSRPDE<iterative> : public MixedRegressionBase<MixedSRPDE<iterative>> 
 
         // iterative scheme parameters 
         double tol_ = 1e-4;             // tolerance (stopping criterion)
-        double tol_res = 1e-8;	
+        double tol_res = 1e-8;  
         std::size_t max_iter_ = 10;     // maximum number of iteration
         double alpha_ = 1.;             //
 

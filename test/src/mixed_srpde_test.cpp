@@ -691,6 +691,7 @@ TEST(mixed_srpde_test, same_locations_test_1) {
         // iterative
         // in this case same_locs = 1, one could try same_locs = 0 to check that everything works
         bool same_locs = 1;
+        // MixedSRPDE<iterative> richardson_(problem, Sampling::pointwise); //automaticaly set same_locs = False!
         MixedSRPDE<iterative> richardson_(problem, Sampling::pointwise, same_locs);
         richardson_.set_lambda_D(lambda);
 	    richardson_.set_data(data);
