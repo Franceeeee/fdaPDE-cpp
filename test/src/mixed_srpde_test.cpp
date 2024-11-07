@@ -671,6 +671,9 @@ TEST(mixed_srpde_test, same_locations_test_1) {
 	
         // define lambda
         double lambda = 1e-3; 
+        // define Anderson params
+        int memory = 0;
+        int relax_param = 0;
 
         // monolithic 
         MixedSRPDE<monolithic> monolithic_(problem, Sampling::pointwise);
@@ -695,6 +698,7 @@ TEST(mixed_srpde_test, same_locations_test_1) {
         MixedSRPDE<iterative> richardson_(problem, Sampling::pointwise, same_locs);
         richardson_.set_lambda_D(lambda);
 	    richardson_.set_data(data);
+        richardson_.set_Anderson_params(memory,relax_param);
 
         start = std::chrono::high_resolution_clock::now();
         richardson_.init();

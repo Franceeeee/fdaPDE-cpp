@@ -556,6 +556,7 @@ class MixedSRPDE<iterative> : public MixedRegressionBase<MixedSRPDE<iterative>> 
             return;
         }
 
+    
         void solve(){
             // std::cout << "solve" << std::endl;
             // auto start = std::chrono::high_resolution_clock::now();
@@ -658,7 +659,7 @@ class MixedSRPDE<iterative> : public MixedRegressionBase<MixedSRPDE<iterative>> 
             Jold = 2 * Jnew;
         
             // iteration loop
-            std::size_t k = 0;                                      // iteration number    
+            std::size_t k = 1;                                      // iteration number    
             bool rcheck = r.norm() / b_.norm() < tol_res;           // stop by residual    
             bool Jcheck =  std::abs((Jnew-Jold)/Jnew) < tol_;       // stop by J
             bool exit_ = Jcheck && rcheck;
@@ -666,19 +667,20 @@ class MixedSRPDE<iterative> : public MixedRegressionBase<MixedSRPDE<iterative>> 
             // _start = std::chrono::high_resolution_clock::now();
 
             // PARAMETRI ANDERSON
-            // NB: per acc_param = 1, beta = 0 il metodo è equivalente al solve classico
+            // NB: per acc_param = 0, acc_beta = 0 il metodo è equivalente al solve classico
             // parametro dell'acceleratore
-            int acc_param = 1;
+            // int acc_param = 5;
+            int acc_size = acc_param +1;
             // parametro di rilassamento
-            int beta = 0;
+            // int acc_beta = 0;
 
-            DMatrix<double> FA = DMatrix<double>::Zero(2*m_*n_basis(), acc_param);
-            DMatrix<double> HA = DMatrix<double>::Zero(2*m_*n_basis(), acc_param);
+            DMatrix<double> FA = DMatrix<double>::Zero(2*m_*n_basis(), acc_size);
+            DMatrix<double> HA = DMatrix<double>::Zero(2*m_*n_basis(), acc_size);
 
             // iterative scheme for minimization of functional
-            while (k < max_iter_-1 && !exit_)  {
+            while (k < max_iter_ && !exit_)  {
 
-                int acc_k = std::min(acc_param, static_cast<int>(k));
+                int acc_k = std::min(acc_size, static_cast<int>(k-1));
                 DVector<double> ones = DVector<double>::Ones(acc_k);
                 
                 
@@ -692,7 +694,7 @@ class MixedSRPDE<iterative> : public MixedRegressionBase<MixedSRPDE<iterative>> 
                         DMatrix<double> t = invG[i].solve(U_view(_U, i, q_, p_).transpose()*y);
                         zi = y -  invA_[i].solve(U_view(_U, i, q_, p_) * t);
 
-                        if(acc_k){
+                        if(acc_k > 1){
                             DMatrix<double> FA_mk = DMatrix<double>::Zero(2*n_basis(), acc_k);
                             // DMatrix<double> HA_mk = DMatrix<double>::Zero(2*n_basis(), acc_k);
 
@@ -705,12 +707,22 @@ class MixedSRPDE<iterative> : public MixedRegressionBase<MixedSRPDE<iterative>> 
                             // HA_mk.block(n_basis(), 0, n_basis(), acc_k) = HA.block( (i+m_)*n_basis(), 0, n_basis(), acc_k);
 
                             DMatrix<double> FtF_mk = FA_mk.transpose()*FA_mk;
-                            invFtF_mk = FtF_mk.inverse();
+                            // std::cout<< "Det FtF" << FtF_mk.determinant() << std::endl;
+                            invFtF_mk = FtF_mk.inverse(); // quando il det(FtF_mk) = 0 abbiamo OVVIAMENTE problemi... come gestiamo la cosa?
+
+                            //std::cout<< "invFtF_mk = \n" << invFtF_mk << std::endl;
 
                             // calcolo degli alpha opt
                             double lambda = (ones.transpose() * invFtF_mk * ones).value();
                             lambda = 1.0 / lambda;
                             DVector<double> a = lambda * invFtF_mk * ones;
+
+                            if(FtF_mk.determinant() == 0){
+                                a =  DVector<double>::Zero(acc_k);
+                                a.block(acc_k-1,0,1,1) = ones.block(acc_k-1,0,1,1);
+                            }
+
+                            std::cout<< "a:\n" << a << std::endl;
 
                             DVector<double> res_mk_i = DVector<double>::Zero(n_basis());
                             DVector<double> res_mk_mi = DVector<double>::Zero(n_basis());
@@ -724,8 +736,8 @@ class MixedSRPDE<iterative> : public MixedRegressionBase<MixedSRPDE<iterative>> 
                                 x_mk_mi += a[idx] * HA.block((i+m_)*n_basis(), idx, n_basis(), 1);
                             }
                             
-                            x_new.block(n_basis()*i,0, n_basis(),1) =  beta * res_mk_i + x_mk_i; 
-                            x_new.block(n_basis()*(m_+i),0, n_basis(),1) = beta * res_mk_mi + x_mk_mi;
+                            x_new.block(n_basis()*i,0, n_basis(),1) =  acc_beta * res_mk_i + x_mk_i; 
+                            x_new.block(n_basis()*(m_+i),0, n_basis(),1) = acc_beta * res_mk_mi + x_mk_mi;
                         }else{
                             x_new.block(n_basis()*i,0, n_basis(),1) += alpha(k)*zi.head(n_basis());
                             x_new.block(n_basis()*(m_+i),0, n_basis(),1) += alpha(k)*zi.tail(n_basis());
@@ -744,7 +756,7 @@ class MixedSRPDE<iterative> : public MixedRegressionBase<MixedSRPDE<iterative>> 
                 }
 
                 //se la matrice è piena
-                if(acc_k == acc_param){
+                if(acc_k == acc_size){
                     //anche nel caso acc_param = 1 questa chiamata funziona perchè nessuna colonna viene considerata 
                     //non ci sono problemi di seg_fault con la chiamata blocka a quanto pare
 
@@ -757,7 +769,7 @@ class MixedSRPDE<iterative> : public MixedRegressionBase<MixedSRPDE<iterative>> 
                 // std::cout<< "x_new rows: "<< x_new.rows() <<" cols: "<< x_new.cols() << std::endl;
 
                 //aggiungi ultima colonna
-                int last_col = std::min(acc_k, acc_param-1);
+                int last_col = std::min(acc_k, acc_size-1);
                 FA.block(0,last_col, 2*m_*n_basis(),1) = r;
                 // std::cout<< "assegnamento ad FA riuscito"<<std::endl;
                 HA.block(0,last_col, 2*m_*n_basis(),1) = x_new;
@@ -816,7 +828,7 @@ class MixedSRPDE<iterative> : public MixedRegressionBase<MixedSRPDE<iterative>> 
             // _duration = std::chrono::high_resolution_clock::now() - _start;
             // std::cout << "-      end while loop: " << _duration.count() << std::endl;
             
-            std::cout << "iter: " << k+1 << std::endl;
+            std::cout << "iter: " << k << std::endl;
         
             // auto end = std::chrono::high_resolution_clock::now();
             // std::chrono::duration<double> duration = end - start;
@@ -829,6 +841,7 @@ class MixedSRPDE<iterative> : public MixedRegressionBase<MixedSRPDE<iterative>> 
         double alpha(std::size_t k) const { return alpha_; } // fixed to 1 
 
         //setters
+        void set_Anderson_params(int memory, int relax_param){ acc_beta = relax_param; acc_param = memory; }
         void set_tolerance(double tol) { tol_ = tol; }
         void set_max_iter(std::size_t max_iter) { max_iter_ = max_iter; }
 
@@ -849,6 +862,10 @@ class MixedSRPDE<iterative> : public MixedRegressionBase<MixedSRPDE<iterative>> 
         double tol_res = 1e-8;  
         std::size_t max_iter_ = 10;     // maximum number of iteration
         double alpha_ = 1.;             //
+
+        // Anderon's accelerator parameters
+        int acc_param = 0;  
+        int acc_beta = 0;       // both setted to 0, implement classical Richardson scheme
 
         double J(const DMatrix<double>& f, const DMatrix<double>& g) const{
             DMatrix<double> fhat = mPsi_ * f; 
