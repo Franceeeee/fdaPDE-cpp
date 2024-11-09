@@ -22,6 +22,7 @@
 #include <fdaPDE/pde.h>
 #include <fdaPDE/utils.h>
 #include <Eigen/Dense> // for leftCols(r_); r_ # of cols
+#include <Eigen/QR>
 
 #include <memory>
 #include <type_traits>
@@ -708,8 +709,9 @@ class MixedSRPDE<iterative> : public MixedRegressionBase<MixedSRPDE<iterative>> 
 
                             DMatrix<double> FtF_mk = FA_mk.transpose()*FA_mk;
                             // std::cout<< "Det FtF" << FtF_mk.determinant() << std::endl;
-                            invFtF_mk = FtF_mk.inverse(); // quando il det(FtF_mk) = 0 abbiamo OVVIAMENTE problemi... come gestiamo la cosa?
+                            //invFtF_mk = FtF_mk.inverse(); // quando il det(FtF_mk) = 0 abbiamo OVVIAMENTE problemi... come gestiamo la cosa?
 
+                            invFtF_mk = FtF_mk.completeOrthogonalDecomposition().pseudoInverse(); // sconsigliata perchè lenta
                             //std::cout<< "invFtF_mk = \n" << invFtF_mk << std::endl;
 
                             // calcolo degli alpha opt
@@ -717,10 +719,10 @@ class MixedSRPDE<iterative> : public MixedRegressionBase<MixedSRPDE<iterative>> 
                             lambda = 1.0 / lambda;
                             DVector<double> a = lambda * invFtF_mk * ones;
 
-                            if(FtF_mk.determinant() == 0){
-                                a =  DVector<double>::Zero(acc_k);
-                                a.block(acc_k-1,0,1,1) = ones.block(acc_k-1,0,1,1);
-                            }
+                            // if(FtF_mk.determinant() == 0){
+                            //     a =  DVector<double>::Zero(acc_k);
+                            //     a.block(acc_k-1,0,1,1) = ones.block(acc_k-1,0,1,1);
+                            // }
 
                             std::cout<< "a:\n" << a << std::endl;
 
