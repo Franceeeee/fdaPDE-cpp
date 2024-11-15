@@ -861,7 +861,7 @@ class MixedSRPDE<iterative> : public MixedRegressionBase<MixedSRPDE<iterative>> 
 
         // iterative scheme parameters 
         double tol_ = 1e-4;             // tolerance (stopping criterion)
-        double tol_res = 1e-8;  
+        double tol_res = 1e-4;  
         std::size_t max_iter_ = 10;     // maximum number of iteration
         double alpha_ = 1.;             //
 
