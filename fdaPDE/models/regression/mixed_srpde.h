@@ -679,7 +679,7 @@ class MixedSRPDE<iterative> : public MixedRegressionBase<MixedSRPDE<iterative>> 
             DMatrix<double> HA = DMatrix<double>::Zero(2*m_*n_basis(), acc_size);
 
             // iterative scheme for minimization of functional
-            while (k < max_iter_ && !exit_)  {
+            while (k < max_iter_ && !exit_ && r_)  {
 
                 int acc_k = std::min(acc_size, static_cast<int>(k-1));
                 DVector<double> ones = DVector<double>::Ones(acc_k);
@@ -801,20 +801,14 @@ class MixedSRPDE<iterative> : public MixedRegressionBase<MixedSRPDE<iterative>> 
                 // correzione covariate 
                 u = DMatrix<double>::Zero(q(),1);
                 for(std::size_t i = 0; i < m_; ++i){
-                    if(r_){
-                        u.block(0, 0, r_, 1) += Wg(i).transpose()*Psi_[i]*z.block(i*n_basis(), 0, n_basis(), 1);    
-                    }
+                    u.block(0, 0, r_, 1) += Wg(i).transpose()*Psi_[i]*z.block(i*n_basis(), 0, n_basis(), 1);    
                     u.block(i*p_+r_, 0, p_, 1) = Vp(i).transpose()*Psi_[i]*z.block(i*n_basis(), 0, n_basis(), 1);   
                 }
                 w = invXtWX().solve(u);         
             
                 for(std::size_t i = 0; i < m_; i++){
-                    if(r_){
-                        r.block(i*n_basis(),0, n_basis(), 1) -= Psi_[i].transpose()*(Wg(i)*w.block(0, 0, r_, 1) + 
-                                                                            Vp(i)*w.block(i*p_+r_, 0, p_, 1)); 
-                    } else {
-                        r.block(i*n_basis(),0, n_basis(), 1) -= Psi_[i].transpose()*(Vp(i)*w.block(i*p_+r_, 0, p_, 1)); 
-                    }
+                    r.block(i*n_basis(),0, n_basis(), 1) -= Psi_[i].transpose()*(Wg(i)*w.block(0, 0, r_, 1) + 
+                                                                            Vp(i)*w.block(i*p_+r_, 0, p_, 1));
                 }
               
                 Jold = Jnew;
@@ -861,7 +855,7 @@ class MixedSRPDE<iterative> : public MixedRegressionBase<MixedSRPDE<iterative>> 
 
         // iterative scheme parameters 
         double tol_ = 1e-4;             // tolerance (stopping criterion)
-        double tol_res = 1e-4;  
+        double tol_res = 1e-8;  
         std::size_t max_iter_ = 10;     // maximum number of iteration
         double alpha_ = 1.;             //
 
