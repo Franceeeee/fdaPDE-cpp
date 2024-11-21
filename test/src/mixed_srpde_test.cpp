@@ -468,11 +468,11 @@ TEST(mixed_srpde_test, without_covariates) {
 
     write_table(results_mono, header, name_dir + "output/" + solution_policy[0] + ".txt");
     write_table(results_rich, header, name_dir + "output/" + solution_policy[1] + ".txt");
-}*/
+}
+*/
 
 
-
-
+/*
 TEST(mixed_srpde_test, same_locations_test_1) {
     std::size_t m = 3;
     std::size_t n_sim = 1;
@@ -767,8 +767,355 @@ TEST(mixed_srpde_test, same_locations_test_1) {
     write_table(results_mono, header, name_dir + "output/" + solution_policy[0] + ".txt");
     write_table(results_rich, header, name_dir + "output/" + solution_policy[1] + ".txt");
 }
+*/
+
+TEST(mixed_srpde_test, diff_locations_test_1) {
+    std::size_t m = 3;
+    std::size_t n_sim = 5;
+
+    int seed = 0; 
+    std::mt19937 gen(seed);
+    // 
+    DMatrix<double> beta = DMatrix<double>::Zero(2,1);
+    beta(0,0) = -2.; beta(1,0) = 1.;
+
+    DMatrix<double> alpha = DMatrix<double>::Zero(3,1);
+    alpha(0,0) = -0.5; alpha(1,0) = 0.; alpha(2,0) = 0.5;
+
+    DMatrix<int> n_obs = DMatrix<int>::Zero(5,m);
+    n_obs(0,0) = 500; n_obs(1,0) = 1000; n_obs(2,0) = 2000; 
+    n_obs(3,0) = 4000; n_obs(4,0) = 8000;
+    // n_obs(0,1) = 400; n_obs(1,1) = 800; n_obs(2,1) = 1950; 
+    // n_obs(3,1) = 3000; n_obs(4,1) = 6500;
+    // n_obs(0,2) = 675; n_obs(1,2) = 1122; n_obs(2,2) = 2456; 
+    // n_obs(3,2) = 4356; n_obs(4,2) = 9587;
+
+    // Parametri della distribuzione gaussiana (media e varianza per riga)
+    std::vector<double> means = {500, 1000, 2000, 4000, 8000};
+    std::vector<double> stddevs = {50, 100, 200, 400, 800}; // Deviazioni standard
+
+    // Ciclo per riempire la matrice
+    for (int i = 0; i < n_obs.rows(); ++i) {
+        std::normal_distribution<> dist(means[i], stddevs[i]);
+        for (int j = 1; j < n_obs.cols(); ++j) {
+            n_obs(i, j) = static_cast<int>(dist(gen)); // Cast a int per valori interi
+        }
+    }
+    // int seed = 0; 
+    // std::mt19937 gen(seed);
+    
+    auto uniform_locs = [&gen](std::size_t n) {
+        std::uniform_real_distribution<> dis(0.0, 1.0);
+        DMatrix<double> locs = DMatrix<double>::Zero(n,2);
+        for (std::size_t i = 0; i < n; ++i) {
+            locs(i,0) = dis(gen);  // x
+            locs(i,1) = dis(gen);  // y
+        }
+        return locs;
+    };
+
+    // maschera di NA
+    auto create_na_mask = [&gen](int size, double na_percentage) {
+        std::vector<bool> mask(size, false);  
+        int num_na = static_cast<int>(std::round(size * na_percentage));
+        std::uniform_int_distribution<> dis(0, size - 1);
+        for (int i = 0; i < num_na; ++i) {
+            int index;
+            do { index = dis(gen); } while (mask[index]); 
+            mask[index] = true;
+        }
+        return mask;
+    };
 
 
+
+    auto f = [](DMatrix<double> locs, int id = 0) { 
+	    DMatrix<double> res = DMatrix<double>::Zero(locs.rows(),1);
+            for(std::size_t i = 0; i < locs.rows(); ++i){
+                if(id == 0)
+                    res(i,0) = std::sin(2*fdapde::testing::pi*locs(i,0))*
+                                    std::sin(2*fdapde::testing::pi*locs(i,1));
+                else if (id == 1)
+                    res(i,0) = 1.0 - locs(i,0) - locs(i,1);
+                else if (id == 2)
+                    res(i,0) = 1-std::sin(fdapde::testing::pi*locs(i,0))*
+                                    std::cos(fdapde::testing::pi*locs(i,1));//std::cos(fdapde::testing::pi*locs(i,0))*std::cos(fdapde::testing::pi*locs(i,1));
+        }
+            return res;
+    };
+    
+    auto noise = [&gen](std::size_t n, double sigma){
+        DMatrix<double> res = DMatrix<double>::Zero(n,1);
+        std::normal_distribution<> __noise(0.0, sigma);
+        for(std::size_t i = 0; i < n; ++i){
+            res(i,0) = __noise(gen);
+        }
+        return res;
+    };
+
+    auto x1_ =  [](DMatrix<double> locs){
+        DMatrix<double> res = DMatrix<double>::Zero(locs.rows(),1);
+        for(std::size_t i = 0; i < locs.rows(); ++i){
+                    res(i,0) = 1-(locs(i,0)-0.5)*(locs(i,0)-0.5) -(locs(i,1)-0.5)*(locs(i,1)-0.5); 
+        }   
+        return res;
+    };
+
+    //std::string meshID = "unit_square";
+    std::string meshID = "unit_square_coarse";
+    MeshLoader<Mesh2D> domain(meshID);
+    meshID = meshID + "/"; 
+    std::string name_dir = "../data/models/mixed_srpde/" + meshID;
+	if(!std::filesystem::create_directory(name_dir)) std::filesystem::create_directory(name_dir);
+    
+    name_dir += "diff_locations_test_1/";
+    if(!std::filesystem::create_directory(name_dir)) std::filesystem::create_directory(name_dir);
+	
+    // input
+    std::string input_dir = name_dir  + "input/";
+
+    if(!std::filesystem::exists(std::filesystem::path(input_dir))) {
+        std::cout << "\t --- generating data --- " << std::endl;
+        std::filesystem::create_directory(input_dir);
+
+        std::cout<< "directory ok" << std::endl;
+
+        Eigen::saveMarket(beta, input_dir + "beta.mtx");
+        Eigen::saveMarket(alpha, input_dir + "alpha.mtx");
+        Eigen::saveMarket(n_obs, input_dir + "n_obs.mtx");
+
+        std::cout<< "saveMarket ok" << std::endl;
+    
+        eigen2txt<double>(beta, input_dir + "beta.txt");
+        eigen2txt<double>(alpha, input_dir + "alpha.txt");
+        eigen2txt<int>(n_obs, input_dir + "n_obs.txt");
+
+        std::cout<< "eigen2txt ok" << std::endl;
+
+        Eigen::saveMarket(x1_(domain.mesh.nodes()), input_dir + "cov_1.mtx");
+        eigen2txt<double>(x1_(domain.mesh.nodes()), input_dir + "cov_1.txt");
+        for( std::size_t j=0; j < m; ++j){
+            DMatrix<double> f_ = f(domain.mesh.nodes(), j);
+            Eigen::saveMarket(f_, input_dir + "f_" + std::to_string(j) + ".mtx");
+            eigen2txt<double>(f_, input_dir + "f_" + std::to_string(j) + ".txt");
+        }
+
+        std::cout<< "f_ ok" << std::endl;
+
+        for(std::size_t n = 0; n < n_obs.rows(); ++n){
+
+            std::cout<< "inizio generazione " << n <<" ok" << std::endl;
+            
+            // generete data
+            std::string data_dir = input_dir + std::to_string(n_obs(n,0)) + "/";
+            std::filesystem::create_directory(data_dir);
+             
+        for(std::size_t sim=0; sim<n_sim; ++sim){
+            std::cout<< "inizio n_sim " << sim <<" ok" << std::endl;
+            std::string simul_dir = data_dir + std::to_string(sim) + "/"; 
+            std::filesystem::create_directory(simul_dir);
+
+            // DMatrix<double> locs = uniform_locs(n_obs(n,0));
+            
+            for(std::size_t j = 0; j < m; ++j){
+                DMatrix<double> locs = uniform_locs(n_obs(n,j));
+                DMatrix<double> DesignMatrix = DMatrix<double>::Zero(n_obs(n,j),2);
+            
+                DesignMatrix.col(0) = x1_(locs); // va in V
+                DesignMatrix.col(1) = noise(n_obs(n,j), 1.0);
+
+                DMatrix<double> f_ = f(locs, j);
+                double sigma = 0.05*std::abs(f_.array().maxCoeff() - f_.array().minCoeff()); 
+                auto eps_ = noise(n_obs(n,j),sigma);
+                eigen2txt<double>(eps_, simul_dir + "noise_" + std::to_string(j) + ".txt");
+            
+                DMatrix<double> obs = DesignMatrix * beta + DesignMatrix.col(0)*alpha(j,0)  + f_ + eps_; 
+
+                double na_percentage = 0.1; // si può gestire anche con un vettore attraverso le varie simulazioni
+                auto na_mask = create_na_mask(n_obs(n,j), na_percentage); 
+                for (int i = 0; i < n_obs(n,j); ++i) { 
+                    if (na_mask[i]) {
+                        obs(i, 0) = std::numeric_limits<double>::quiet_NaN();  
+                    }
+                }
+            
+                Eigen::saveMarket(locs, simul_dir + "locs_" + std::to_string(j) + ".mtx");
+                Eigen::saveMarket(DesignMatrix, simul_dir + "DesignMatrix_" + std::to_string(j) + ".mtx");
+                Eigen::saveMarket(DesignMatrix.col(1), simul_dir + "W_" + std::to_string(j) + ".mtx");
+                Eigen::saveMarket(DesignMatrix.col(0), simul_dir + "V_" + std::to_string(j) + ".mtx");
+                Eigen::saveMarket(obs, simul_dir + "obs_" + std::to_string(j) + ".mtx");
+
+                eigen2txt<double>(locs, simul_dir + "locs_" + std::to_string(j) + ".txt");
+                eigen2txt<double>(DesignMatrix, simul_dir + "DesignMatrix_" + std::to_string(j) + ".txt");
+                eigen2txt<double>(DesignMatrix.col(1), simul_dir + "W_" + std::to_string(j) + ".txt");
+                eigen2txt<double>(DesignMatrix.col(0), simul_dir + "V_" + std::to_string(j) + ".txt");
+                eigen2txt<double>(obs, simul_dir + "obs_" + std::to_string(j) + ".txt");
+            }
+        }
+        }
+    }
+     
+    // Output directory
+	std::string output_dir = name_dir + "output/";
+    if(!std::filesystem::exists(std::filesystem::path(output_dir))){ 
+        std::filesystem::create_directory(output_dir);
+    }
+    
+    std::vector<std::string> solution_policy = {"monolithic", "richardson"};
+
+    // import data from files
+    std::vector<std::string> header = {"time_init", "time_solve", "time",
+                                       "rmse_f","rmse_f_1", "rmse_f_2","rmse_f_3", 
+                                       "rmse_beta","rmse_alpha","n_obs"};
+
+    DMatrix<double> results_mono = DMatrix<double>::Zero( n_sim*n_obs.rows(), header.size());
+    DMatrix<double> results_rich = DMatrix<double>::Zero( n_sim*n_obs.rows(), header.size());
+
+    for(std::size_t n = 0; n < n_obs.rows(); ++n){ 
+        output_dir = name_dir + "output/"; // + "monolithic/";
+        output_dir += std::to_string(n_obs(n,0)) + "/" ;
+        
+        std::string data_dir = input_dir + std::to_string(n_obs(n,0)) + "/";
+        if(!std::filesystem::exists(std::filesystem::path(output_dir))) std::filesystem::create_directory(output_dir);
+        
+    for(std::size_t sim = 0; sim < n_sim; ++sim){
+
+        std::string simul_dir = data_dir + std::to_string(sim) + "/"; 
+        std::string result_dir = output_dir + std::to_string(sim) + "/";
+        if(!std::filesystem::exists(std::filesystem::path(result_dir))) std::filesystem::create_directory(result_dir);
+
+        std::string output_monolithic = result_dir + "monolithic/";
+        std::string output_richardson = result_dir + "richardson/";
+        if(!std::filesystem::exists(std::filesystem::path(output_monolithic))) std::filesystem::create_directory(output_monolithic);
+        if(!std::filesystem::exists(std::filesystem::path(output_richardson))) std::filesystem::create_directory(output_richardson);
+
+        std::vector<BlockFrame<double, int>> data;
+        data.resize(m);
+        
+        for(std::size_t j = 0; j<m; j++){
+            std::string Wname = simul_dir + "W_" + std::to_string(j) + ".mtx";
+            std::string Vname = simul_dir + "V_" + std::to_string(j) + ".mtx";
+            std::string locsname = simul_dir + "locs_" + std::to_string(j) + ".mtx";
+            std::string yname = simul_dir +  "obs_" + std::to_string(j) + ".mtx";
+            auto W = read_mtx<double>(Wname);
+            auto V = read_mtx<double>(Vname);
+            auto locs = read_mtx<double>(locsname);
+            auto obs = read_mtx<double>(yname);
+            
+            data[j].insert(W_BLOCK, W);
+            data[j].insert(V_BLOCK, V);
+            data[j].insert(Y_BLOCK, obs);
+            data[j].insert(LOCS_BLOCK, locs);      
+        }
+    
+        DMatrix<double> f_ = DMatrix<double>::Zero(m*domain.mesh.nodes().rows(),1);
+        for(std::size_t j = 0; j < m; ++j){
+            f_.block(j*domain.mesh.nodes().rows(),0, domain.mesh.nodes().rows(),1) =   f(domain.mesh.nodes(),j);
+        }
+    
+        // define regularizing PDE
+        auto L = -laplacian<FEM>();
+        DMatrix<double> u = DMatrix<double>::Zero(domain.mesh.n_elements()*3, 1);
+        PDE<decltype(domain.mesh), decltype(L), DMatrix<double>, FEM, fem_order<1>> problem(domain.mesh, L, u);
+	
+        // define lambda
+        double lambda = 1e-3; 
+        // define Anderson params
+        int memory = 0;
+        int relax_param = 0;
+
+        // monolithic 
+        MixedSRPDE<monolithic> monolithic_(problem, Sampling::pointwise);
+        monolithic_.set_lambda_D(lambda);
+	    monolithic_.set_data(data);
+        
+        auto start = std::chrono::high_resolution_clock::now();
+        monolithic_.init();
+        std::chrono::duration<double> duration = std::chrono::high_resolution_clock::now() - start;
+        results_mono(sim + n_sim*n, 0) = duration.count();
+
+        start = std::chrono::high_resolution_clock::now();
+        monolithic_.solve();
+        duration = std::chrono::high_resolution_clock::now() - start;
+        results_mono(sim + n_sim*n, 1) = duration.count();
+        results_mono(sim + n_sim*n, 2) = results_mono(sim + n_sim*n, 0) + results_mono(sim + n_sim*n, 1);
+
+        // iterative
+        // in this case same_locs = 1
+        bool same_locs = 0;
+        // MixedSRPDE<iterative> richardson_(problem, Sampling::pointwise); //automaticaly set same_locs = False!
+        MixedSRPDE<iterative> richardson_(problem, Sampling::pointwise, same_locs);
+        richardson_.set_lambda_D(lambda);
+	    richardson_.set_data(data);
+        richardson_.set_Anderson_params(memory,relax_param);
+
+        start = std::chrono::high_resolution_clock::now();
+        richardson_.init();
+        duration = std::chrono::high_resolution_clock::now() - start;
+        results_rich(sim + n_sim*n, 0) = duration.count();
+
+        start = std::chrono::high_resolution_clock::now();
+        richardson_.solve();
+        duration = std::chrono::high_resolution_clock::now() - start;
+        results_rich(sim + n_sim*n, 1) = duration.count();
+        results_rich(sim + n_sim*n, 2) = results_rich(sim + n_sim*n, 0) + results_rich(sim + n_sim*n, 1);
+        
+        // RMSEs
+        results_mono(sim + n_sim*n, 3) = (monolithic_.f() - f_).array().square().mean();
+        results_rich(sim + n_sim*n, 3) = (richardson_.f() - f_).array().square().mean();
+        for(std::size_t j = 0; j < m; ++j){
+            Eigen::saveMarket(monolithic_.f().block(j*domain.mesh.nodes().rows(),0, domain.mesh.nodes().rows(),1),
+                          output_monolithic + "estimate_f_" + std::to_string(j) + ".mtx");
+            eigen2txt<double>(monolithic_.f().block(j*domain.mesh.nodes().rows(),0, domain.mesh.nodes().rows(),1),
+                          output_monolithic + "estimate_f_" + std::to_string(j) + ".txt");
+
+            results_mono(sim + n_sim*n, 4+j) = (monolithic_.f().block(j*domain.mesh.nodes().rows(),0, domain.mesh.nodes().rows(),1) -
+                                                f_.block(j*domain.mesh.nodes().rows(),0, domain.mesh.nodes().rows(),1)).array().square().mean();
+
+            Eigen::saveMarket(richardson_.f().block(j*domain.mesh.nodes().rows(),0, domain.mesh.nodes().rows(),1),
+                          output_richardson + "estimate_f_" + std::to_string(j) + ".mtx");
+            eigen2txt<double>(richardson_.f().block(j*domain.mesh.nodes().rows(),0, domain.mesh.nodes().rows(),1),
+                          output_richardson + "estimate_f_" + std::to_string(j) + ".txt");
+
+            results_rich(sim + n_sim*n, 4+j) = (richardson_.f().block(j*domain.mesh.nodes().rows(),0, domain.mesh.nodes().rows(),1) -
+                                                f_.block(j*domain.mesh.nodes().rows(),0, domain.mesh.nodes().rows(),1)).array().square().mean();
+        }
+
+        Eigen::saveMarket(monolithic_.f(), output_monolithic + "estimate_f.mtx");
+        eigen2txt<double>(monolithic_.f(), output_monolithic + "estimate_f.txt");
+        Eigen::saveMarket(richardson_.f(), output_richardson + "estimate_f.mtx");
+        eigen2txt<double>(richardson_.f(), output_richardson + "estimate_f.txt");
+    
+        Eigen::saveMarket(monolithic_.beta(), output_monolithic + "beta.mtx");
+        eigen2txt<double>(monolithic_.beta(), output_monolithic + "beta.txt");
+        Eigen::saveMarket(richardson_.beta(), output_richardson + "beta.mtx");
+        eigen2txt<double>(richardson_.beta(), output_richardson + "beta.txt");
+    
+        Eigen::saveMarket(monolithic_.alpha(), output_monolithic + "beta.mtx");
+        eigen2txt<double>(monolithic_.alpha(), output_monolithic + "alpha.txt");
+        Eigen::saveMarket(richardson_.alpha(), output_richardson + "beta.mtx");
+        eigen2txt<double>(richardson_.alpha(), output_richardson + "alpha.txt");
+
+        results_mono(sim + n_sim*n, 7) =  (monolithic_.beta() - beta).array().square().mean();
+        results_mono(sim + n_sim*n, 8) =  (monolithic_.alpha() - alpha).array().square().mean();
+        
+        results_rich(sim + n_sim*n, 7) =  (richardson_.beta() - beta).array().square().mean();
+        results_rich(sim + n_sim*n, 8) =  (richardson_.alpha() - alpha).array().square().mean();
+        
+        results_mono(sim + n_sim*n,9) = n_obs(n, 0);
+        results_rich(sim + n_sim*n,9) = n_obs(n, 0);
+
+        EXPECT_TRUE(  (monolithic_.beta() - beta).array().square().mean() < 1e-2 );
+        EXPECT_TRUE(  (monolithic_.alpha() - alpha).array().square().mean() < 1e-2 );
+
+        EXPECT_TRUE(  (richardson_.beta() - beta).array().square().mean() < 1e-2 );
+        EXPECT_TRUE(  (richardson_.alpha() - alpha).array().square().mean() < 1e-2 );
+    }
+    }
+
+    write_table(results_mono, header, name_dir + "output/" + solution_policy[0] + ".txt");
+    write_table(results_rich, header, name_dir + "output/" + solution_policy[1] + ".txt");
+}
 /*
 TEST(mixed_srpde_test, iterative_same_locations) {
     int seed = 0; 
