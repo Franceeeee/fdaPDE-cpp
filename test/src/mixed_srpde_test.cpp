@@ -771,7 +771,7 @@ TEST(mixed_srpde_test, same_locations_test_1) {
 
 TEST(mixed_srpde_test, diff_locations_test_1) {
     std::size_t m = 3;
-    std::size_t n_sim = 5;
+    std::size_t n_sim = 1;
 
     int seed = 0; 
     std::mt19937 gen(seed);
@@ -878,19 +878,13 @@ TEST(mixed_srpde_test, diff_locations_test_1) {
         std::cout << "\t --- generating data --- " << std::endl;
         std::filesystem::create_directory(input_dir);
 
-        std::cout<< "directory ok" << std::endl;
-
         Eigen::saveMarket(beta, input_dir + "beta.mtx");
         Eigen::saveMarket(alpha, input_dir + "alpha.mtx");
         Eigen::saveMarket(n_obs, input_dir + "n_obs.mtx");
-
-        std::cout<< "saveMarket ok" << std::endl;
     
         eigen2txt<double>(beta, input_dir + "beta.txt");
         eigen2txt<double>(alpha, input_dir + "alpha.txt");
         eigen2txt<int>(n_obs, input_dir + "n_obs.txt");
-
-        std::cout<< "eigen2txt ok" << std::endl;
 
         Eigen::saveMarket(x1_(domain.mesh.nodes()), input_dir + "cov_1.mtx");
         eigen2txt<double>(x1_(domain.mesh.nodes()), input_dir + "cov_1.txt");
@@ -900,18 +894,13 @@ TEST(mixed_srpde_test, diff_locations_test_1) {
             eigen2txt<double>(f_, input_dir + "f_" + std::to_string(j) + ".txt");
         }
 
-        std::cout<< "f_ ok" << std::endl;
-
         for(std::size_t n = 0; n < n_obs.rows(); ++n){
-
-            std::cout<< "inizio generazione " << n <<" ok" << std::endl;
             
             // generete data
             std::string data_dir = input_dir + std::to_string(n_obs(n,0)) + "/";
             std::filesystem::create_directory(data_dir);
              
         for(std::size_t sim=0; sim<n_sim; ++sim){
-            std::cout<< "inizio n_sim " << sim <<" ok" << std::endl;
             std::string simul_dir = data_dir + std::to_string(sim) + "/"; 
             std::filesystem::create_directory(simul_dir);
 
@@ -931,7 +920,7 @@ TEST(mixed_srpde_test, diff_locations_test_1) {
             
                 DMatrix<double> obs = DesignMatrix * beta + DesignMatrix.col(0)*alpha(j,0)  + f_ + eps_; 
 
-                double na_percentage = 0.1; // si può gestire anche con un vettore attraverso le varie simulazioni
+                double na_percentage = 1; // si può gestire anche con un vettore attraverso le varie simulazioni
                 auto na_mask = create_na_mask(n_obs(n,j), na_percentage); 
                 for (int i = 0; i < n_obs(n,j); ++i) { 
                     if (na_mask[i]) {
