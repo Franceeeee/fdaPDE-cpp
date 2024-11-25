@@ -378,7 +378,9 @@ TEST(mixed_srpde_test, without_covariates) {
         PDE<decltype(domain.mesh), decltype(L), DMatrix<double>, FEM, fem_order<1>> problem(domain.mesh, L, u);
 	
         // define lambda
-        double lambda = 1e-3; 
+        double lambda = 1e-3;
+        // define GMRES params
+        int memory = 3; 
 
         // monolithic 
         MixedSRPDE<monolithic> monolithic_(problem, Sampling::pointwise);
@@ -400,6 +402,7 @@ TEST(mixed_srpde_test, without_covariates) {
         bool same_locs = 0;
         MixedSRPDE<iterative> richardson_(problem, Sampling::pointwise, same_locs);
         richardson_.set_lambda_D(lambda);
+        richardson_.set_GMRES_params(memory);
 	    richardson_.set_data(data);
 
         start = std::chrono::high_resolution_clock::now();
@@ -671,7 +674,7 @@ TEST(mixed_srpde_test, same_locations_test_1) {
 	
         // define lambda
         double lambda = 1e-3; 
-        // define Anderson params
+        // define GMRES params
         int memory = 3;
 
         // monolithic 
@@ -768,10 +771,11 @@ TEST(mixed_srpde_test, same_locations_test_1) {
 }
 
 
-/*
+
 TEST(mixed_srpde_test, diff_locations_test_1) {
     std::size_t m = 3;
     std::size_t n_sim = 1;
+    double na_percentage = 0.1; // si può gestire anche con un vettore attraverso le varie simulazioni
 
     int seed = 0; 
     std::mt19937 gen(seed);
@@ -785,10 +789,6 @@ TEST(mixed_srpde_test, diff_locations_test_1) {
     DMatrix<int> n_obs = DMatrix<int>::Zero(5,m);
     n_obs(0,0) = 500; n_obs(1,0) = 1000; n_obs(2,0) = 2000; 
     n_obs(3,0) = 4000; n_obs(4,0) = 8000;
-    // n_obs(0,1) = 400; n_obs(1,1) = 800; n_obs(2,1) = 1950; 
-    // n_obs(3,1) = 3000; n_obs(4,1) = 6500;
-    // n_obs(0,2) = 675; n_obs(1,2) = 1122; n_obs(2,2) = 2456; 
-    // n_obs(3,2) = 4356; n_obs(4,2) = 9587;
 
     // Parametri della distribuzione gaussiana (media e varianza per riga)
     std::vector<double> means = {500, 1000, 2000, 4000, 8000};
@@ -826,8 +826,6 @@ TEST(mixed_srpde_test, diff_locations_test_1) {
         }
         return mask;
     };
-
-
 
     auto f = [](DMatrix<double> locs, int id = 0) { 
 	    DMatrix<double> res = DMatrix<double>::Zero(locs.rows(),1);
@@ -919,8 +917,7 @@ TEST(mixed_srpde_test, diff_locations_test_1) {
                 eigen2txt<double>(eps_, simul_dir + "noise_" + std::to_string(j) + ".txt");
             
                 DMatrix<double> obs = DesignMatrix * beta + DesignMatrix.col(0)*alpha(j,0)  + f_ + eps_; 
-
-                double na_percentage = 0.1; // si può gestire anche con un vettore attraverso le varie simulazioni
+                
                 auto na_mask = create_na_mask(n_obs(n,j), na_percentage); 
                 for (int i = 0; i < n_obs(n,j); ++i) { 
                     if (na_mask[i]) {
@@ -1009,9 +1006,8 @@ TEST(mixed_srpde_test, diff_locations_test_1) {
 	
         // define lambda
         double lambda = 1e-3; 
-        // define Anderson params
+        // define GMRES params
         int memory = 0;
-        int relax_param = 0;
 
         // monolithic 
         MixedSRPDE<monolithic> monolithic_(problem, Sampling::pointwise);
@@ -1036,7 +1032,7 @@ TEST(mixed_srpde_test, diff_locations_test_1) {
         MixedSRPDE<iterative> richardson_(problem, Sampling::pointwise, same_locs);
         richardson_.set_lambda_D(lambda);
 	    richardson_.set_data(data);
-        richardson_.set_Anderson_params(memory,relax_param);
+        richardson_.set_GMRES_params(memory);
 
         start = std::chrono::high_resolution_clock::now();
         richardson_.init();
@@ -1105,7 +1101,7 @@ TEST(mixed_srpde_test, diff_locations_test_1) {
     write_table(results_mono, header, name_dir + "output/" + solution_policy[0] + ".txt");
     write_table(results_rich, header, name_dir + "output/" + solution_policy[1] + ".txt");
 }
-*/
+
 
 /*
 TEST(mixed_srpde_test, iterative_same_locations) {
