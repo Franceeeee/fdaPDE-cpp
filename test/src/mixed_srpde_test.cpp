@@ -472,7 +472,7 @@ TEST(mixed_srpde_test, without_covariates) {
 */
 
 
-/*
+
 TEST(mixed_srpde_test, same_locations_test_1) {
     std::size_t m = 3;
     std::size_t n_sim = 1;
@@ -672,8 +672,7 @@ TEST(mixed_srpde_test, same_locations_test_1) {
         // define lambda
         double lambda = 1e-3; 
         // define Anderson params
-        int memory = 0;
-        int relax_param = 0;
+        int memory = 3;
 
         // monolithic 
         MixedSRPDE<monolithic> monolithic_(problem, Sampling::pointwise);
@@ -698,7 +697,7 @@ TEST(mixed_srpde_test, same_locations_test_1) {
         MixedSRPDE<iterative> richardson_(problem, Sampling::pointwise, same_locs);
         richardson_.set_lambda_D(lambda);
 	    richardson_.set_data(data);
-        richardson_.set_Anderson_params(memory,relax_param);
+        richardson_.set_GMRES_params(memory);
 
         start = std::chrono::high_resolution_clock::now();
         richardson_.init();
@@ -767,8 +766,9 @@ TEST(mixed_srpde_test, same_locations_test_1) {
     write_table(results_mono, header, name_dir + "output/" + solution_policy[0] + ".txt");
     write_table(results_rich, header, name_dir + "output/" + solution_policy[1] + ".txt");
 }
-*/
 
+
+/*
 TEST(mixed_srpde_test, diff_locations_test_1) {
     std::size_t m = 3;
     std::size_t n_sim = 1;
@@ -920,7 +920,7 @@ TEST(mixed_srpde_test, diff_locations_test_1) {
             
                 DMatrix<double> obs = DesignMatrix * beta + DesignMatrix.col(0)*alpha(j,0)  + f_ + eps_; 
 
-                double na_percentage = 1; // si può gestire anche con un vettore attraverso le varie simulazioni
+                double na_percentage = 0.1; // si può gestire anche con un vettore attraverso le varie simulazioni
                 auto na_mask = create_na_mask(n_obs(n,j), na_percentage); 
                 for (int i = 0; i < n_obs(n,j); ++i) { 
                     if (na_mask[i]) {
@@ -1105,6 +1105,8 @@ TEST(mixed_srpde_test, diff_locations_test_1) {
     write_table(results_mono, header, name_dir + "output/" + solution_policy[0] + ".txt");
     write_table(results_rich, header, name_dir + "output/" + solution_policy[1] + ".txt");
 }
+*/
+
 /*
 TEST(mixed_srpde_test, iterative_same_locations) {
     int seed = 0; 
