@@ -489,6 +489,7 @@ class MixedSRPDE<iterative> : public MixedRegressionBase<MixedSRPDE<iterative>> 
             b_ = DMatrix<double>::Zero(2*n_basis()*m_, 1);
 
             invA_.resize(data_.size());
+            A_v.resize(data_.size());
             _U = DMatrix<double>::Zero(n_basis(), m_*q_); //U_tilde in 2*n_basis x ( (q-p) + p ) * m = 2*n_basis x m q
                                                         // riusciamo ad evitare di salvare n_basis * q zeri?
             //_V.resize(data_.size());
@@ -516,7 +517,7 @@ class MixedSRPDE<iterative> : public MixedRegressionBase<MixedSRPDE<iterative>> 
                 // start = std::chrono::high_resolution_clock::now();
                 
                 // std::cout << A_.rows() << " " << A_.cols() << std::endl;
-
+                A_v[i] = A_;
                 // _start_ = std::chrono::high_resolution_clock::now();
                 if(same_locs_value && i!=0){
                     invA_[i] = invA_[0];
@@ -575,6 +576,7 @@ class MixedSRPDE<iterative> : public MixedRegressionBase<MixedSRPDE<iterative>> 
             DVector<double> bi = DMatrix<double>::Zero(2*n_basis(), 1);
             DVector<double> ri = DMatrix<double>::Zero(2*n_basis(),1);
             DVector<double> zi = DMatrix<double>::Zero(2*n_basis(),1);
+            x_new_vec.resize(2*n_basis()*m_); 
             
             // auto _start = std::chrono::high_resolution_clock::now();
             // auto _start_ = std::chrono::high_resolution_clock::now();
@@ -597,7 +599,8 @@ class MixedSRPDE<iterative> : public MixedRegressionBase<MixedSRPDE<iterative>> 
                 
                 // _start_ = std::chrono::high_resolution_clock::now();
                 x_new.block(i*n_basis(), 0, n_basis(),1) = zi.head(n_basis());
-                x_new.block((i+m_)*n_basis(),0, n_basis(),1) = zi.tail(n_basis()); 
+                x_new.block((i+m_)*n_basis(),0, n_basis(),1) = zi.tail(n_basis());
+                x_new_vec[i] = zi;
                 
             
                 r.block(n_basis()*i,0, n_basis(),1) -=   ((-PsiTD_[i]*Psi_[i]) * zi.head(n_basis()) +
@@ -667,116 +670,99 @@ class MixedSRPDE<iterative> : public MixedRegressionBase<MixedSRPDE<iterative>> 
       
             // _start = std::chrono::high_resolution_clock::now();
 
-            // PARAMETRI ANDERSON
-            // NB: per acc_param = 0, acc_beta = 0 il metodo è equivalente al solve classico
-            // parametro dell'acceleratore
-            // int acc_param = 5;
-            int acc_size = acc_param +1;
-            // parametro di rilassamento
-            // int acc_beta = 0;
+            // PARAMETRI GMRES: memory, da passare in chiamata. Se memory = 0 allora solve base.
 
-            DMatrix<double> FA = DMatrix<double>::Zero(2*m_*n_basis(), acc_size);
-            DMatrix<double> HA = DMatrix<double>::Zero(2*m_*n_basis(), acc_size);
-
-            // iterative scheme for minimization of functional
-            while (k < max_iter_ && !exit_ && r_)  {
-
-                int acc_k = std::min(acc_size, static_cast<int>(k-1));
-                DVector<double> ones = DVector<double>::Ones(acc_k);
-                
-                
-                for(std::size_t i = 0; i < m_; i++){  
-            
+            // iterative scheme for minimization of functional 
+            while (k < max_iter_ && !exit_)  {
+                // auto __start = std::chrono::high_resolution_clock::now();
+                for(std::size_t i = 0; i < m_; i++){                  
+                        // valutare implementazione di lmbQ(yi)
+                        // _start_ = std::chrono::high_resolution_clock::now();
                         bi.block(0,0,n_basis(),1) = r.block(i*n_basis(), 0, n_basis(), 1) ; 
                         bi.block(n_basis(), 0, n_basis(), 1) = r.block( (i+m_)*n_basis(), 0, n_basis(), 1);
+                        // _duration_ = std::chrono::high_resolution_clock::now() - _start_;
+                        //std::cout << "-          update b_i: " << _duration_.count() << std::endl;
 
+                        // _start_ = std::chrono::high_resolution_clock::now();
+                        
                         // SMW a mano :-)
                         DMatrix<double> y = invA_[i].solve(bi);   
                         DMatrix<double> t = invG[i].solve(U_view(_U, i, q_, p_).transpose()*y);
                         zi = y -  invA_[i].solve(U_view(_U, i, q_, p_) * t);
+                        // ----
+                        // _duration_ = std::chrono::high_resolution_clock::now() - _start_;
+                        // std::cout << "-          SMW: " << _duration_.count() << std::endl;
 
-                        if(acc_k > 1){
-                            DMatrix<double> FA_mk = DMatrix<double>::Zero(2*n_basis(), acc_k);
-                            // DMatrix<double> HA_mk = DMatrix<double>::Zero(2*n_basis(), acc_k);
+                        x = zi; // questa riga evita di replicare codice nell'ottimizzazione mem_=0
 
-                            //popoliamo FA
-                            FA_mk.block(0, 0, n_basis(), acc_k) = FA.block(i*n_basis(), 0, n_basis(), acc_k);
-                            FA_mk.block(n_basis(), 0, n_basis(), acc_k) = FA.block( (i+m_)*n_basis(), 0, n_basis(), acc_k);
+                        if(mem_){
+                            // _start_ = std::chrono::high_resolution_clock::now();
+                            int A_rows = A_v[i].rows();
+                            double res_norm = zi.norm();
+                            x = x_new_vec[i]; // Soluzione iniziale (x0)
 
-                            //popoliamo HA
-                            // HA_mk.block(0, 0, n_basis(), acc_k) = HA.block(i*n_basis(), 0, n_basis(), acc_k);
-                            // HA_mk.block(n_basis(), 0, n_basis(), acc_k) = HA.block( (i+m_)*n_basis(), 0, n_basis(), acc_k);
+                            // Matrice di Hessenberg e vettore di Krylov
+                            DMatrix<double> V = DMatrix<double>::Zero(A_rows, mem_ + 1); // Base ortonormale
+                            DMatrix<double> H = DMatrix<double>::Zero(mem_ + 1, mem_); // Matrice Hessenberg
 
-                            DMatrix<double> FtF_mk = FA_mk.transpose()*FA_mk;
-                            // std::cout<< "Det FtF" << FtF_mk.determinant() << std::endl;
-                            //invFtF_mk = FtF_mk.inverse(); // quando il det(FtF_mk) = 0 abbiamo OVVIAMENTE problemi... come gestiamo la cosa?
+                            V.col(0) = zi / res_norm; // Primo vettore ortonormale
 
-                            invFtF_mk = FtF_mk.completeOrthogonalDecomposition().pseudoInverse(); // sconsigliata perchè lenta
-                            //std::cout<< "invFtF_mk = \n" << invFtF_mk << std::endl;
+                            DVector<double> e1 = DMatrix<double>::Zero(mem_ + 1, 1); 
+                            e1(0) = res_norm;
 
-                            // calcolo degli alpha opt
-                            double lambda = (ones.transpose() * invFtF_mk * ones).value();
-                            lambda = 1.0 / lambda;
-                            DVector<double> a = lambda * invFtF_mk * ones;
+                            // Iterazioni GMRES
+                            for (int j_col = 0; j_col < mem_; ++j_col) {
+                                // nuovo vettore di Krylov
+                                DVector<double> w = A_v[i] * V.col(j_col); // per questo passaggio siamo costretti a portarci dietro A[i]
 
-                            // if(FtF_mk.determinant() == 0){
-                            //     a =  DVector<double>::Zero(acc_k);
-                            //     a.block(acc_k-1,0,1,1) = ones.block(acc_k-1,0,1,1);
-                            // }
+                                // Ortonormalizzazione Arnoldi
+                                for (int i_row = 0; i_row <= j_col; ++i_row) {
+                                    H(i_row, j_col) = V.col(i_row).dot(w);
+                                    w -= H(i_row, j_col) * V.col(i_row);
+                                }
+                                H(j_col + 1, j_col) = w.norm();
 
-                            std::cout<< "a:\n" << a << std::endl;
+                                // Interrompi se il vettore è quasi nullo
+                                if (H(j_col + 1, j_col) < 10e-6) break;
 
-                            DVector<double> res_mk_i = DVector<double>::Zero(n_basis());
-                            DVector<double> res_mk_mi = DVector<double>::Zero(n_basis());
-                            DVector<double> x_mk_i = DVector<double>::Zero(n_basis());
-                            DVector<double> x_mk_mi = DVector<double>::Zero(n_basis());
+                                V.col(j_col + 1) = w / H(j_col + 1, j_col);
 
-                            for(size_t idx = 0; idx < acc_k; ++idx) {
-                                res_mk_i += a[idx] * FA_mk.block(0, idx, n_basis(), 1);
-                                res_mk_mi += a[idx] * FA_mk.block(n_basis(), idx, n_basis(), 1);
-                                x_mk_i += a[idx] * HA.block(i*n_basis(), idx, n_basis(), 1);
-                                x_mk_mi += a[idx] * HA.block((i+m_)*n_basis(), idx, n_basis(), 1);
+                                // Risuzione del pb ridotto con metodo QR
+                                DVector<double> partial_sol = H.block(0, 0, j_col + 2, j_col + 1)
+                                                        .colPivHouseholderQr()
+                                                        .solve(e1.head(j_col + 2));
+
+                                // norma e aggiornamento
+                                double res_norm = (e1.head(j_col + 2) - H.block(0, 0, j_col + 2, j_col + 1) * partial_sol).norm();
+                                //std::cout << "res_norm = "<<res_norm<<std::endl;
+                                if (res_norm < 10e-2) {
+                                    x += V.leftCols(j_col + 1) * partial_sol; 
+                                }
                             }
-                            
-                            x_new.block(n_basis()*i,0, n_basis(),1) =  acc_beta * res_mk_i + x_mk_i; 
-                            x_new.block(n_basis()*(m_+i),0, n_basis(),1) = acc_beta * res_mk_mi + x_mk_mi;
-                        }else{
-                            x_new.block(n_basis()*i,0, n_basis(),1) += alpha(k)*zi.head(n_basis());
-                            x_new.block(n_basis()*(m_+i),0, n_basis(),1) += alpha(k)*zi.tail(n_basis());
+
+                            // Soluzione approssimata dopo m iterazioni
+                            DVector<double> partial_sol = H.block(0, 0, mem_ + 1, mem_)
+                                                    .colPivHouseholderQr()
+                                                    .solve(e1);
+
+                            x += V.leftCols(mem_) * partial_sol;
                         }
 
+                        x_new.block(n_basis()*i,0, n_basis(),1) = x.head(n_basis());  
+                        x_new.block(n_basis()*(m_+i),0, n_basis(),1) = x.tail(n_basis());
+                        
                         r.block(n_basis()*i,0, n_basis(),1) -=  alpha(k) * ((-PsiTD_[i]* Psi_[i]) * zi.head(n_basis()) +
                                                                             lambda_D()*pde_.stiff().transpose()*zi.tail(n_basis()));
                                                                                                 
                         r.block(n_basis()*(m_+i),0, n_basis(),1) -= alpha(k)*(lambda_D()*pde_.stiff()*zi.head(n_basis()) +
                                                                                 lambda_D()*pde_.mass()*zi.tail(n_basis()) );
-
                         
                         z.block(i*n_basis(),0, n_basis(),1) = zi.head(n_basis());  
-                        z.block(n_basis()*(m_+i),0, n_basis(),1) = zi.tail(n_basis());    
+                        z.block(n_basis()*(m_+i),0, n_basis(),1) = zi.tail(n_basis());
+                        // _duration_ = std::chrono::high_resolution_clock::now() - _start_;
+                        // std::cout << "-          linear algebra: " << _duration_.count() << std::endl;    
                         
                 }
-
-                //se la matrice è piena
-                if(acc_k == acc_size){
-                    //anche nel caso acc_param = 1 questa chiamata funziona perchè nessuna colonna viene considerata 
-                    //non ci sono problemi di seg_fault con la chiamata blocka a quanto pare
-
-                    //sposta il blocco 1:n a 0:n-1
-                    FA.block(0,0, 2*m_*n_basis(),acc_k-1) = FA.block(0,1, 2*m_*n_basis(),acc_k-1);
-                    HA.block(0,0, 2*m_*n_basis(),acc_k-1) = HA.block(0,1, 2*m_*n_basis(),acc_k-1);
-                }
-                // std::cout<< "F rows: "<< FA.rows() <<" cols: "<< FA.cols() << std::endl;
-                // std::cout<< "r rows: "<< r.rows() <<" cols: "<< r.cols() << std::endl;
-                // std::cout<< "x_new rows: "<< x_new.rows() <<" cols: "<< x_new.cols() << std::endl;
-
-                //aggiungi ultima colonna
-                int last_col = std::min(acc_k, acc_size-1);
-                FA.block(0,last_col, 2*m_*n_basis(),1) = r;
-                // std::cout<< "assegnamento ad FA riuscito"<<std::endl;
-                HA.block(0,last_col, 2*m_*n_basis(),1) = x_new;
-
-                //std::cout<<"fine aggiornamento matrici"<<std::endl;
 
                 // std::chrono::duration<double> __duration = std::chrono::high_resolution_clock::now() - __start;
                 // std::cout << "-      costo singola iter: " << __duration.count() << std::endl;
@@ -837,7 +823,7 @@ class MixedSRPDE<iterative> : public MixedRegressionBase<MixedSRPDE<iterative>> 
         double alpha(std::size_t k) const { return alpha_; } // fixed to 1 
 
         //setters
-        void set_Anderson_params(int memory, int relax_param){ acc_beta = relax_param; acc_param = memory; }
+        void set_GMRES_params(int memory){ mem_ = memory; }
         void set_tolerance(double tol) { tol_ = tol; }
         void set_max_iter(std::size_t max_iter) { max_iter_ = max_iter; }
 
@@ -846,8 +832,10 @@ class MixedSRPDE<iterative> : public MixedRegressionBase<MixedSRPDE<iterative>> 
     protected:
         
         SparseBlockMatrix<double, 2, 2> A_ {};         // system matrix of non-parametric problem (2N x 2N matrix) (in iter P_ deve diventare A_)
-        std::vector<fdapde::SparseLU<SpMatrix<double>>> invA_ {};   // factorization of matrix A
-        DMatrix<double> invFtF_mk;
+        std::vector<fdapde::SparseLU<SpMatrix<double>>> invA_ {};
+        std::vector<DMatrix<double>> A_v {};   
+        std::vector<DVector<double>> x_new_vec {}; //Eigen::VectorXd
+        DVector<double> x; //Eigen::VectorXd
     
         using DenseSolver  = Eigen::PartialPivLU<DMatrix<double>>;
         std::vector<DenseSolver> invG;
@@ -860,8 +848,7 @@ class MixedSRPDE<iterative> : public MixedRegressionBase<MixedSRPDE<iterative>> 
         double alpha_ = 1.;             //
 
         // Anderon's accelerator parameters
-        int acc_param = 0;  
-        int acc_beta = 0;       // both setted to 0, implement classical Richardson scheme
+        int mem_ = 0; 
 
         double J(const DMatrix<double>& f, const DMatrix<double>& g) const{
             DMatrix<double> fhat = mPsi_ * f; 
