@@ -180,35 +180,25 @@ auto x1_(DMatrix<double> locs){
     return res;
 }
 
-
-// 
-
-// tests 
-
-// TEST(mixed_srpde_test, utils){
-//     DMatrix<double> data = DMatrix<double>::Zero(3,5);
-
-//     data.row(0) << 1.0, 2.0, 3.0, 4.0, 5.0;
-//     data.row(1) << 5.1, 4.2, 3.3, 2.4, 1.5;
-//     data.row(2) << 3.0, 1.0, 4.0, 5.0, 6.0; // :-)
-
-//     write_table(data);
-//     write_table(data, {"pippo", "pluto", "paperino", "topolino", "minnie"}, "disney.txt");
-//     write_csv(data);
-//     write_csv(data, {"pippo", "pluto", "paperino", "topolino", "minnie"}, "disney.csv");
-
-//     eigen2txt(data, "disney_mat.txt");
-//     eigen2csv(data, "disney_mat.csv");
-    
-//     EXPECT_TRUE(1);
-// }
+// maschera di NA
+auto create_na_mask(int size, double na_percentage, std::mt19937 gen) {
+    std::vector<bool> mask(size, false);  
+    int num_na = static_cast<int>(std::round(size * na_percentage));
+    std::uniform_int_distribution<> dis(0, size - 1);
+    for (int i = 0; i < num_na; ++i) {
+        int index;
+        do { index = dis(gen); } while (mask[index]); 
+        mask[index] = true;
+    }
+    return mask;
+};
 
 
-/*
+
 // test with r_ == 0
 TEST(mixed_srpde_test, without_covariates) {
     std::size_t m = 3;
-    std::size_t n_sim = 30;
+    std::size_t n_sim = 1;
     
     DMatrix<double> beta = DMatrix<double>::Zero(1,1);
     beta(0,0) = -2.;
@@ -248,7 +238,6 @@ TEST(mixed_srpde_test, without_covariates) {
         eigen2txt<double>(alpha, input_dir + "alpha.txt");
         eigen2txt<int>(n_obs, input_dir + "n_obs.txt");
 
-        // std::cout << "qui" << std::endl;
 
         Eigen::saveMarket(x1_(domain.mesh.nodes()), input_dir + "cov_1.mtx");
         eigen2txt<double>(x1_(domain.mesh.nodes()), input_dir + "cov_1.txt");
@@ -258,17 +247,12 @@ TEST(mixed_srpde_test, without_covariates) {
             eigen2txt<double>(f_, input_dir + "f_" + std::to_string(j) + ".txt");
         }
 
-        // std::cout << "qui" << std::endl;
 
         for(std::size_t n = 0; n < n_obs.rows(); ++n){
-
-            // std::cout << "qui" << std::endl;
             
             // generete data
             std::string data_dir = input_dir + std::to_string(n_obs(n)) + "/";
             std::filesystem::create_directory(data_dir);
-
-            // std::cout << "qui" << std::endl;
              
         for(std::size_t sim=0; sim<n_sim; ++sim){
             std::string simul_dir = data_dir + std::to_string(sim) + "/"; 
@@ -276,7 +260,6 @@ TEST(mixed_srpde_test, without_covariates) {
 
             DMatrix<double> locs = uniform_locs(n_obs(n), gen);
 
-            // std::cout << "qui" << std::endl;
             
             for(std::size_t j = 0; j < m; ++j){
                 DMatrix<double> DesignMatrix = DMatrix<double>::Zero(n_obs(n),1);
@@ -472,7 +455,7 @@ TEST(mixed_srpde_test, without_covariates) {
     write_table(results_mono, header, name_dir + "output/" + solution_policy[0] + ".txt");
     write_table(results_rich, header, name_dir + "output/" + solution_policy[1] + ".txt");
 }
-*/
+
 
 
 
@@ -492,48 +475,7 @@ TEST(mixed_srpde_test, same_locations_test_1) {
     
     int seed = 0; 
     std::mt19937 gen(seed);
-    
-    auto uniform_locs = [&gen](std::size_t n) {
-        std::uniform_real_distribution<> dis(0.0, 1.0);
-        DMatrix<double> locs = DMatrix<double>::Zero(n,2);
-        for (std::size_t i = 0; i < n; ++i) {
-            locs(i,0) = dis(gen);  // x
-            locs(i,1) = dis(gen);  // y
-        }
-        return locs;
-    };
 
-    auto f = [](DMatrix<double> locs, int id = 0) { 
-	    DMatrix<double> res = DMatrix<double>::Zero(locs.rows(),1);
-            for(std::size_t i = 0; i < locs.rows(); ++i){
-                if(id == 0)
-                    res(i,0) = std::sin(2*fdapde::testing::pi*locs(i,0))*
-                                    std::sin(2*fdapde::testing::pi*locs(i,1));
-                else if (id == 1)
-                    res(i,0) = 1.0 - locs(i,0) - locs(i,1);
-                else if (id == 2)
-                    res(i,0) = 1-std::sin(fdapde::testing::pi*locs(i,0))*
-                                    std::cos(fdapde::testing::pi*locs(i,1));//std::cos(fdapde::testing::pi*locs(i,0))*std::cos(fdapde::testing::pi*locs(i,1));
-        }
-            return res;
-    };
-    
-    auto noise = [&gen](std::size_t n, double sigma){
-        DMatrix<double> res = DMatrix<double>::Zero(n,1);
-        std::normal_distribution<> __noise(0.0, sigma);
-        for(std::size_t i = 0; i < n; ++i){
-            res(i,0) = __noise(gen);
-        }
-        return res;
-    };
-
-    auto x1_ =  [](DMatrix<double> locs){
-        DMatrix<double> res = DMatrix<double>::Zero(locs.rows(),1);
-        for(std::size_t i = 0; i < locs.rows(); ++i){
-                    res(i,0) = 1-(locs(i,0)-0.5)*(locs(i,0)-0.5) -(locs(i,1)-0.5)*(locs(i,1)-0.5); 
-        }   
-        return res;
-    };
 
     //std::string meshID = "unit_square";
     std::string meshID = "unit_square_coarse";
@@ -578,17 +520,17 @@ TEST(mixed_srpde_test, same_locations_test_1) {
             std::string simul_dir = data_dir + std::to_string(sim) + "/"; 
             std::filesystem::create_directory(simul_dir);
 
-            DMatrix<double> locs = uniform_locs(n_obs(n));
+            DMatrix<double> locs = uniform_locs(n_obs(n), gen);
             
             for(std::size_t j = 0; j < m; ++j){
                 DMatrix<double> DesignMatrix = DMatrix<double>::Zero(n_obs(n),2);
             
                 DesignMatrix.col(0) = x1_(locs); // va in V
-                DesignMatrix.col(1) = noise(n_obs(n), 1.0);
+                DesignMatrix.col(1) = noise(n_obs(n), 1.0, gen);
 
                 DMatrix<double> f_ = f(locs, j);
                 double sigma = 0.05*std::abs(f_.array().maxCoeff() - f_.array().minCoeff()); 
-                auto eps_ = noise(n_obs(n),sigma);
+                auto eps_ = noise(n_obs(n), sigma, gen);
                 eigen2txt<double>(eps_, simul_dir + "noise_" + std::to_string(j) + ".txt");
             
                 auto obs = DesignMatrix * beta + DesignMatrix.col(0)*alpha(j,0)  + f_ + eps_; 
@@ -694,7 +636,7 @@ TEST(mixed_srpde_test, same_locations_test_1) {
         results_mono(sim + n_sim*n, 2) = results_mono(sim + n_sim*n, 0) + results_mono(sim + n_sim*n, 1);
 
         // iterative
-        // in this case same_locs = 1, one could try same_locs = 0 to check that everything works
+        // in this case same_locs = 1, one could try same_locs = 0 to check that everything works (but slower)
         bool same_locs = 1;
         // MixedSRPDE<iterative> richardson_(problem, Sampling::pointwise); //automaticaly set same_locs = False!
         MixedSRPDE<iterative> richardson_(problem, Sampling::pointwise, same_locs);
@@ -801,63 +743,7 @@ TEST(mixed_srpde_test, diff_locations_test_1) {
             n_obs(i, j) = static_cast<int>(dist(gen)); // Cast a int per valori interi
         }
     }
-    // int seed = 0; 
-    // std::mt19937 gen(seed);
     
-    auto uniform_locs = [&gen](std::size_t n) {
-        std::uniform_real_distribution<> dis(0.0, 1.0);
-        DMatrix<double> locs = DMatrix<double>::Zero(n,2);
-        for (std::size_t i = 0; i < n; ++i) {
-            locs(i,0) = dis(gen);  // x
-            locs(i,1) = dis(gen);  // y
-        }
-        return locs;
-    };
-
-    // maschera di NA
-    auto create_na_mask = [&gen](int size, double na_percentage) {
-        std::vector<bool> mask(size, false);  
-        int num_na = static_cast<int>(std::round(size * na_percentage));
-        std::uniform_int_distribution<> dis(0, size - 1);
-        for (int i = 0; i < num_na; ++i) {
-            int index;
-            do { index = dis(gen); } while (mask[index]); 
-            mask[index] = true;
-        }
-        return mask;
-    };
-
-    auto f = [](DMatrix<double> locs, int id = 0) { 
-	    DMatrix<double> res = DMatrix<double>::Zero(locs.rows(),1);
-            for(std::size_t i = 0; i < locs.rows(); ++i){
-                if(id == 0)
-                    res(i,0) = std::sin(2*fdapde::testing::pi*locs(i,0))*
-                                    std::sin(2*fdapde::testing::pi*locs(i,1));
-                else if (id == 1)
-                    res(i,0) = 1.0 - locs(i,0) - locs(i,1);
-                else if (id == 2)
-                    res(i,0) = 1-std::sin(fdapde::testing::pi*locs(i,0))*
-                                    std::cos(fdapde::testing::pi*locs(i,1));//std::cos(fdapde::testing::pi*locs(i,0))*std::cos(fdapde::testing::pi*locs(i,1));
-        }
-            return res;
-    };
-    
-    auto noise = [&gen](std::size_t n, double sigma){
-        DMatrix<double> res = DMatrix<double>::Zero(n,1);
-        std::normal_distribution<> __noise(0.0, sigma);
-        for(std::size_t i = 0; i < n; ++i){
-            res(i,0) = __noise(gen);
-        }
-        return res;
-    };
-
-    auto x1_ =  [](DMatrix<double> locs){
-        DMatrix<double> res = DMatrix<double>::Zero(locs.rows(),1);
-        for(std::size_t i = 0; i < locs.rows(); ++i){
-                    res(i,0) = 1-(locs(i,0)-0.5)*(locs(i,0)-0.5) -(locs(i,1)-0.5)*(locs(i,1)-0.5); 
-        }   
-        return res;
-    };
 
     //std::string meshID = "unit_square";
     std::string meshID = "unit_square_coarse";
@@ -905,20 +791,20 @@ TEST(mixed_srpde_test, diff_locations_test_1) {
             // DMatrix<double> locs = uniform_locs(n_obs(n,0));
             
             for(std::size_t j = 0; j < m; ++j){
-                DMatrix<double> locs = uniform_locs(n_obs(n,j));
+                DMatrix<double> locs = uniform_locs(n_obs(n,j), gen);
                 DMatrix<double> DesignMatrix = DMatrix<double>::Zero(n_obs(n,j),2);
             
                 DesignMatrix.col(0) = x1_(locs); // va in V
-                DesignMatrix.col(1) = noise(n_obs(n,j), 1.0);
+                DesignMatrix.col(1) = noise(n_obs(n,j), 1.0, gen);
 
                 DMatrix<double> f_ = f(locs, j);
                 double sigma = 0.05*std::abs(f_.array().maxCoeff() - f_.array().minCoeff()); 
-                auto eps_ = noise(n_obs(n,j),sigma);
+                auto eps_ = noise(n_obs(n,j), sigma, gen);
                 eigen2txt<double>(eps_, simul_dir + "noise_" + std::to_string(j) + ".txt");
             
                 DMatrix<double> obs = DesignMatrix * beta + DesignMatrix.col(0)*alpha(j,0)  + f_ + eps_; 
                 
-                auto na_mask = create_na_mask(n_obs(n,j), na_percentage); 
+                auto na_mask = create_na_mask(n_obs(n,j), na_percentage, gen); 
                 for (int i = 0; i < n_obs(n,j); ++i) { 
                     if (na_mask[i]) {
                         obs(i, 0) = std::numeric_limits<double>::quiet_NaN();  
@@ -1007,7 +893,7 @@ TEST(mixed_srpde_test, diff_locations_test_1) {
         // define lambda
         double lambda = 1e-3; 
         // define GMRES params
-        int memory = 0;
+        int memory = 2;
 
         // monolithic 
         MixedSRPDE<monolithic> monolithic_(problem, Sampling::pointwise);
