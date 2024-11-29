@@ -194,7 +194,7 @@ auto create_na_mask(int size, double na_percentage, std::mt19937 gen) {
 };
 
 
-
+/*
 // test with r_ == 0
 TEST(mixed_srpde_test, without_covariates) {
     std::size_t m = 3;
@@ -211,7 +211,6 @@ TEST(mixed_srpde_test, without_covariates) {
     n_obs(3,0) = 4000; n_obs(4,0) = 8000;
     
     int seed = 0; 
-    std::mt19937 gen(seed);
 
     //std::string meshID = "unit_square";
     std::string meshID = "unit_square_coarse";
@@ -255,6 +254,7 @@ TEST(mixed_srpde_test, without_covariates) {
             std::filesystem::create_directory(data_dir);
              
         for(std::size_t sim=0; sim<n_sim; ++sim){
+            std::mt19937 gen(seed+ sim);
             std::string simul_dir = data_dir + std::to_string(sim) + "/"; 
             std::filesystem::create_directory(simul_dir);
 
@@ -455,13 +455,13 @@ TEST(mixed_srpde_test, without_covariates) {
     write_table(results_mono, header, name_dir + "output/" + solution_policy[0] + ".txt");
     write_table(results_rich, header, name_dir + "output/" + solution_policy[1] + ".txt");
 }
-
+*/
 
 
 
 TEST(mixed_srpde_test, same_locations_test_1) {
     std::size_t m = 3;
-    std::size_t n_sim = 1;
+    std::size_t n_sim = 20;
     // 
     DMatrix<double> beta = DMatrix<double>::Zero(2,1);
     beta(0,0) = -2.; beta(1,0) = 1.;
@@ -474,8 +474,6 @@ TEST(mixed_srpde_test, same_locations_test_1) {
     n_obs(3,0) = 4000; n_obs(4,0) = 8000;
     
     int seed = 0; 
-    std::mt19937 gen(seed);
-
 
     //std::string meshID = "unit_square";
     std::string meshID = "unit_square_coarse";
@@ -517,6 +515,7 @@ TEST(mixed_srpde_test, same_locations_test_1) {
             std::filesystem::create_directory(data_dir);
              
         for(std::size_t sim=0; sim<n_sim; ++sim){
+            std::mt19937 gen(seed+ sim); 
             std::string simul_dir = data_dir + std::to_string(sim) + "/"; 
             std::filesystem::create_directory(simul_dir);
 
@@ -713,15 +712,14 @@ TEST(mixed_srpde_test, same_locations_test_1) {
 }
 
 
-
+/*
 TEST(mixed_srpde_test, diff_locations_test_1) {
     std::size_t m = 3;
-    std::size_t n_sim = 1;
-    double na_percentage = 0.1; // si può gestire anche con un vettore attraverso le varie simulazioni
+    std::size_t n_sim = 20;
+    double na_percentage = 0.2; // si può gestire anche con un vettore attraverso le varie simulazioni
 
     int seed = 0; 
-    std::mt19937 gen(seed);
-    // 
+    
     DMatrix<double> beta = DMatrix<double>::Zero(2,1);
     beta(0,0) = -2.; beta(1,0) = 1.;
 
@@ -785,6 +783,7 @@ TEST(mixed_srpde_test, diff_locations_test_1) {
             std::filesystem::create_directory(data_dir);
              
         for(std::size_t sim=0; sim<n_sim; ++sim){
+            std::mt19937 gen(seed+ sim);
             std::string simul_dir = data_dir + std::to_string(sim) + "/"; 
             std::filesystem::create_directory(simul_dir);
 
@@ -987,7 +986,7 @@ TEST(mixed_srpde_test, diff_locations_test_1) {
     write_table(results_mono, header, name_dir + "output/" + solution_policy[0] + ".txt");
     write_table(results_rich, header, name_dir + "output/" + solution_policy[1] + ".txt");
 }
-
+*/
 
 /*
 TEST(mixed_srpde_test, iterative_same_locations) {
