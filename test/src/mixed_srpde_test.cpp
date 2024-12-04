@@ -1055,9 +1055,12 @@ TEST(mixed_srpde_test, same_loc_diff_m_test_1) {
     // DMatrix<double> alpha = DMatrix<double>::Zero(3,1);
     // alpha(0,0) = -0.5; alpha(1,0) = 0.; alpha(2,0) = 0.5;
 
-    DMatrix<int> m = DMatrix<int>::Zero(5,1);
-    m(0,0) = 2; m(1,0) = 3; m(2,0) = 5; 
-    m(3,0) = 6; m(4,0) = 7; //??? Per m(i) > 7 il test si rompe...
+    DMatrix<int> m = DVector<int>::Zero(5);
+    m(0) = 2;
+    m(1) = 3; 
+    m(2) = 5; 
+    m(3) = 6; 
+    m(4) = 12;
 
     DMatrix<int> n_obs = DMatrix<int>::Zero(1,1);
     n_obs(0,0) = 500;
@@ -1157,9 +1160,11 @@ TEST(mixed_srpde_test, same_loc_diff_m_test_1) {
             std::vector<std::string> solution_policy = {"monolithic", "richardson"};
 
             // import data from files
-            std::vector<std::string> header = {"time_init", "time_solve", "time",
-                                            "rmse_f","rmse_f_1", "rmse_f_2","rmse_f_3", 
-                                            "rmse_beta","rmse_alpha","n_obs","m"};
+            std::vector<std::string> header = {"time_init", "time_solve", "time", "rmse_f", "rmse_beta", "rmse_alpha", "n_obs", "m"};
+            
+            for (int j = 1; j <= m.maxCoeff(); ++j) {
+                header.push_back("rmse_f_" + std::to_string(j));
+            }
 
             DMatrix<double> results_mono = DMatrix<double>::Zero( n_sim*n_obs.size(), header.size());
             DMatrix<double> results_rich = DMatrix<double>::Zero( n_sim*n_obs.size(), header.size());
@@ -1263,23 +1268,7 @@ TEST(mixed_srpde_test, same_loc_diff_m_test_1) {
                 results_mono(sim + n_sim*n, 3) = (monolithic_.f() - f_).array().square().mean();
                 results_rich(sim + n_sim*n, 3) = (richardson_.f() - f_).array().square().mean();
                 
-                for(std::size_t j = 0; j < m(i); ++j){
-                    Eigen::saveMarket(monolithic_.f().block(j*domain.mesh.nodes().rows(),0, domain.mesh.nodes().rows(),1),
-                                output_monolithic + "estimate_f_" + std::to_string(j) + ".mtx");
-                    eigen2txt<double>(monolithic_.f().block(j*domain.mesh.nodes().rows(),0, domain.mesh.nodes().rows(),1),
-                                output_monolithic + "estimate_f_" + std::to_string(j) + ".txt");
-
-                    results_mono(sim + n_sim*n, 4+j) = (monolithic_.f().block(j*domain.mesh.nodes().rows(),0, domain.mesh.nodes().rows(),1) -
-                                                        f_.block(j*domain.mesh.nodes().rows(),0, domain.mesh.nodes().rows(),1)).array().square().mean();
-
-                    Eigen::saveMarket(richardson_.f().block(j*domain.mesh.nodes().rows(),0, domain.mesh.nodes().rows(),1),
-                                output_richardson + "estimate_f_" + std::to_string(j) + ".mtx");
-                    eigen2txt<double>(richardson_.f().block(j*domain.mesh.nodes().rows(),0, domain.mesh.nodes().rows(),1),
-                                output_richardson + "estimate_f_" + std::to_string(j) + ".txt");
-
-                    results_rich(sim + n_sim*n, 4+j) = (richardson_.f().block(j*domain.mesh.nodes().rows(),0, domain.mesh.nodes().rows(),1) -
-                                                        f_.block(j*domain.mesh.nodes().rows(),0, domain.mesh.nodes().rows(),1)).array().square().mean();
-                }
+                int index = 4;
 
                 Eigen::saveMarket(monolithic_.f(), output_monolithic + "estimate_f.mtx");
                 eigen2txt<double>(monolithic_.f(), output_monolithic + "estimate_f.txt");
@@ -1296,17 +1285,37 @@ TEST(mixed_srpde_test, same_loc_diff_m_test_1) {
                 Eigen::saveMarket(richardson_.alpha(), output_richardson + "beta.mtx");
                 eigen2txt<double>(richardson_.alpha(), output_richardson + "alpha.txt");
 
-                results_mono(sim + n_sim*n, 7) =  (monolithic_.beta() - beta).array().square().mean();
-                results_mono(sim + n_sim*n, 8) =  (monolithic_.alpha() - alpha).array().square().mean();
+                results_mono(sim + n_sim*n, index) =  (monolithic_.beta() - beta).array().square().mean();
+                results_mono(sim + n_sim*n, index+1) =  (monolithic_.alpha() - alpha).array().square().mean();
                 
-                results_rich(sim + n_sim*n, 7) =  (richardson_.beta() - beta).array().square().mean();
-                results_rich(sim + n_sim*n, 8) =  (richardson_.alpha() - alpha).array().square().mean();
+                results_rich(sim + n_sim*n, index) =  (richardson_.beta() - beta).array().square().mean();
+                results_rich(sim + n_sim*n, index+1) =  (richardson_.alpha() - alpha).array().square().mean();
                 
-                results_mono(sim + n_sim*n,9) = n_obs(n);
-                results_rich(sim + n_sim*n,9) = n_obs(n);
+                results_mono(sim + n_sim*n,index+2) = n_obs(n);
+                results_rich(sim + n_sim*n,index+2) = n_obs(n);
 
-                results_mono(sim + n_sim*n,10) = m(i);
-                results_rich(sim + n_sim*n,10) = m(i);
+                results_mono(sim + n_sim*n,index+3) = m(i);
+                results_rich(sim + n_sim*n,index+3) = m(i);
+
+                // rmse_f_i
+                for(std::size_t j = 0; j < m(i); ++j){
+                    Eigen::saveMarket(monolithic_.f().block(j*domain.mesh.nodes().rows(),0, domain.mesh.nodes().rows(),1),
+                                output_monolithic + "estimate_f_" + std::to_string(j) + ".mtx");
+                    eigen2txt<double>(monolithic_.f().block(j*domain.mesh.nodes().rows(),0, domain.mesh.nodes().rows(),1),
+                                output_monolithic + "estimate_f_" + std::to_string(j) + ".txt");
+
+                    results_mono(sim + n_sim*n, index+4+j) = (monolithic_.f().block(j*domain.mesh.nodes().rows(),0, domain.mesh.nodes().rows(),1) -
+                                                        f_.block(j*domain.mesh.nodes().rows(),0, domain.mesh.nodes().rows(),1)).array().square().mean();
+
+                    Eigen::saveMarket(richardson_.f().block(j*domain.mesh.nodes().rows(),0, domain.mesh.nodes().rows(),1),
+                                output_richardson + "estimate_f_" + std::to_string(j) + ".mtx");
+                    eigen2txt<double>(richardson_.f().block(j*domain.mesh.nodes().rows(),0, domain.mesh.nodes().rows(),1),
+                                output_richardson + "estimate_f_" + std::to_string(j) + ".txt");
+
+                    results_rich(sim + n_sim*n, index+4+j) = (richardson_.f().block(j*domain.mesh.nodes().rows(),0, domain.mesh.nodes().rows(),1) -
+                                                        f_.block(j*domain.mesh.nodes().rows(),0, domain.mesh.nodes().rows(),1)).array().square().mean();
+                }
+
 
                 EXPECT_TRUE(  (monolithic_.beta() - beta).array().square().mean() < 1e-2 );
                 EXPECT_TRUE(  (monolithic_.alpha() - alpha).array().square().mean() < 1e-2 );
