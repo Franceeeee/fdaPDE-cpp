@@ -158,7 +158,11 @@ auto uniform_locs(std::size_t n, std::mt19937 gen) {
 
 
 auto f(DMatrix<double> locs, int id = 0) { 
+    std::mt19937 gen(id);
     DMatrix<double> res = DMatrix<double>::Zero(locs.rows(),1);
+    std::uniform_int_distribution<> dis(-1,1);
+    double a = dis(gen);
+    double phi = dis(gen)*2;
         for(std::size_t i = 0; i < locs.rows(); ++i){
             if(id == 0)
                 res(i,0) = std::sin(2*fdapde::testing::pi*locs(i,0))*
@@ -167,7 +171,9 @@ auto f(DMatrix<double> locs, int id = 0) {
                 res(i,0) = 1.0 - locs(i,0) - locs(i,1);
             else if (id == 2)
                 res(i,0) = 1-std::sin(fdapde::testing::pi*locs(i,0))*
-                                std::cos(fdapde::testing::pi*locs(i,1));//std::cos(fdapde::testing::pi*locs(i,0))*std::cos(fdapde::testing::pi*locs(i,1));
+                                std::cos(fdapde::testing::pi*locs(i,1));
+            else
+                res(i,0) = a*std::cos(fdapde::testing::pi*locs(i,0)+phi)*std::cos(fdapde::testing::pi*locs(i,1));
     }
         return res;
 }
@@ -1056,11 +1062,11 @@ TEST(mixed_srpde_test, same_loc_diff_m_test_1) {
     // alpha(0,0) = -0.5; alpha(1,0) = 0.; alpha(2,0) = 0.5;
 
     DMatrix<int> m = DVector<int>::Zero(5);
-    m(0) = 2;
-    m(1) = 3; 
-    m(2) = 5; 
-    m(3) = 6; 
-    m(4) = 12;
+    m(0) = 5;
+    m(1) = 10; 
+    m(2) = 15; 
+    m(3) = 20; 
+    m(4) = 25;
 
     DMatrix<int> n_obs = DMatrix<int>::Zero(1,1);
     n_obs(0,0) = 500;

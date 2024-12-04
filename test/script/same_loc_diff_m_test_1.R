@@ -83,7 +83,8 @@ output_mono_cpp = list(coeff = as.matrix(read.table(paste0(output_mono_dir, "est
                        alpha_i = as.matrix(read.table(paste0(output_mono_dir,"alpha.txt"), header = F)),
                        f_0 = as.matrix(read.table(paste0(output_mono_dir,"estimate_f_0.txt"), header = F)),
                        f_1 = as.matrix(read.table(paste0(output_mono_dir,"estimate_f_1.txt"), header = F)),
-                       f_2 = as.matrix(read.table(paste0(output_mono_dir,"estimate_f_2.txt"), header = F)))
+                       f_2 = as.matrix(read.table(paste0(output_mono_dir,"estimate_f_2.txt"), header = F)),
+                       f_4 = as.matrix(read.table(paste0(output_mono_dir,"estimate_f_4.txt"), header = F)))
 
 max(abs(output_mono$fit.FEM.mixed$coeff - output_mono_cpp$coeff))
 max(abs(output_mono$beta - output_mono_cpp$beta))
@@ -104,7 +105,8 @@ output_iter_cpp = list(coeff = as.matrix(read.table(paste0(output_iter_dir, "est
                        alpha_i = as.matrix(read.table(paste0(output_iter_dir,"alpha.txt"), header = F)),
                        f_0 = as.matrix(read.table(paste0(output_iter_dir,"estimate_f_0.txt"), header = F)),
                        f_1 = as.matrix(read.table(paste0(output_iter_dir,"estimate_f_1.txt"), header = F)),
-                       f_2 = as.matrix(read.table(paste0(output_iter_dir,"estimate_f_2.txt"), header = F)))
+                       f_2 = as.matrix(read.table(paste0(output_iter_dir,"estimate_f_2.txt"), header = F)),
+                       f_4 = as.matrix(read.table(paste0(output_mono_dir,"estimate_f_4.txt"), header = F)))
 
 max(abs(output_iter$fit.FEM.mixed$coeff - output_iter_cpp$coeff))
 max(abs(output_iter$beta - output_iter_cpp$beta))
@@ -131,9 +133,15 @@ f_2_cpp_mono = FEM(output_mono_cpp$f_2, FEMbasis)
 f_2_cpp_iter = FEM(output_mono_cpp$f_2, FEMbasis)
 f_2 = FEM(as.matrix(read.table(paste0(data_dir,"input/f_2.txt"), header = F)), FEMbasis)
 
+f_4_cpp_mono = FEM(output_mono_cpp$f_4, FEMbasis)
+f_4_cpp_iter = FEM(output_mono_cpp$f_4, FEMbasis)
+f_4 = FEM(as.matrix(read.table(paste0(data_dir,"input/f_4.txt"), header = F)), FEMbasis)
+
 coeff_lims_0 = smooth_lim(f_0, f_0_cpp_mono, f_0_cpp_mono)
 coeff_lims_1 = smooth_lim(f_1, f_1_cpp_mono, f_1_cpp_mono)
 coeff_lims_2 = smooth_lim(f_2, f_2_cpp_mono, f_2_cpp_mono)
+coeff_lims_4 = smooth_lim(f_4, f_4_cpp_mono, f_4_cpp_mono)
+
 
 # named list ...
 {
@@ -177,6 +185,21 @@ coeff_lims_2 = smooth_lim(f_2, f_2_cpp_mono, f_2_cpp_mono)
   
   plot_colorbar(f_2, coeff_lims = coeff_lims_2, colorscale = viridis,
                 file = paste0(estimates_dir, "colorbar_f_2"))
+  
+}
+
+{
+  smooth_list = list(f_4 = f_4, f_4_cpp_iter = f_4_cpp_iter, f_4_cpp_mono = f_4)
+  names(smooth_list)
+  for(i in 1:length(smooth_list)){
+    plot_smooth_2D(smooth_list[[i]], coeff_lims = coeff_lims_4, colorscale = viridis)
+    snapshot3d(filename = paste0(estimates_dir, names(smooth_list)[i],".png"),
+               fmt = "png", width = 800, height = 750, webshot = rgl.useNULL())
+    close3d()  
+  }
+  
+  plot_colorbar(f_4, coeff_lims = coeff_lims_4, colorscale = viridis,
+                file = paste0(estimates_dir, "colorbar_f_4"))
   
 }
 
@@ -415,3 +438,4 @@ plot_boxplot_levels(results, m="m", method="solution_policy",
 #   dev.off()
 #   
 # }
+
