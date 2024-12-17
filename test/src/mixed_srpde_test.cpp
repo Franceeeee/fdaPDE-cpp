@@ -1101,10 +1101,10 @@ TEST(mixed_srpde_test, diff_locations_diff_NA) {
     MeshLoader<Mesh2D> domain(meshID);
     meshID = meshID + "/"; 
     std::string name_dir = "../data/models/mixed_srpde/" + meshID;
-	if(!std::filesystem::create_directory(name_dir)) std::filesystem::create_directory(name_dir);
+	if(!std::filesystem::exists(std::filesystem::path(name_dir))) std::filesystem::create_directory(name_dir);
     
     name_dir += "diff_locations_diff_NA/";
-    if(!std::filesystem::create_directory(name_dir)) std::filesystem::create_directory(name_dir);
+    if(!std::filesystem::exists(std::filesystem::path(name_dir))) std::filesystem::create_directory(name_dir);
 	
     // input
     std::string input_dir = name_dir  + "input/";
