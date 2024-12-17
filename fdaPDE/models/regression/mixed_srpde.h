@@ -387,7 +387,7 @@ class MixedSRPDE<monolithic> : public MixedRegressionBase<MixedSRPDE<monolithic>
             beta_coeff_ = F_ * beta_;
             alpha_coeff_ = T_*beta_.tail(m_*p_); 
 
-            std::cout << beta_ << std::endl;
+            std::cout << "nu:\n" << beta_ << std::endl;
 
             // store PDE misfit
             g_ = sol.tail(m_*n_basis());
@@ -693,9 +693,10 @@ class MixedSRPDE<iterative> : public MixedRegressionBase<MixedSRPDE<iterative>> 
                         // _duration_ = std::chrono::high_resolution_clock::now() - _start_;
                         // std::cout << "-          SMW: " << _duration_.count() << std::endl;
 
-                        x = zi; // questa riga evita di replicare codice nell'ottimizzazione mem_=0
+                        x = x_new_vec[i]; // questa riga evita di replicare codice nell'ottimizzazione mem_=0
 
                         if(mem_){
+                            //std::cout<<"ciao"<<std::endl;
                             // _start_ = std::chrono::high_resolution_clock::now();
                             int A_rows = A_v[i].rows();
                             double res_norm = zi.norm();
@@ -748,8 +749,8 @@ class MixedSRPDE<iterative> : public MixedRegressionBase<MixedSRPDE<iterative>> 
                             x += V.leftCols(mem_) * partial_sol;
                         }
 
-                        x_new.block(n_basis()*i,0, n_basis(),1) = x.head(n_basis());  
-                        x_new.block(n_basis()*(m_+i),0, n_basis(),1) = x.tail(n_basis());
+                        x_new.block(n_basis()*i,0, n_basis(),1) = alpha(k) * x.head(n_basis());  
+                        x_new.block(n_basis()*(m_+i),0, n_basis(),1) = alpha(k) * x.tail(n_basis());
                         
                         r.block(n_basis()*i,0, n_basis(),1) -=  alpha(k) * ((-PsiTD_[i]* Psi_[i]) * zi.head(n_basis()) +
                                                                             lambda_D()*pde_.stiff().transpose()*zi.tail(n_basis()));
