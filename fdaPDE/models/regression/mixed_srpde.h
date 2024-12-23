@@ -315,6 +315,7 @@ class MixedSRPDE<monolithic> : public MixedRegressionBase<MixedSRPDE<monolithic>
 
         MixedSRPDE() = default;
         MixedSRPDE(const pde_ptr& pde, Sampling s) : MixedRegressionBase(pde, s){};
+        MixedSRPDE(const pde_ptr& pde, Sampling s, bool same_locs = false) : MixedRegressionBase(pde, s, same_locs){};
 
         const SpMatrix<double> R0() { return Kronecker(I_, pde_.mass()); }
         const SpMatrix<double> R1() const { return Kronecker(I_, pde_.stiff()); }
