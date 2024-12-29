@@ -5,8 +5,7 @@ rm(list=ls())
 # install.packages("~/Desktop/fdaPDEmixed", repos = NULL, type = "source")
 # if(!require(pacman)) install.packages("pacman")
 # install.packages("magick")
-# pacman::p_load("fdaPDE" ,"plotrix", "latex2exp", "RColorBrewer", "viridis",
-#                "dplyr")
+pacman::p_load("fdaPDE" ,"plotrix", "latex2exp", "RColorBrewer", "viridis", "dplyr")
 # if(!require(fdaPDEmixed)){
 #   devtools::install_github(repo ="aldoclemente/fdaPDEmixed")
 # }
@@ -407,7 +406,7 @@ plot_mesh <- function(data_dir, mesh_plot_name, n_obs, sim, solution_policy){
 library(fdaPDEmixed)
 library(magick)
 
-# setwd("C:/Users/Ortolani Giulia/Documents/Local/graphic-tools/")
+setwd("C:/Users/Ortolani Giulia/Documents/Local/graphic-tools/")
 
 
 # TEST -----------------------------------------------------------------------------------
@@ -560,5 +559,94 @@ plot_mesh(data_dir, mesh_plot_name, n_obs, sim, solution_policy)
 test_name = "boxplot_obs_2000_unit_square_coarse"
 draw_boxplots_obs_fixed(test_name, mesh_id, test_id, n_obs=2000)
 
+
+##### Mesh comparison
+
+plot_boxplot_levels_mesh = function(data, m, method, xlabel_name = "levels",
+                               filename="boxplot.pdf"){
+  m_ = levels(data[[m]])
+  methods_ = levels(data[[method]])
+  at_ <- c()
+  for(i in 1:length(m_)){
+    at_ <-  c(at_, ((i-1)*(1+length(methods_)) + (1:length(methods_))))
+  }
+  
+  fill_col = viridis::viridis((length(levels(data[[method]]))+1), begin=0.25, end=0.95)
+  fill_col = fill_col[1:length(methods_)]
+  facs = names(Filter(is.factor, data))
+  which( ! names(data) %in% facs )
+  doplot = names(data)[which( ! names(data) %in% facs )]
+  
+  if(length(methods_)%%2 != 0){
+    at_label = seq(ceiling(length(methods)/2), at_[length(at_)], by=(length(methods_) + 1))
+  }else{
+    at_label = seq(length(methods_)/2, at_[length(at_)], by=(length(methods_) + 1))
+  }
+  
+  pdf(filename, family = "serif", width = 7, height = 7)
+  for(i in doplot){
+    boxplot(data[[i]] ~  data[[method]] + as.numeric(data[[m]]),
+            ylab="", xlab=xlabel_name, at = at_, xaxt="n",
+            ylim=c(min(data[[i]]), max(data[[i]])*(1.1)),
+            col=fill_col,cex.lab = 2, cex.axis = 2, cex.main = 2,
+            main = i)
+    axis(side = 1, at = at_label, labels = m_, cex.lab = 2, cex.axis = 1)
+    legend("topleft",legend=methods_, fill=fill_col, cex=1.5, inset=0.0125, 
+           bty="n")
+    
+  }
+  
+  for(k in 1:length(methods_)){
+    for(i in doplot){
+      tmp <- data[which(data[[method]] == methods_[k]),]
+      boxplot(tmp[[i]] ~ tmp[[m]],
+              ylab="", xlab="observations", xaxt="n",
+              col=fill_col[k],cex.lab = 2, cex.axis = 2, cex.main = 2,
+              main = paste0(i," (",methods_[k],")"))
+      axis(side = 1, at = 1:length(m_), labels = m_, cex.lab = 2, cex.axis = 2)
+    }
+  }
+  dev.off()
+}
+
+test_name = "mesh_comparison_01_na-8000_obs-with-gmres"
+na_perc = 0.1
+n_obs = 8000
+
+
+mesh_ids = c("unit_square", "unit_square_coarse", "unit_square_medium")
+test_id = "diff_locations_diff_NA"
+
+imgdir = "imgs/"
+if(!dir.exists(imgdir)) dir.create(imgdir)
+
+imgdir = paste0(imgdir, test_id, "/")
+if(!dir.exists(imgdir)) dir.create(imgdir)
+
+results = list()  
+for (mesh_id in mesh_ids) { 
+  data_dir = paste0("//wsl.localhost/Ubuntu/root/fdaPDE-cpp/test/data/models/mixed_srpde/", mesh_id, "/", test_id, "/")
+  mono = read.table(paste0(data_dir, "output/monolithic.txt"), header = TRUE) 
+  rich = read.table(paste0(data_dir, "output/richardson.txt"), header = TRUE)
+  gmres = read.table(paste0(data_dir, "output/richardson_gmres.txt"), header = TRUE)
+  mono$solution_policy = rep("monolithic", times = nrow(mono))
+  rich$solution_policy = rep("richardson", times = nrow(rich))
+  gmres$solution_policy = rep("richardson_gmres", times = nrow(gmres))
+  results[[length(results) + 1]] = list(mono, rich, gmres)  
+}
+results_df = do.call(rbind, unlist(results, recursive = FALSE))  
+results_df$mesh = rep(mesh_ids, times = sapply(results, function(x) sum(sapply(x, nrow))))
+# results = results_df[results_df$rmse_alpha < 1,]
+
+results = results_df[results_df$na_perc == na_perc, ]
+results = results[results$n_obs == n_obs,]
+
+results$solution_policy = as.factor(results$solution_policy)
+results$mesh = factor(results$mesh, levels=c("unit_square_coarse", "unit_square_medium", "unit_square"), ordered = TRUE)
+
+# plots 
+filename = paste0(test_name,".pdf")
+plot_boxplot_levels_mesh(results, m="mesh", method="solution_policy", xlabel_name="Mesh ID",
+                    filename = paste0(paste0(imgdir,filename)))
 
 
