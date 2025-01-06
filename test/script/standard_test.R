@@ -650,3 +650,43 @@ plot_boxplot_levels_mesh(results, m="mesh", method="solution_policy", xlabel_nam
                     filename = paste0(paste0(imgdir,filename)))
 
 
+
+# ---------------------------- diff m
+test_id = "same_locs_diff_moutput"
+mesh_id = "unit_square_coarse"
+data_dir = paste0("//wsl.localhost/Ubuntu/root/fdaPDE-cpp/test/data/models/mixed_srpde/", mesh_id, "/", test_id, "/")
+mono = read.table(paste0(data_dir, "monolithic_gen.txt"), header = TRUE) 
+rich = read.table(paste0(data_dir, "richardson_gen.txt"), header = TRUE)
+gmres = read.table(paste0(data_dir, "richardson_gmres_gen.txt"), header = TRUE)
+mono$solution_policy = rep("monolithic", times = nrow(mono))
+rich$solution_policy = rep("richardson", times = nrow(rich))
+gmres$solution_policy = rep("richardson_gmres", times = nrow(gmres))
+results = list()  
+results[[length(results) + 1]] = list(mono, rich, gmres)  
+results_df = do.call(rbind, unlist(results, recursive = FALSE))  
+# results_df$mesh = rep(mesh_id, times = nrow(results_df))
+n_obs = 2000
+results = results_df[results_df$n_obs == n_obs,]
+filename = paste0(test_id,".pdf")
+
+imgdir = "imgs/"
+if(!dir.exists(imgdir)) dir.create(imgdir)
+
+imgdir = paste0(imgdir, test_id, "/")
+if(!dir.exists(imgdir)) dir.create(imgdir)
+
+results$solution_policy = as.factor(results$solution_policy)
+results$m = as.factor(results$m)
+
+# plots 
+filename = paste0(test_id,".pdf")
+plot_boxplot_levels(results, m="m", method="solution_policy", xlabel_name="Number of levels",
+                    filename = paste0(paste0(imgdir,filename)))
+
+# without gmres
+results = results[results$solution_policy != "richardson_gmres",]
+results$solution_policy = factor(results$solution_policy, levels=c("monolithic","richardson"))
+filename = paste0(test_id,"_without_gmres.pdf")
+plot_boxplot_levels(results, m="m", method="solution_policy", xlabel_name="Number of levels",
+                    filename = paste0(paste0(imgdir,filename)))
+
