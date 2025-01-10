@@ -260,6 +260,7 @@ class MixedRegressionBase : public RegressionBase<MixedRegressionBase<SolutionPo
         std::vector<BlockFrame<double, int>> data_;       // vector of dataframesMixedSRPDE
 
         void init_mPsi() { 
+
             mPsi_.resize(N, n_basis()*m_);
 
             std::vector<fdapde::Triplet<double>> triplet_list;
@@ -278,7 +279,6 @@ class MixedRegressionBase : public RegressionBase<MixedRegressionBase<SolutionPo
             mPsi_.setFromTriplets(triplet_list.begin(), triplet_list.end());
             mPsi_.makeCompressed();
 
-            // std::cout << "\t mPsi: " << mPsi_.rows() << " " << mPsi_.cols()  << std::endl;
         } 
 };
 
@@ -317,7 +317,7 @@ class MixedSRPDE<monolithic> : public MixedRegressionBase<MixedSRPDE<monolithic>
         MixedSRPDE(const pde_ptr& pde, Sampling s) : MixedRegressionBase(pde, s){};
         MixedSRPDE(const pde_ptr& pde, Sampling s, bool same_locs = false) : MixedRegressionBase(pde, s, same_locs){};
 
-        const SpMatrix<double> R0() { return Kronecker(I_, pde_.mass()); }
+        const SpMatrix<double> R0() const { return Kronecker(I_, pde_.mass()); }
         const SpMatrix<double> R1() const { return Kronecker(I_, pde_.stiff()); }
 
         void init_model(){
@@ -509,7 +509,7 @@ class MixedSRPDE<iterative> : public MixedRegressionBase<MixedSRPDE<iterative>> 
                 // _start_ = std::chrono::high_resolution_clock::now(); 
                 if(!same_locs_value || (same_locs_value && i==0)){
                     A_ = SparseBlockMatrix<double, 2, 2>(
-                    -PsiTD_[i]*Psi_[i],                     lambda_D() * pde_.stiff().transpose(),
+                    -PsiTD_[i]*W(i)*Psi_[i],                     lambda_D() * pde_.stiff().transpose(),
                     lambda_D() * pde_.stiff(),             lambda_D() * pde_.mass()                 );
                 }   
                 // _duration_ = std::chrono::high_resolution_clock::now() - _start_;
@@ -857,6 +857,7 @@ class MixedSRPDE<iterative> : public MixedRegressionBase<MixedSRPDE<iterative>> 
             return (y_ - X() * beta_ - fhat).squaredNorm() + lambda_D()*g.squaredNorm(); 
         }
 
+        const DiagMatrix<double> W(std::size_t i) const {return DVector<double>::Ones(n_locs(i)).asDiagonal(); };
 
 };
 
