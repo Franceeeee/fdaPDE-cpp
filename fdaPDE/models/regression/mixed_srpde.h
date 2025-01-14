@@ -87,7 +87,6 @@ class MixedRegressionBase : public RegressionBase<MixedRegressionBase<SolutionPo
 
         void init_X() {
             set_n_locs_cum();
-            //set_N();
             m_ = data_.size();                                              // m_: number of patients
             p_ = data_[0].template get<double>(V_BLOCK).cols();             // p_: patient-specific covariates
             if(data_[0].template get<double>(W_BLOCK).cols()){
@@ -115,11 +114,10 @@ class MixedRegressionBase : public RegressionBase<MixedRegressionBase<SolutionPo
 
             // build multi-domain model design matrix 
             init_X();
-            // std::cout << "init X" << std::endl;
 
             // initialize empty masks
-            if (!y_mask_.size()) y_mask_.resize(N); // da sostituire N - Base::n_locs()
-            if (!nan_mask_.size()) nan_mask_.resize(N); // da sostiture N - Base::n_locs()
+            if (!y_mask_.size()) y_mask_.resize(N);
+            if (!nan_mask_.size()) nan_mask_.resize(N); 
 
             // compute q x q dense matrix X^\top*W*X and its factorization
             // if (has_weights() && df_.is_dirty(WEIGHTS_BLK)) {
@@ -135,7 +133,6 @@ class MixedRegressionBase : public RegressionBase<MixedRegressionBase<SolutionPo
                 invXtWX_ = XtWX_.partialPivLu(); 
             // }
             
-
             // derive missingness pattern from observations vector (if changed)
             if ( y_.size() > 0 ) {      // if y is not empty
                 n_nan_ = 0;
@@ -169,7 +166,6 @@ class MixedRegressionBase : public RegressionBase<MixedRegressionBase<SolutionPo
             DMatrix<double> v = X_.transpose() * W_ * x;             // X^\top*W*x
             DMatrix<double> z = invXtWX_.solve(v);                   // (X^\top*W*X)^{-1}*X^\top*W*x
             // compute W*x - W*X*z = W*x - (W*X*(X^\top*W*X)^{-1}*X^\top*W)*x = W(I - H)*x = Q*x
-            //    std::cout << z << std::endl;
             return W_ * x - W_ * X_ * z;
         }
 
