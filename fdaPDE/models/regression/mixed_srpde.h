@@ -212,7 +212,6 @@ class MixedRegressionBase : public RegressionBase<MixedRegressionBase<SolutionPo
         // getters
         std::size_t q() const { return r_+m_*p_; }
         std::size_t n_locs(std::size_t i) const { return data_[i].template get<double>(LOCS_BLOCK).rows(); }
-        // const DMatrix<double>& locs(std::size_t i) const { return data_[i].template get<double>(LOCS_BLOCK); } 
         
         const DVector<double>& f() const { return f_; };
         const DVector<double> f(std::size_t i) const {return f_.block(i*n_basis(), 0, n_basis(), 1); }
@@ -229,23 +228,23 @@ class MixedRegressionBase : public RegressionBase<MixedRegressionBase<SolutionPo
 
     protected:
         
-        DVector<double> b_ {};                         // right hand side of problem's linear system (1 x 2N vector)
+        DVector<double> b_ {};      // right hand side of problem's linear system (1 x 2N vector)
         DMatrix<double> y_ {}; 
         DMatrix<double> X_ {};      // dimensione: N osservazioni totali * r_ covariate gruppo specifiche
         
-        std::size_t N;          // N: total observations (N=n*m)
-        std::size_t m_;          // m: number of levels
-        std::size_t p_;         // p_: number of level-specific covariatess
-        std::size_t r_;         // r_:  group-specific covariates
-        std::size_t q_;          // q_: "input" DesignMatrix columns -> q_ - p_ = r_f
+        std::size_t N;              // N: total observations (N=n*m)
+        std::size_t m_;             // m: number of levels
+        std::size_t p_;             // p_: number of level-specific covariatess
+        std::size_t r_;             // r_:  group-specific covariates
+        std::size_t q_;             // q_: "input" DesignMatrix columns -> q_ - p_ = r_f
 
-        SpMatrix<double> I_;   // N x N sparse identity matrix 
+        SpMatrix<double> I_;        // N x N sparse identity matrix 
 
         SpMatrix<double> mPsi_;
         SpMatrix<double> mPsiTD_;
 
-        std::vector<SpMatrix<double>> Psi_;                // override of Psi_
-        std::vector<SpMatrix<double>> PsiTD_;              // override of Psi_
+        std::vector<SpMatrix<double>> Psi_;             // override of Psi_
+        std::vector<SpMatrix<double>> PsiTD_;           // override of Psi_
     
         DMatrix<double> alpha_coeff_;                   // coefficients
         DMatrix<double> beta_coeff_;                    // beta coefficients of the original model
@@ -253,7 +252,7 @@ class MixedRegressionBase : public RegressionBase<MixedRegressionBase<SolutionPo
         DMatrix<double> T_;
         DVector<int> n_locs_cum;
 
-        std::vector<BlockFrame<double, int>> data_;       // vector of dataframesMixedSRPDE
+        std::vector<BlockFrame<double, int>> data_;     // vector of dataframesMixedSRPDE
 
         void init_mPsi() { 
 
@@ -277,6 +276,7 @@ class MixedRegressionBase : public RegressionBase<MixedRegressionBase<SolutionPo
 
         } 
 };
+
 
 // monolithic specialization
 
