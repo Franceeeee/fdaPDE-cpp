@@ -43,12 +43,12 @@ using fdapde::core::BlockVector;
 namespace fdapde {
 namespace models {
 
-template <typename SolutionPolicy> class MixedRegressionBase;
+template <typename SolutionPolicy> class fANOVABase;
 
 template <typename SolutionPolicy>
-class MixedRegressionBase : public RegressionBase<MixedRegressionBase<SolutionPolicy>, SpaceOnly>{
+class fANOVABase : public RegressionBase<fANOVABase<SolutionPolicy>, SpaceOnly>{
     public:
-        using Base = RegressionBase<MixedRegressionBase<SolutionPolicy>, SpaceOnly>;
+        using Base = RegressionBase<fANOVABase<SolutionPolicy>, SpaceOnly>;
         using Base::model;
         using Base::y_mask_;
         using Base::W_;
@@ -65,9 +65,9 @@ class MixedRegressionBase : public RegressionBase<MixedRegressionBase<SolutionPo
 
         IMPORT_REGRESSION_SYMBOLS;
 
-        MixedRegressionBase() = default;
-        MixedRegressionBase(const pde_ptr& pde, Sampling s) : Base(pde, s) { };
-        MixedRegressionBase(const pde_ptr& pde, Sampling s, bool same_locs_value) : Base(pde, s, same_locs_value) { };
+        fANOVABase() = default;
+        fANOVABase(const pde_ptr& pde, Sampling s) : Base(pde, s) { };
+        fANOVABase(const pde_ptr& pde, Sampling s, bool same_locs_value) : Base(pde, s, same_locs_value) { };
 
         void init_sampling(bool forced = true) {
         // switch (s) {
@@ -224,7 +224,7 @@ class MixedRegressionBase : public RegressionBase<MixedRegressionBase<SolutionPo
         const DMatrix<double>& y(std::size_t i) const { return data_[i].template get<double>(Y_BLOCK); } 
         const DMatrix<double>& X() const { return X_; }  
 
-        virtual ~MixedRegressionBase() = default;
+        virtual ~fANOVABase() = default;
 
     protected:
         
@@ -280,13 +280,13 @@ class MixedRegressionBase : public RegressionBase<MixedRegressionBase<SolutionPo
 
 // monolithic specialization
 
-template <typename SolutionPolicy> class MixedSRPDE;
+template <typename SolutionPolicy> class fANOVA;
 
 template <> 
-class MixedSRPDE<monolithic> : public MixedRegressionBase<MixedSRPDE<monolithic>>{
+class fANOVA<monolithic> : public fANOVABase<fANOVA<monolithic>>{
     
     public:
-        using MixedRegressionBase::Base;
+        using fANOVABase::Base;
         using Base::model;
         using Base::y_mask_;
         using Base::XtWX_;
@@ -298,20 +298,20 @@ class MixedSRPDE<monolithic> : public MixedRegressionBase<MixedSRPDE<monolithic>
         using Base::n_basis;    // number of spatial basis
         using Base::runtime;    // runtime model status
 
-        using MixedRegressionBase::RegularizationType;
+        using fANOVABase::RegularizationType;
         IMPORT_REGRESSION_SYMBOLS;
 
-        using MixedRegressionBase::n_locs;
-        using MixedRegressionBase::lmbQ;
-        using MixedRegressionBase::q;
-        using MixedRegressionBase::f;
-        using MixedRegressionBase::beta;
-        using MixedRegressionBase::alpha;
-        using MixedRegressionBase::init_mPsi;
+        using fANOVABase::n_locs;
+        using fANOVABase::lmbQ;
+        using fANOVABase::q;
+        using fANOVABase::f;
+        using fANOVABase::beta;
+        using fANOVABase::alpha;
+        using fANOVABase::init_mPsi;
 
-        MixedSRPDE() = default;
-        MixedSRPDE(const pde_ptr& pde, Sampling s) : MixedRegressionBase(pde, s){};
-        MixedSRPDE(const pde_ptr& pde, Sampling s, bool same_locs = false) : MixedRegressionBase(pde, s, same_locs){};
+        fANOVA() = default;
+        fANOVA(const pde_ptr& pde, Sampling s) : fANOVABase(pde, s){};
+        fANOVA(const pde_ptr& pde, Sampling s, bool same_locs = false) : fANOVABase(pde, s, same_locs){};
 
         const SpMatrix<double> R0() const { return Kronecker(I_, pde_.mass()); }
         const SpMatrix<double> R1() const { return Kronecker(I_, pde_.stiff()); }
@@ -391,7 +391,7 @@ class MixedSRPDE<monolithic> : public MixedRegressionBase<MixedSRPDE<monolithic>
             return;
         }
     
-    virtual ~MixedSRPDE() = default;
+    virtual ~fANOVA() = default;
     
     protected:
 
@@ -444,10 +444,10 @@ public:
 
 // iterative specialization
 template <>
-class MixedSRPDE<iterative> : public MixedRegressionBase<MixedSRPDE<iterative>> {
+class fANOVA<iterative> : public fANOVABase<fANOVA<iterative>> {
 
     public:
-        using MixedRegressionBase::Base;
+        using fANOVABase::Base;
         using Base::model;
         using Base::y_mask_;
         using Base::XtWX_;
@@ -459,22 +459,22 @@ class MixedSRPDE<iterative> : public MixedRegressionBase<MixedSRPDE<iterative>> 
         using Base::n_basis;    // number of spatial basis
         using Base::runtime;    // runtime model status
 
-        using MixedRegressionBase::RegularizationType;
+        using fANOVABase::RegularizationType;
         IMPORT_REGRESSION_SYMBOLS;
 
-        using MixedRegressionBase::n_locs;
-        using MixedRegressionBase::lmbQ;
-        using MixedRegressionBase::q;
-        using MixedRegressionBase::f;
-        using MixedRegressionBase::beta;
-        using MixedRegressionBase::alpha;
-        using MixedRegressionBase::Vp;
-        using MixedRegressionBase::Wg;
-        using MixedRegressionBase::init_mPsi;
-        using MixedRegressionBase::X;
+        using fANOVABase::n_locs;
+        using fANOVABase::lmbQ;
+        using fANOVABase::q;
+        using fANOVABase::f;
+        using fANOVABase::beta;
+        using fANOVABase::alpha;
+        using fANOVABase::Vp;
+        using fANOVABase::Wg;
+        using fANOVABase::init_mPsi;
+        using fANOVABase::X;
 
-        MixedSRPDE() = default;
-        MixedSRPDE(const pde_ptr& pde, Sampling s, bool same_locs = false) : MixedRegressionBase(pde, s, same_locs) {};
+        fANOVA() = default;
+        fANOVA(const pde_ptr& pde, Sampling s, bool same_locs = false) : fANOVABase(pde, s, same_locs) {};
 
         // commento: mPsi_ e mPsiTD_ vanno costruite per forza?! Riusciamo a lavorare "solo" con Psi_[] e PsiTD_[]
         void init_model(){
@@ -825,7 +825,7 @@ class MixedSRPDE<iterative> : public MixedRegressionBase<MixedSRPDE<iterative>> 
         void set_tolerance(double tol) { tol_ = tol; }
         void set_max_iter(std::size_t max_iter) { max_iter_ = max_iter; }
 
-        virtual ~MixedSRPDE() = default;
+        virtual ~fANOVA() = default;
     
     protected:
         
