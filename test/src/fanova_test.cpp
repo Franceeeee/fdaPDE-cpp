@@ -296,11 +296,8 @@ TEST(fanova_test, same_locations_diff_NA) {
     if(!std::filesystem::exists(std::filesystem::path(input_dir))) {
 
         std::filesystem::create_directory(input_dir);
-            // Parametri della distribuzione gaussiana (media e varianza per riga)
         std::vector<double> means = {500, 1000, 2000, 4000, 8000};
-        std::vector<double> stddevs = {50, 100, 200, 400, 800}; // Deviazioni standard
-
-        // std::cout << "\t --- generating data --- " << std::endl;
+        std::vector<double> stddevs = {50, 100, 200, 400, 800}; 
 
         Eigen::saveMarket(beta, input_dir + "beta.mtx");
         Eigen::saveMarket(alpha, input_dir + "alpha.mtx");
@@ -327,14 +324,12 @@ TEST(fanova_test, same_locations_diff_NA) {
             for(std::size_t sim=0; sim<n_sim; ++sim){
 
                 double na_percentage = na_percentage_vec(static_cast<int>(sim/20));
-                // std::cout<< "NA perc:" << na_percentage <<std::endl;
                 std::mt19937 gen(seed+ sim);
                 
-                // Ciclo per riempire la matrice
                 for (int i = 0; i < n_obs.rows(); ++i) {
                     std::normal_distribution<> dist(means[i], stddevs[i]);
                     for (int j = 1; j < n_obs.cols(); ++j) {
-                        n_obs(i, j) = static_cast<int>(dist(gen)); // Cast a int per valori interi
+                        n_obs(i, j) = static_cast<int>(dist(gen));
                     }
                 }
                 std::string simul_dir = data_dir + std::to_string(sim) + "/"; 
@@ -377,7 +372,7 @@ TEST(fanova_test, same_locations_diff_NA) {
         }
     }
      
-    // Output directory
+    // output directory
 	std::string output_dir = name_dir + "output/";
     if(!std::filesystem::exists(std::filesystem::path(output_dir))){ 
         std::filesystem::create_directory(output_dir);
@@ -395,7 +390,7 @@ TEST(fanova_test, same_locations_diff_NA) {
     DMatrix<double> results_gmres = DMatrix<double>::Zero( n_sim*n_obs.rows(), header.size());
 
     for(std::size_t n = 0; n < n_obs.rows(); ++n){ 
-        output_dir = name_dir + "output/"; // + "monolithic/";
+        output_dir = name_dir + "output/"; 
         output_dir += std::to_string(n_obs(n,0)) + "/" ;
         
         std::string data_dir = input_dir + std::to_string(n_obs(n,0)) + "/";
@@ -438,9 +433,7 @@ TEST(fanova_test, same_locations_diff_NA) {
                     validIndices.push_back(i);
                 }
             }
-            // std::cout << "valid_indices: " << validIndices.size() << std::endl;
-            // std::cout << "obs_rows: " << obs.rows() << std::endl;
-            
+
             if(validIndices.size() != obs.rows()){
                 // create new y_ with only valid entries
                 DVector<double> y_new(validIndices.size());
@@ -500,7 +493,6 @@ TEST(fanova_test, same_locations_diff_NA) {
         fANOVA<iterative> richardson_(problem, Sampling::pointwise, same_locs);
         richardson_.set_lambda_D(lambda);
 	    richardson_.set_data(data);
-        // richardson_.set_GMRES_params(0);
 
         start = std::chrono::high_resolution_clock::now();
         richardson_.init();
