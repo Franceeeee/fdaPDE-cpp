@@ -326,33 +326,23 @@ class fANOVA<monolithic> : public fANOVABase<fANOVA<monolithic>>{
 
             if (runtime().query(runtime_status::is_lambda_changed)) {
                 
-                // auto start = std::chrono::high_resolution_clock::now();
-
                 A_ = SparseBlockMatrix<double, 2, 2>(
-                        -mPsiTD_  * W_ * mPsi_, lambda_D() * R1().transpose(), //!? 1/N in (0,0)
+                        -mPsiTD_  * W_ * mPsi_, lambda_D() * R1().transpose(), 
                         lambda_D() * R1(),        lambda_D() * R0()            );
 
-                // auto end = std::chrono::high_resolution_clock::now();
-                // std::chrono::duration<double> duration = std::chrono::high_resolution_clock::now() - start;
-                // std::cout << "- A_: " << duration.count() << std::endl;
-
-                // start = std::chrono::high_resolution_clock::now();
                 invA_.compute(A_);
-
-                // duration = std::chrono::high_resolution_clock::now() - start;
-                // std::cout << "- inv A_: " << duration.count() << std::endl;
 
                 // prepare rhs of linear system 
                 b_.resize(A_.rows());
                 for( int i=0; i < m_; ++i){
-                    b_.block((m_+i)*n_basis(), 0, n_basis(), 1) = lambda_D() * u(); // !!!! n_basis() * m
+                    b_.block((m_+i)*n_basis(), 0, n_basis(), 1) = lambda_D() * u(); 
                 }
                 return;
             }
 
             if (runtime().query(runtime_status::require_W_update)) {
                 // adjust north-west block of matrix A_ only
-                A_.block(0, 0) = -mPsiTD_ * W_ * mPsi_;      // W() problemi . 
+                A_.block(0, 0) = -mPsiTD_ * W_ * mPsi_;     
                 invA_.compute(A_);
                 return;
             }
@@ -360,17 +350,19 @@ class fANOVA<monolithic> : public fANOVABase<fANOVA<monolithic>>{
         
         void solve(){
 
-            // auto start = std::chrono::high_resolution_clock::now();
             fdapde_assert(y_.rows() != 0);
             DVector<double> sol;
+
             // parametric case
             // update rhs of SR-PDE linear system
-            b_.block(0, 0, m_*n_basis(), 1) = -mPsiTD_ * W_ * lmbQ(y_);   // !? 1/N .. -\Psi^T*D*Q*z
+            b_.block(0, 0, m_*n_basis(), 1) = -mPsiTD_ * W_ * lmbQ(y_);  
+            
             // matrices U and V for application of woodbury formula
             U_ = DMatrix<double>::Zero(2 * m_ * n_basis(), q());
-            U_.block(0, 0, m_* n_basis(), q()) =  mPsiTD_ * W_ * X_; // * W() * X(); !? 1/N
+            U_.block(0, 0, m_* n_basis(), q()) =  mPsiTD_ * W_ * X_; 
+
             V_ = DMatrix<double>::Zero(q(), 2 * m_ * n_basis());
-            V_.block(0, 0, q(), m_ * n_basis()) = X_.transpose() * W_ * mPsi_; // W() * mPsi()
+            V_.block(0, 0, q(), m_ * n_basis()) = X_.transpose() * W_ * mPsi_; 
 
             // solve system (A_ + U_*(X^T*W_*X)*V_)x = b using woodbury formula from linear_algebra module
             sol = SMW<>().solve(invA_, U_, XtWX_, V_, b_);
@@ -383,8 +375,6 @@ class fANOVA<monolithic> : public fANOVABase<fANOVA<monolithic>>{
 
             beta_coeff_ = F_ * beta_;
             alpha_coeff_ = T_*beta_.tail(m_*p_); 
-
-            std::cout << "nu:\n" << beta_ << std::endl;
 
             // store PDE misfit
             g_ = sol.tail(m_*n_basis());
@@ -476,9 +466,7 @@ class fANOVA<iterative> : public fANOVABase<fANOVA<iterative>> {
         fANOVA() = default;
         fANOVA(const pde_ptr& pde, Sampling s, bool same_locs = false) : fANOVABase(pde, s, same_locs) {};
 
-        // commento: mPsi_ e mPsiTD_ vanno costruite per forza?! Riusciamo a lavorare "solo" con Psi_[] e PsiTD_[]
         void init_model(){
-            // auto start = std::chrono::high_resolution_clock::now();
 
             init_mPsi(); 
             mPsiTD_ = mPsi_.transpose();   
@@ -487,78 +475,42 @@ class fANOVA<iterative> : public fANOVABase<fANOVA<iterative>> {
 
             invA_.resize(data_.size());
             A_v.resize(data_.size());
-            _U = DMatrix<double>::Zero(n_basis(), m_*q_); //U_tilde in 2*n_basis x ( (q-p) + p ) * m = 2*n_basis x m q
-                                                        // riusciamo ad evitare di salvare n_basis * q zeri?
-            //_V.resize(data_.size());
+            _U = DMatrix<double>::Zero(n_basis(), m_*q_);   // U_tilde in 2*n_basis x ( (q-p) + p ) * m = 2*n_basis x m q
+                                                       
             invG.resize(data_.size());
-            // Initialization
-            // auto _start = std::chrono::high_resolution_clock::now();
-            // auto _start_ = std::chrono::high_resolution_clock::now();
-            // std::chrono::duration<double> _duration_ = std::chrono::high_resolution_clock::now() - _start_;
-
+            
+            // initialization
             for (std::size_t i = 0; i < m_; i++){
 
-                //_U[i] = DMatrix<double>::Zero(2*n_basis(), q()); 
-                //_V[i] = DMatrix<double>::Zero(q(), 2*n_basis());
-            
-                // start = std::chrono::high_resolution_clock::now();
-                // _start_ = std::chrono::high_resolution_clock::now(); 
                 if(!same_locs_value || (same_locs_value && i==0)){
                     A_ = SparseBlockMatrix<double, 2, 2>(
                     -PsiTD_[i]*W(i)*Psi_[i],                     lambda_D() * pde_.stiff().transpose(),
                     lambda_D() * pde_.stiff(),             lambda_D() * pde_.mass()                 );
                 }   
-                // _duration_ = std::chrono::high_resolution_clock::now() - _start_;
-                // std::cout << "-          build A_: " << _duration_.count() << std::endl;
-                // duration = std::chrono::high_resolution_clock::now() - start;
-                // start = std::chrono::high_resolution_clock::now();
-                
-                // std::cout << A_.rows() << " " << A_.cols() << std::endl;
+
                 A_v[i] = A_;
-                // _start_ = std::chrono::high_resolution_clock::now();
+                
                 if(same_locs_value && i!=0){
                     invA_[i] = invA_[0];
                 }else{
                     invA_[i].compute(A_);                    
                 }
-                // _duration_ = std::chrono::high_resolution_clock::now() - _start_;
-                // std::cout << "-          build invA_: " << _duration_.count() << std::endl;
-
-                // _start_ = std::chrono::high_resolution_clock::now();
+                
                 if(r_){
                     _U.block(0, i*q_ , n_basis(), r_) = PsiTD_[i]*Wg(i);
                 }
                 _U.block(0, (i+1)*q_ - p_, n_basis(), p_) = PsiTD_[i]*Vp(i);
                 
-                // _duration_ = std::chrono::high_resolution_clock::now() - _start_;
-                // std::cout << "-          build _U[i]: " << _duration_.count() << std::endl;
-                // _start_ = std::chrono::high_resolution_clock::now();
-                // _duration_ = std::chrono::high_resolution_clock::now() - _start_;
-                // std::cout << "-          build _V[i]: " << _duration_.count() << std::endl;
-
-                // _start_ = std::chrono::high_resolution_clock::now();
-                invG[i].compute(XtWX_ + U_view(_U, i, q_, p_).transpose() * invA_[i].solve(U_view(_U, i, q_, p_)));   // XtWX() serve ?
-                // _duration_ = std::chrono::high_resolution_clock::now() - _start_;
-                // std::cout << "-          invG[i]: " << _duration_.count() << std::endl;
+                invG[i].compute(XtWX_ + U_view(_U, i, q_, p_).transpose() * invA_[i].solve(U_view(_U, i, q_, p_)));  
             }
 
-            // std::chrono::duration<double> _duration = std::chrono::high_resolution_clock::now() - _start;
-            // std::cout << "-          P[i], invP[i], U[i], V[i]: " << _duration.count() << std::endl;
-            
-            // _start = std::chrono::high_resolution_clock::now();
             set_F_T();
-            // _duration = std::chrono::high_resolution_clock::now() - _start;
-            // std::cout << "-          build F & T: " << _duration.count() << std::endl;
             
-            // std::chrono::duration<double> duration = std::chrono::high_resolution_clock::now() - start;
-            // std::cout << "-     init model: " << duration.count() << std::endl;
             return;
         }
 
     
         void solve(){
-            // std::cout << "solve" << std::endl;
-            // auto start = std::chrono::high_resolution_clock::now();
         
             fdapde_assert(y_.rows() != 0);
             
@@ -566,7 +518,7 @@ class fANOVA<iterative> : public fANOVABase<fANOVA<iterative>> {
             DVector<double> x_old = DMatrix<double>::Zero(2*n_basis()*m_, 1);
             b_.block(0, 0, n_basis()*m_, 1) = -mPsiTD_ * lmbQ(y_); 
             
-            DVector<double> r = b_; //DMatrix<double>::Zero(2*m_*n_basis(), 1);
+            DVector<double> r = b_; 
             double Jnew;
             double Jold;
             
@@ -575,26 +527,15 @@ class fANOVA<iterative> : public fANOVABase<fANOVA<iterative>> {
             DVector<double> zi = DMatrix<double>::Zero(2*n_basis(),1);
             x_new_vec.resize(2*n_basis()*m_); 
             
-            // auto _start = std::chrono::high_resolution_clock::now();
-            // auto _start_ = std::chrono::high_resolution_clock::now();
-            // std::chrono::duration<double> _duration_ = std::chrono::high_resolution_clock::now() - _start_;
-
-            // std::cout << " --- initialization ---" << std::endl; 
             for (std::size_t i = 0; i < m_; i++){
 
                 bi.block(0,0,n_basis(),1) = b_.block(i*n_basis(), 0, n_basis(), 1);
                             
-                // solve system (A_ + U_*(X^T*W_*X)*V_)x = b using woodbury formula from linear_algebra module
-                // _start_ = std::chrono::high_resolution_clock::now();
-                
+                // solve system (A_ + U_*(X^T*W_*X)*V_)x = b using woodbury formula from linear_algebra module               
                 DMatrix<double> y = invA_[i].solve(bi);   
                 DMatrix<double> t = invG[i].solve(U_view(_U, i, q_, p_).transpose()*y);
                 zi = y - invA_[i].solve(U_view(_U, i, q_, p_) * t);
-                // 
-                // _duration_ = std::chrono::high_resolution_clock::now() - _start_;
-                // std::cout << "-          SMW: " << _duration_.count() << std::endl;
-                
-                // _start_ = std::chrono::high_resolution_clock::now();
+
                 x_new.block(i*n_basis(), 0, n_basis(),1) = zi.head(n_basis());
                 x_new.block((i+m_)*n_basis(),0, n_basis(),1) = zi.tail(n_basis());
                 x_new_vec[i] = zi;
@@ -603,24 +544,13 @@ class fANOVA<iterative> : public fANOVABase<fANOVA<iterative>> {
                 r.block(n_basis()*i,0, n_basis(),1) -=   ((-PsiTD_[i]*Psi_[i]) * zi.head(n_basis()) +
                                                         lambda_D()*pde_.stiff().transpose()*zi.tail(n_basis()));
     
-                // correzione cov fuori
                 r.block(n_basis()*(m_+i),0, n_basis(),1) -= (lambda_D()*pde_.stiff()*zi.head(n_basis()) +
                                                             lambda_D()*pde_.mass()*zi.tail(n_basis()) );
-                
-                // _duration_ = std::chrono::high_resolution_clock::now() - _start_;
-                // std::cout << "-          linear algebra: " << _duration_.count() << std::endl;
             }
-            // std::chrono::duration<double> _duration = std::chrono::high_resolution_clock::now() - _start;
-            // std::cout << "-      inizializzazione: " << _duration.count() << std::endl;
-            // _start = std::chrono::high_resolution_clock::now();
             
-            // _start = std::chrono::high_resolution_clock::now();
-            //auto tmp = Wg(0).rows();
-            // _duration = std::chrono::high_resolution_clock::now() - _start;
-            // std::cout << "-      access data frame: " << _duration.count() << "" << std::endl;
             bi = DMatrix<double>::Zero(2*n_basis(), 1);
 
-            // correzione covariate
+            // covariate correction
             DMatrix<double> u = DMatrix<double>::Zero(q(),1);
             for(std::size_t i = 0; i < m_; ++i){
                 if(r_){
@@ -639,9 +569,6 @@ class fANOVA<iterative> : public fANOVABase<fANOVA<iterative>> {
                 }
             }
         
-            // _duration = std::chrono::high_resolution_clock::now() - _start;
-            // std::cout << "-      residuo: " << _duration.count() << std::endl;
-            
             // store result of smoothing
             f_ = x_new.head(m_*n_basis());      // f0        
             g_ = x_new.tail(m_*n_basis());      // g0
@@ -664,125 +591,99 @@ class fANOVA<iterative> : public fANOVABase<fANOVA<iterative>> {
             bool rcheck = r.norm() / b_.norm() < tol_res;           // stop by residual    
             bool Jcheck =  std::abs((Jnew-Jold)/Jnew) < tol_;       // stop by J
             bool exit_ = Jcheck && rcheck;
-      
-            // _start = std::chrono::high_resolution_clock::now();
 
-            // PARAMETRI GMRES: memory, da passare in chiamata. Se memory = 0 allora solve base.
+            // 'memory' is the GMRES parameter memory, if memory == 0 then we have the base solver
 
             // iterative scheme for minimization of functional 
             while (k < max_iter_ && !exit_)  {
-                // auto __start = std::chrono::high_resolution_clock::now();
-                for(std::size_t i = 0; i < m_; i++){                  
-                        // valutare implementazione di lmbQ(yi)
-                        // _start_ = std::chrono::high_resolution_clock::now();
-                        bi.block(0,0,n_basis(),1) = r.block(i*n_basis(), 0, n_basis(), 1) ; 
-                        bi.block(n_basis(), 0, n_basis(), 1) = r.block( (i+m_)*n_basis(), 0, n_basis(), 1);
-                        // _duration_ = std::chrono::high_resolution_clock::now() - _start_;
-                        //std::cout << "-          update b_i: " << _duration_.count() << std::endl;
+                for(std::size_t i = 0; i < m_; i++){       
 
-                        // _start_ = std::chrono::high_resolution_clock::now();
-                        
-                        // SMW a mano :-)
-                        DMatrix<double> y = invA_[i].solve(bi);   
-                        DMatrix<double> t = invG[i].solve(U_view(_U, i, q_, p_).transpose()*y);
-                        zi = y -  invA_[i].solve(U_view(_U, i, q_, p_) * t);
-                        // ----
-                        // _duration_ = std::chrono::high_resolution_clock::now() - _start_;
-                        // std::cout << "-          SMW: " << _duration_.count() << std::endl;
+                    bi.block(0,0,n_basis(),1) = r.block(i*n_basis(), 0, n_basis(), 1) ; 
+                    bi.block(n_basis(), 0, n_basis(), 1) = r.block( (i+m_)*n_basis(), 0, n_basis(), 1);
 
-                        x = x_new_vec[i]; // questa riga evita di replicare codice nell'ottimizzazione mem_=0
+                    // SMW 
+                    DMatrix<double> y = invA_[i].solve(bi);   
+                    DMatrix<double> t = invG[i].solve(U_view(_U, i, q_, p_).transpose()*y);
+                    zi = y -  invA_[i].solve(U_view(_U, i, q_, p_) * t);
 
-                        if(mem_){
-                            //std::cout<<"ciao"<<std::endl;
-                            // _start_ = std::chrono::high_resolution_clock::now();
-                            int A_rows = A_v[i].rows();
-                            double res_norm = zi.norm();
-                            x = x_new_vec[i]; // Soluzione iniziale (x0)
+                    x = x_new_vec[i]; // this line is needed for mem_=0 optimization
 
-                            // Matrice di Hessenberg e vettore di Krylov
-                            DMatrix<double> V = DMatrix<double>::Zero(A_rows, mem_ + 1); // Base ortonormale
-                            DMatrix<double> H = DMatrix<double>::Zero(mem_ + 1, mem_); // Matrice Hessenberg
+                    if(mem_){
 
-                            V.col(0) = zi / res_norm; // Primo vettore ortonormale
+                        int A_rows = A_v[i].rows();
+                        double res_norm = zi.norm();
+                        x = x_new_vec[i];       // initial solution x0
 
-                            DVector<double> e1 = DMatrix<double>::Zero(mem_ + 1, 1); 
-                            e1(0) = res_norm;
+                        // Hessenberg matrix and Krylov vector
+                        DMatrix<double> V = DMatrix<double>::Zero(A_rows, mem_ + 1);        // orthonormal basis
+                        DMatrix<double> H = DMatrix<double>::Zero(mem_ + 1, mem_);          // Hessenberg matrix
 
-                            // Iterazioni GMRES
-                            for (int j_col = 0; j_col < mem_; ++j_col) {
-                                // nuovo vettore di Krylov
-                                DVector<double> w = A_v[i] * V.col(j_col); // per questo passaggio siamo costretti a portarci dietro A[i]
+                        V.col(0) = zi / res_norm;           // first orthonormal vector
 
-                                // Ortonormalizzazione Arnoldi
-                                for (int i_row = 0; i_row <= j_col; ++i_row) {
-                                    H(i_row, j_col) = V.col(i_row).dot(w);
-                                    w -= H(i_row, j_col) * V.col(i_row);
-                                }
-                                H(j_col + 1, j_col) = w.norm();
+                        DVector<double> e1 = DMatrix<double>::Zero(mem_ + 1, 1); 
+                        e1(0) = res_norm;
 
-                                // Interrompi se il vettore è quasi nullo
-                                if (H(j_col + 1, j_col) < 10e-6) break;
+                        // GMRES iterations
+                        for (int j_col = 0; j_col < mem_; ++j_col) {
 
-                                V.col(j_col + 1) = w / H(j_col + 1, j_col);
+                            // new Krylov vector
+                            DVector<double> w = A_v[i] * V.col(j_col); 
 
-                                // Risuzione del pb ridotto con metodo QR
-                                DVector<double> partial_sol = H.block(0, 0, j_col + 2, j_col + 1)
-                                                        .colPivHouseholderQr()
-                                                        .solve(e1.head(j_col + 2));
-
-                                // norma e aggiornamento
-                                double res_norm = (e1.head(j_col + 2) - H.block(0, 0, j_col + 2, j_col + 1) * partial_sol).norm();
-                                //std::cout << "res_norm = "<<res_norm<<std::endl;
-                                if (res_norm < 10e-2) {
-                                    x += V.leftCols(j_col + 1) * partial_sol; 
-                                }
+                            // Arnoldi orthonormalization
+                            for (int i_row = 0; i_row <= j_col; ++i_row) {
+                                H(i_row, j_col) = V.col(i_row).dot(w);
+                                w -= H(i_row, j_col) * V.col(i_row);
                             }
+                            H(j_col + 1, j_col) = w.norm();
 
-                            // Soluzione approssimata dopo m iterazioni
-                            DVector<double> partial_sol = H.block(0, 0, mem_ + 1, mem_)
+                            // break if vector is almost zero
+                            if (H(j_col + 1, j_col) < 10e-6) break;
+
+                            V.col(j_col + 1) = w / H(j_col + 1, j_col);
+
+                            DVector<double> partial_sol = H.block(0, 0, j_col + 2, j_col + 1)
                                                     .colPivHouseholderQr()
-                                                    .solve(e1);
+                                                    .solve(e1.head(j_col + 2));
 
-                            x += V.leftCols(mem_) * partial_sol;
+                            double res_norm = (e1.head(j_col + 2) - H.block(0, 0, j_col + 2, j_col + 1) * partial_sol).norm();
+                            
+                            // update
+                            if (res_norm < 10e-2) {
+                                x += V.leftCols(j_col + 1) * partial_sol; 
+                            }
                         }
 
-                        x_new.block(n_basis()*i,0, n_basis(),1) = alpha(k) * x.head(n_basis());  
-                        x_new.block(n_basis()*(m_+i),0, n_basis(),1) = alpha(k) * x.tail(n_basis());
-                        
-                        r.block(n_basis()*i,0, n_basis(),1) -=  alpha(k) * ((-PsiTD_[i]* Psi_[i]) * zi.head(n_basis()) +
-                                                                            lambda_D()*pde_.stiff().transpose()*zi.tail(n_basis()));
-                                                                                                
-                        r.block(n_basis()*(m_+i),0, n_basis(),1) -= alpha(k)*(lambda_D()*pde_.stiff()*zi.head(n_basis()) +
-                                                                                lambda_D()*pde_.mass()*zi.tail(n_basis()) );
-                        
-                        z.block(i*n_basis(),0, n_basis(),1) = zi.head(n_basis());  
-                        z.block(n_basis()*(m_+i),0, n_basis(),1) = zi.tail(n_basis());
-                        // _duration_ = std::chrono::high_resolution_clock::now() - _start_;
-                        // std::cout << "-          linear algebra: " << _duration_.count() << std::endl;    
+                        // solution after m iterations
+                        DVector<double> partial_sol = H.block(0, 0, mem_ + 1, mem_)
+                                                .colPivHouseholderQr()
+                                                .solve(e1);
+
+                        x += V.leftCols(mem_) * partial_sol;
+                    }
+
+                    x_new.block(n_basis()*i,0, n_basis(),1) = alpha(k) * x.head(n_basis());  
+                    x_new.block(n_basis()*(m_+i),0, n_basis(),1) = alpha(k) * x.tail(n_basis());
+                    
+                    r.block(n_basis()*i,0, n_basis(),1) -=  alpha(k) * ((-PsiTD_[i]* Psi_[i]) * zi.head(n_basis()) +
+                                                                        lambda_D()*pde_.stiff().transpose()*zi.tail(n_basis()));
+                                                                                            
+                    r.block(n_basis()*(m_+i),0, n_basis(),1) -= alpha(k)*(lambda_D()*pde_.stiff()*zi.head(n_basis()) +
+                                                                            lambda_D()*pde_.mass()*zi.tail(n_basis()) );
+                    
+                    z.block(i*n_basis(),0, n_basis(),1) = zi.head(n_basis());  
+                    z.block(n_basis()*(m_+i),0, n_basis(),1) = zi.tail(n_basis());
                         
                 }
 
-                // std::chrono::duration<double> __duration = std::chrono::high_resolution_clock::now() - __start;
-                // std::cout << "-      costo singola iter: " << __duration.count() << std::endl;
-            
                 f_ = x_new.topRows(n_basis()*m_);
                 g_ = x_new.bottomRows(n_basis()*m_);
-        
-                // __start = std::chrono::high_resolution_clock::now();
 
                 beta_ = invXtWX().solve(X().transpose() * (y_ - mPsi_ * f_)); 
 
-                // __duration = std::chrono::high_resolution_clock::now() - __start;
-                // std::cout << "-      compute nu: " << __duration.count() << std::endl;
-                // __start = std::chrono::high_resolution_clock::now();
-                
                 beta_coeff_ = F_*beta_;
                 alpha_coeff_ = T_*beta_.tail(m_*p_); 
 
-                // __duration = std::chrono::high_resolution_clock::now() - __start;
-                // std::cout << "-      compute beta & alpha: " << __duration.count() << std::endl;
-
-                // correzione covariate 
+                // covariate correction
                 u = DMatrix<double>::Zero(q(),1);
                 for(std::size_t i = 0; i < m_; ++i){
                     u.block(0, 0, r_, 1) += Wg(i).transpose()*Psi_[i]*z.block(i*n_basis(), 0, n_basis(), 1);    
@@ -805,20 +706,14 @@ class fANOVA<iterative> : public fANOVABase<fANOVA<iterative>> {
                 k++;
             }
 
-            // _duration = std::chrono::high_resolution_clock::now() - _start;
-            // std::cout << "-      end while loop: " << _duration.count() << std::endl;
-            
+            // number of iterations
             std::cout << "iter: " << k << std::endl;
         
-            // auto end = std::chrono::high_resolution_clock::now();
-            // std::chrono::duration<double> duration = end - start;
-            // std::cout << "- metodo solve(): " << duration.count() << std::endl;
-
             return;
         }
 
         // getters
-        double alpha(std::size_t k) const { return alpha_; } // fixed to 1 
+        double alpha(std::size_t k) const { return alpha_; }        // fixed to 1 
 
         //setters
         void set_GMRES_params(int memory){ mem_ = memory; }
@@ -829,11 +724,11 @@ class fANOVA<iterative> : public fANOVABase<fANOVA<iterative>> {
     
     protected:
         
-        SparseBlockMatrix<double, 2, 2> A_ {};         // system matrix of non-parametric problem (2N x 2N matrix) (in iter P_ deve diventare A_)
+        SparseBlockMatrix<double, 2, 2> A_ {};         // system matrix of non-parametric problem (2N x 2N matrix)
         std::vector<fdapde::SparseLU<SpMatrix<double>>> invA_ {};
         std::vector<DMatrix<double>> A_v {};   
-        std::vector<DVector<double>> x_new_vec {}; //Eigen::VectorXd
-        DVector<double> x; //Eigen::VectorXd
+        std::vector<DVector<double>> x_new_vec {}; 
+        DVector<double> x; 
     
         using DenseSolver  = Eigen::PartialPivLU<DMatrix<double>>;
         std::vector<DenseSolver> invG;
@@ -843,7 +738,7 @@ class fANOVA<iterative> : public fANOVABase<fANOVA<iterative>> {
         double tol_ = 1e-4;             // tolerance (stopping criterion)
         double tol_res = 1e-8;  
         std::size_t max_iter_ = 10;     // maximum number of iteration
-        double alpha_ = 1.;             //
+        double alpha_ = 1.;             
 
         // Anderon's accelerator parameters
         int mem_ = 0; 
