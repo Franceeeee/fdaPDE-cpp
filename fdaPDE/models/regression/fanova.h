@@ -161,7 +161,6 @@ class fANOVABase : public RegressionBase<fANOVABase<SolutionPolicy>, SpaceOnly>{
             return;
         }
 
-        // Non posso utilizzare quella nel Base? No
         DMatrix<double> lmbQ(const DMatrix<double>& x) const {
             DMatrix<double> v = X_.transpose() * W_ * x;             // X^\top*W*x
             DMatrix<double> z = invXtWX_.solve(v);                   // (X^\top*W*X)^{-1}*X^\top*W*x
@@ -230,7 +229,7 @@ class fANOVABase : public RegressionBase<fANOVABase<SolutionPolicy>, SpaceOnly>{
         
         DVector<double> b_ {};      // right hand side of problem's linear system (1 x 2N vector)
         DMatrix<double> y_ {}; 
-        DMatrix<double> X_ {};      // dimensione: N osservazioni totali * r_ covariate gruppo specifiche
+        DMatrix<double> X_ {};      // N total obs * r_ group-specific covariates
         
         std::size_t N;              // N: total observations (N=n*m)
         std::size_t m_;             // m: number of levels
@@ -252,7 +251,7 @@ class fANOVABase : public RegressionBase<fANOVABase<SolutionPolicy>, SpaceOnly>{
         DMatrix<double> T_;
         DVector<int> n_locs_cum;
 
-        std::vector<BlockFrame<double, int>> data_;     // vector of dataframesMixedSRPDE
+        std::vector<BlockFrame<double, int>> data_;     // vector of dataframes
 
         void init_mPsi() { 
 
