@@ -28,5 +28,6 @@
 #include "models/regression/gcv.h"
 #include "models/regression/stochastic_edf.h"
 #include "models/regression/exact_edf.h"
+#include "models/regression/fanova.h"
 
 #endif // __FDAPDE_REGRESSION_H__
