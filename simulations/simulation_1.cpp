@@ -239,24 +239,278 @@ void appendFileContent(const std::string& sourceFile, const std::string& targetF
 }
 
 int main(){
-	
-	// -- test parameters --
-	std::string test_name = "same_locations_diff_NA/";
+
+    // TEST 1: mono&iter 2000 obs - unit square coarse
+    // -- test parameters --
+	std::string test_name = "small_obs_mesh_coarse/";
 	int seed = 23872; 
     double lambda = 1e-3; 
-    int memory = 3;             // GMRES param
-    bool same_locs = 1;
+    bool same_locs = 0;
     std::string meshID = "unit_square_coarse";
     std::size_t m = 3;
-    std::size_t n_sim = 50;
 	double na_percentage = 0.0;
 	DMatrix<double> beta = DMatrix<double>::Zero(2,1);
     beta(0,0) = -2.; beta(1,0) = 1.;
     DMatrix<double> alpha = DMatrix<double>::Zero(3,1);
     alpha(0,0) = -0.5; alpha(1,0) = 0.; alpha(2,0) = 0.5;
-    DMatrix<int> n_obs = DMatrix<int>::Zero(5,m);
-    n_obs(0,0) = 500; n_obs(1,0) = 1000; n_obs(2,0) = 2000; 
-    n_obs(3,0) = 4000; n_obs(4,0) = 8000;
+    DMatrix<int> n_obs = DMatrix<int>::Zero(1,m);
+    n_obs(0,0) = 2000;
+
+    // ---
+	MeshLoader<Mesh2D> domain(meshID);
+    meshID = meshID + "/"; 
+
+    std::string name_dir = "../data/models/fanova/";
+	if(!std::filesystem::create_directory(name_dir)) std::filesystem::create_directory(name_dir);
+
+    name_dir += meshID;
+	if(!std::filesystem::create_directory(name_dir)) std::filesystem::create_directory(name_dir);
+
+    name_dir += test_name;
+    if(!std::filesystem::exists(std::filesystem::path(name_dir))) std::filesystem::create_directory(name_dir);
+	
+	// input data 
+    std::string input_dir = name_dir  + "input/";
+
+    if(!std::filesystem::exists(std::filesystem::path(input_dir))) {
+
+        std::filesystem::create_directory(input_dir);
+        std::vector<double> means = {500, 1000, 2000, 4000, 8000};
+        std::vector<double> stddevs = {50, 100, 200, 400, 800}; 
+
+        Eigen::saveMarket(beta, input_dir + "beta.mtx");
+        Eigen::saveMarket(alpha, input_dir + "alpha.mtx");
+        Eigen::saveMarket(n_obs, input_dir + "n_obs.mtx");
+
+        eigen2txt<double>(beta, input_dir + "beta.txt");
+        eigen2txt<double>(alpha, input_dir + "alpha.txt");
+        eigen2txt<int>(n_obs, input_dir + "n_obs.txt");
+
+        Eigen::saveMarket(x1_(domain.mesh.nodes()), input_dir + "cov_1.mtx");
+        eigen2txt<double>(x1_(domain.mesh.nodes()), input_dir + "cov_1.txt");
+        for( std::size_t j=0; j < m; ++j){
+            DMatrix<double> f_ = f(domain.mesh.nodes(), j);
+            Eigen::saveMarket(f_, input_dir + "f_" + std::to_string(j) + ".mtx");
+            eigen2txt<double>(f_, input_dir + "f_" + std::to_string(j) + ".txt");
+        }
+            
+        // generate data
+        std::string data_dir = input_dir + std::to_string(n_obs) + "/";
+        std::filesystem::create_directory(data_dir);
+            
+        std::mt19937 gen(seed);
+        
+        std::string simul_dir = data_dir + "/"; 
+        std::filesystem::create_directory(simul_dir);
+
+        for(std::size_t j = 0; j < m; ++j){
+            DMatrix<double> DesignMatrix = DMatrix<double>::Zero(n_obs,2);
+        
+            DesignMatrix.col(0) = x1_(locs); // va in V
+            DesignMatrix.col(1) = noise(n_obs, 1.0, gen);
+
+            DMatrix<double> f_ = f(locs, j);
+            double sigma = 0.05*std::abs(f_.array().maxCoeff() - f_.array().minCoeff()); 
+            auto eps_ = noise(n_obs, sigma, gen);
+            eigen2txt<double>(eps_, simul_dir + "noise_" + std::to_string(j) + ".txt");
+        
+            DMatrix<double> obs = DesignMatrix * beta + DesignMatrix.col(0)*alpha(j,0)  + f_ + eps_; 
+            
+            auto na_mask = create_na_mask(n_obs, na_percentage, gen); 
+            for (int i = 0; i < n_obs; ++i) { 
+                if (na_mask[i]) {
+                    obs(i, 0) = std::numeric_limits<double>::quiet_NaN();  
+                }
+            }
+        
+            Eigen::saveMarket(locs, simul_dir + "locs_" + std::to_string(j) + ".mtx");
+            Eigen::saveMarket(DesignMatrix, simul_dir + "DesignMatrix_" + std::to_string(j) + ".mtx");
+            Eigen::saveMarket(DesignMatrix.col(1), simul_dir + "W_" + std::to_string(j) + ".mtx");
+            Eigen::saveMarket(DesignMatrix.col(0), simul_dir + "V_" + std::to_string(j) + ".mtx");
+            Eigen::saveMarket(obs, simul_dir + "obs_" + std::to_string(j) + ".mtx");
+
+            eigen2txt<double>(locs, simul_dir + "locs_" + std::to_string(j) + ".txt");
+            eigen2txt<double>(DesignMatrix, simul_dir + "DesignMatrix_" + std::to_string(j) + ".txt");
+            eigen2txt<double>(DesignMatrix.col(1), simul_dir + "W_" + std::to_string(j) + ".txt");
+            eigen2txt<double>(DesignMatrix.col(0), simul_dir + "V_" + std::to_string(j) + ".txt");
+            eigen2txt<double>(obs, simul_dir + "obs_" + std::to_string(j) + ".txt");
+        }
+        
+    }
+
+	// output directory
+	std::string output_dir = name_dir + "output/";
+    if(!std::filesystem::exists(std::filesystem::path(output_dir))){ 
+        std::filesystem::create_directory(output_dir);
+    }
+	
+    std::vector<std::string> solution_policy = {"monolithic", "richardson"};
+
+    // import data from files
+    std::vector<std::string> header = {"time_init", "time_solve", "time",
+                                       "rmse_f","rmse_f_1", "rmse_f_2","rmse_f_3", 
+                                       "rmse_beta","rmse_alpha","n_obs","na_perc", "meshID"};
+
+    int n = n_obs.rows();
+
+    DMatrix<double> results_mono = DMatrix<double>::Zero(n, header.size());
+    DMatrix<double> results_rich = DMatrix<double>::Zero(n, header.size());
+    DMatrix<double> results_gmres = DMatrix<double>::Zero(n, header.size());
+
+    output_dir = name_dir + "output/"; 
+    output_dir += std::to_string(n_obs) + "/" ;
+    
+    std::string data_dir = input_dir + std::to_string(n_obs) + "/";
+    if(!std::filesystem::exists(std::filesystem::path(output_dir))) std::filesystem::create_directory(output_dir);
+
+    std::string simul_dir = data_dir + "/"; 
+    std::string result_dir = output_dir + "/";
+    if(!std::filesystem::exists(std::filesystem::path(result_dir))) std::filesystem::create_directory(result_dir);
+
+    std::string output_monolithic = result_dir + "monolithic/";
+    std::string output_richardson = result_dir + "richardson/";
+    if(!std::filesystem::exists(std::filesystem::path(output_monolithic))) std::filesystem::create_directory(output_monolithic);
+    if(!std::filesystem::exists(std::filesystem::path(output_richardson))) std::filesystem::create_directory(output_richardson);
+
+    std::vector<BlockFrame<double, int>> data;
+    data.resize(m);
+    
+    // insert data in blockframes
+    for(std::size_t j = 0; j<m; j++){
+        std::string Wname = simul_dir + "W_" + std::to_string(j) + ".mtx";
+        std::string Vname = simul_dir + "V_" + std::to_string(j) + ".mtx";
+        std::string locsname = simul_dir + "locs_" + std::to_string(j) + ".mtx";
+        std::string yname = simul_dir +  "obs_" + std::to_string(j) + ".mtx";
+        auto W = read_mtx<double>(Wname);
+        auto V = read_mtx<double>(Vname);
+        auto locs = read_mtx<double>(locsname);
+        auto obs = read_mtx<double>(yname);
+
+        data[j].insert(W_BLOCK, W);
+        data[j].insert(V_BLOCK, V);
+        data[j].insert(Y_BLOCK, obs);
+        data[j].insert(LOCS_BLOCK, locs);      
+    }
+
+    DMatrix<double> f_ = DMatrix<double>::Zero(m*domain.mesh.nodes().rows(),1);
+    for(std::size_t j = 0; j < m; ++j){
+        f_.block(j*domain.mesh.nodes().rows(),0, domain.mesh.nodes().rows(),1) =   f(domain.mesh.nodes(),j);
+    }
+
+    // define regularizing PDE
+    auto L = -laplacian<FEM>();
+    DMatrix<double> u = DMatrix<double>::Zero(domain.mesh.n_elements()*3, 1);
+    PDE<decltype(domain.mesh), decltype(L), DMatrix<double>, FEM, fem_order<1>> problem(domain.mesh, L, u);
+
+    // monolithic 
+    fANOVA<monolithic> monolithic_(problem, Sampling::pointwise, same_locs);
+    monolithic_.set_lambda_D(lambda);
+    monolithic_.set_data(data);
+    
+    auto start = std::chrono::high_resolution_clock::now();
+    monolithic_.init();
+    std::chrono::duration<double> duration = std::chrono::high_resolution_clock::now() - start;
+    results_mono(n, 0) = duration.count();
+
+    start = std::chrono::high_resolution_clock::now();
+    monolithic_.solve();
+    duration = std::chrono::high_resolution_clock::now() - start;
+    results_mono(n, 1) = duration.count();
+    results_mono(n, 2) = results_mono(n, 0) + results_mono(n, 1);
+
+    // iterative
+    fANOVA<iterative> richardson_(problem, Sampling::pointwise, same_locs);
+    richardson_.set_lambda_D(lambda);
+    richardson_.set_data(data);
+
+    start = std::chrono::high_resolution_clock::now();
+    richardson_.init();
+    duration = std::chrono::high_resolution_clock::now() - start;
+    results_rich(n, 0) = duration.count();
+
+    start = std::chrono::high_resolution_clock::now();
+    richardson_.solve();
+    duration = std::chrono::high_resolution_clock::now() - start;
+    results_rich(n, 1) = duration.count();
+    results_rich(n, 2) = results_rich(n, 0) + results_rich(n, 1);
+
+    // RMSEs
+    results_mono(n, 3) = (monolithic_.f() - f_).array().square().mean();
+    results_rich(n, 3) = (richardson_.f() - f_).array().square().mean();
+    
+    for(std::size_t j = 0; j < m; ++j){
+        Eigen::saveMarket(monolithic_.f().block(j*domain.mesh.nodes().rows(),0, domain.mesh.nodes().rows(),1),
+                        output_monolithic + "estimate_f_" + std::to_string(j) + ".mtx");
+        eigen2txt<double>(monolithic_.f().block(j*domain.mesh.nodes().rows(),0, domain.mesh.nodes().rows(),1),
+                        output_monolithic + "estimate_f_" + std::to_string(j) + ".txt");
+
+        results_mono(n, 4+j) = (monolithic_.f().block(j*domain.mesh.nodes().rows(),0, domain.mesh.nodes().rows(),1) -
+                                            f_.block(j*domain.mesh.nodes().rows(),0, domain.mesh.nodes().rows(),1)).array().square().mean();
+
+        Eigen::saveMarket(richardson_.f().block(j*domain.mesh.nodes().rows(),0, domain.mesh.nodes().rows(),1),
+                        output_richardson + "estimate_f_" + std::to_string(j) + ".mtx");
+        eigen2txt<double>(richardson_.f().block(j*domain.mesh.nodes().rows(),0, domain.mesh.nodes().rows(),1),
+                        output_richardson + "estimate_f_" + std::to_string(j) + ".txt");
+
+        results_rich(n, 4+j) = (richardson_.f().block(j*domain.mesh.nodes().rows(),0, domain.mesh.nodes().rows(),1) -
+                                            f_.block(j*domain.mesh.nodes().rows(),0, domain.mesh.nodes().rows(),1)).array().square().mean();
+    }
+
+    Eigen::saveMarket(monolithic_.f(), output_monolithic + "estimate_f.mtx");
+    eigen2txt<double>(monolithic_.f(), output_monolithic + "estimate_f.txt");
+    Eigen::saveMarket(richardson_.f(), output_richardson + "estimate_f.mtx");
+    eigen2txt<double>(richardson_.f(), output_richardson + "estimate_f.txt");
+
+    Eigen::saveMarket(monolithic_.beta(), output_monolithic + "beta.mtx");
+    eigen2txt<double>(monolithic_.beta(), output_monolithic + "beta.txt");
+    Eigen::saveMarket(richardson_.beta(), output_richardson + "beta.mtx");
+    eigen2txt<double>(richardson_.beta(), output_richardson + "beta.txt");
+
+    Eigen::saveMarket(monolithic_.alpha(), output_monolithic + "beta.mtx");
+    eigen2txt<double>(monolithic_.alpha(), output_monolithic + "alpha.txt");
+    Eigen::saveMarket(richardson_.alpha(), output_richardson + "beta.mtx");
+    eigen2txt<double>(richardson_.alpha(), output_richardson + "alpha.txt");
+
+    results_mono(n, 7) = (monolithic_.beta() - beta).array().square().mean();
+    results_mono(n, 8) = (monolithic_.alpha() - alpha).array().square().mean();
+    
+    results_rich(n, 7) = (richardson_.beta() - beta).array().square().mean();
+    results_rich(n, 8) = (richardson_.alpha() - alpha).array().square().mean();
+
+    results_mono(n,9) = n_obs;
+    results_rich(n,9) = n_obs;
+
+    results_mono(n,10) = na_percentage;
+    results_rich(n,10) = na_percentage;
+
+    results_mono(n,11) = meshID;
+    results_rich(n,11) = meshID;
+
+    EXPECT_TRUE(  (monolithic_.beta() - beta).array().square().mean() < 1e-2 );
+    EXPECT_TRUE(  (monolithic_.alpha() - alpha).array().square().mean() < 1e-2 );
+
+    EXPECT_TRUE(  (richardson_.beta() - beta).array().square().mean() < 1e-2 );
+    EXPECT_TRUE(  (richardson_.alpha() - alpha).array().square().mean() < 1e-2 );
+    
+    write_table(results_mono, header, name_dir + "output/" + solution_policy[0] + ".txt");
+    write_table(results_rich, header, name_dir + "output/" + solution_policy[1] + ".txt");
+	
+
+    // TEST 2: mono&iter 20000 obs - unit square
+    // -- test parameters --
+    std::string test_name = "large_obs_mesh_fine/";
+	int seed = 23872; 
+    double lambda = 1e-3; 
+    bool same_locs = 0;
+    std::string meshID = "unit_square";
+    std::size_t m = 3;
+	double na_percentage = 0.0;
+	DMatrix<double> beta = DMatrix<double>::Zero(2,1);
+    beta(0,0) = -2.; beta(1,0) = 1.;
+    DMatrix<double> alpha = DMatrix<double>::Zero(3,1);
+    alpha(0,0) = -0.5; alpha(1,0) = 0.; alpha(2,0) = 0.5;
+    DMatrix<int> n_obs = DMatrix<int>::Zero(1,m);
+    n_obs(0,0) = 20000;
 
 	// ---
 	MeshLoader<Mesh2D> domain(meshID);
@@ -295,57 +549,47 @@ int main(){
             Eigen::saveMarket(f_, input_dir + "f_" + std::to_string(j) + ".mtx");
             eigen2txt<double>(f_, input_dir + "f_" + std::to_string(j) + ".txt");
         }
-
-        for(std::size_t n = 0; n < n_obs.rows(); ++n){
             
-            // generete data
-            std::string data_dir = input_dir + std::to_string(n_obs(n,0)) + "/";
-            std::filesystem::create_directory(data_dir);
-                
-			std::mt19937 gen(seed);
-			
-			for (int i = 0; i < n_obs.rows(); ++i) {
-				std::normal_distribution<> dist(means[i], stddevs[i]);
-				for (int j = 1; j < n_obs.cols(); ++j) {
-					n_obs(i, j) = static_cast<int>(dist(gen));
-				}
-			}
-			std::string simul_dir = data_dir + "/"; 
-			std::filesystem::create_directory(simul_dir);
+        // generate data
+        std::string data_dir = input_dir + std::to_string(n_obs) + "/";
+        std::filesystem::create_directory(data_dir);
+            
+        std::mt19937 gen(seed);
+        
+        std::string simul_dir = data_dir + "/"; 
+        std::filesystem::create_directory(simul_dir);
 
-			for(std::size_t j = 0; j < m; ++j){
-				DMatrix<double> locs = uniform_locs(n_obs(n,j), gen);
-				DMatrix<double> DesignMatrix = DMatrix<double>::Zero(n_obs(n,j),2);
-			
-				DesignMatrix.col(0) = x1_(locs); // va in V
-				DesignMatrix.col(1) = noise(n_obs(n,j), 1.0, gen);
+        for(std::size_t j = 0; j < m; ++j){
+            DMatrix<double> DesignMatrix = DMatrix<double>::Zero(n_obs,2);
+        
+            DesignMatrix.col(0) = x1_(locs); // va in V
+            DesignMatrix.col(1) = noise(n_obs, 1.0, gen);
 
-				DMatrix<double> f_ = f(locs, j);
-				double sigma = 0.05*std::abs(f_.array().maxCoeff() - f_.array().minCoeff()); 
-				auto eps_ = noise(n_obs(n,j), sigma, gen);
-				eigen2txt<double>(eps_, simul_dir + "noise_" + std::to_string(j) + ".txt");
-			
-				DMatrix<double> obs = DesignMatrix * beta + DesignMatrix.col(0)*alpha(j,0)  + f_ + eps_; 
-				
-				auto na_mask = create_na_mask(n_obs(n,j), na_percentage, gen); 
-				for (int i = 0; i < n_obs(n,j); ++i) { 
-					if (na_mask[i]) {
-						obs(i, 0) = std::numeric_limits<double>::quiet_NaN();  
-					}
-				}
-			
-				Eigen::saveMarket(locs, simul_dir + "locs_" + std::to_string(j) + ".mtx");
-				Eigen::saveMarket(DesignMatrix, simul_dir + "DesignMatrix_" + std::to_string(j) + ".mtx");
-				Eigen::saveMarket(DesignMatrix.col(1), simul_dir + "W_" + std::to_string(j) + ".mtx");
-				Eigen::saveMarket(DesignMatrix.col(0), simul_dir + "V_" + std::to_string(j) + ".mtx");
-				Eigen::saveMarket(obs, simul_dir + "obs_" + std::to_string(j) + ".mtx");
-
-				eigen2txt<double>(locs, simul_dir + "locs_" + std::to_string(j) + ".txt");
-				eigen2txt<double>(DesignMatrix, simul_dir + "DesignMatrix_" + std::to_string(j) + ".txt");
-				eigen2txt<double>(DesignMatrix.col(1), simul_dir + "W_" + std::to_string(j) + ".txt");
-				eigen2txt<double>(DesignMatrix.col(0), simul_dir + "V_" + std::to_string(j) + ".txt");
-				eigen2txt<double>(obs, simul_dir + "obs_" + std::to_string(j) + ".txt");
+            DMatrix<double> f_ = f(locs, j);
+            double sigma = 0.05*std::abs(f_.array().maxCoeff() - f_.array().minCoeff()); 
+            auto eps_ = noise(n_obs, sigma, gen);
+            eigen2txt<double>(eps_, simul_dir + "noise_" + std::to_string(j) + ".txt");
+        
+            DMatrix<double> obs = DesignMatrix * beta + DesignMatrix.col(0)*alpha(j,0)  + f_ + eps_; 
+            
+            auto na_mask = create_na_mask(n_obs, na_percentage, gen); 
+            for (int i = 0; i < n_obs; ++i) { 
+                if (na_mask[i]) {
+                    obs(i, 0) = std::numeric_limits<double>::quiet_NaN();  
+                }
             }
+        
+            Eigen::saveMarket(locs, simul_dir + "locs_" + std::to_string(j) + ".mtx");
+            Eigen::saveMarket(DesignMatrix, simul_dir + "DesignMatrix_" + std::to_string(j) + ".mtx");
+            Eigen::saveMarket(DesignMatrix.col(1), simul_dir + "W_" + std::to_string(j) + ".mtx");
+            Eigen::saveMarket(DesignMatrix.col(0), simul_dir + "V_" + std::to_string(j) + ".mtx");
+            Eigen::saveMarket(obs, simul_dir + "obs_" + std::to_string(j) + ".mtx");
+
+            eigen2txt<double>(locs, simul_dir + "locs_" + std::to_string(j) + ".txt");
+            eigen2txt<double>(DesignMatrix, simul_dir + "DesignMatrix_" + std::to_string(j) + ".txt");
+            eigen2txt<double>(DesignMatrix.col(1), simul_dir + "W_" + std::to_string(j) + ".txt");
+            eigen2txt<double>(DesignMatrix.col(0), simul_dir + "V_" + std::to_string(j) + ".txt");
+            eigen2txt<double>(obs, simul_dir + "obs_" + std::to_string(j) + ".txt");
         }
     }
 
@@ -354,220 +598,158 @@ int main(){
     if(!std::filesystem::exists(std::filesystem::path(output_dir))){ 
         std::filesystem::create_directory(output_dir);
     }
-
 	
     std::vector<std::string> solution_policy = {"monolithic", "richardson"};
 
     // import data from files
     std::vector<std::string> header = {"time_init", "time_solve", "time",
                                        "rmse_f","rmse_f_1", "rmse_f_2","rmse_f_3", 
-                                       "rmse_beta","rmse_alpha","n_obs","na_perc"};
+                                       "rmse_beta","rmse_alpha","n_obs","na_perc", "meshID"};
 
-    DMatrix<double> results_mono = DMatrix<double>::Zero( n_sim*n_obs.rows(), header.size());
-    DMatrix<double> results_rich = DMatrix<double>::Zero( n_sim*n_obs.rows(), header.size());
-    DMatrix<double> results_gmres = DMatrix<double>::Zero( n_sim*n_obs.rows(), header.size());
+    int n = n_obs.rows();
 
-    for(std::size_t n = 0; n < n_obs.rows(); ++n){ 
-        output_dir = name_dir + "output/"; 
-        output_dir += std::to_string(n_obs(n,0)) + "/" ;
-        
-        std::string data_dir = input_dir + std::to_string(n_obs(n,0)) + "/";
-        if(!std::filesystem::exists(std::filesystem::path(output_dir))) std::filesystem::create_directory(output_dir);
+    DMatrix<double> results_mono = DMatrix<double>::Zero(n, header.size());
+    DMatrix<double> results_rich = DMatrix<double>::Zero(n, header.size());
+    DMatrix<double> results_gmres = DMatrix<double>::Zero(n, header.size());
 
-        std::string simul_dir = data_dir + "/"; 
-        std::string result_dir = output_dir + "/";
-        if(!std::filesystem::exists(std::filesystem::path(result_dir))) std::filesystem::create_directory(result_dir);
-
-        std::string output_monolithic = result_dir + "monolithic/";
-        std::string output_richardson = result_dir + "richardson/";
-        if(!std::filesystem::exists(std::filesystem::path(output_monolithic))) std::filesystem::create_directory(output_monolithic);
-        if(!std::filesystem::exists(std::filesystem::path(output_richardson))) std::filesystem::create_directory(output_richardson);
-
-        std::vector<BlockFrame<double, int>> data;
-        data.resize(m);
-        
-        for(std::size_t j = 0; j<m; j++){
-            std::string Wname = simul_dir + "W_" + std::to_string(j) + ".mtx";
-            std::string Vname = simul_dir + "V_" + std::to_string(j) + ".mtx";
-            std::string locsname = simul_dir + "locs_" + std::to_string(j) + ".mtx";
-            std::string yname = simul_dir +  "obs_" + std::to_string(j) + ".mtx";
-            auto W = read_mtx<double>(Wname);
-            auto V = read_mtx<double>(Vname);
-            auto locs = read_mtx<double>(locsname);
-            auto obs = read_mtx<double>(yname);
-
-            // --- NaN handling ---
-            // before passing data to the model, we need to:
-            // - remove NaN from y 
-            // - remove the corresponding rows in W_BLOCK,V_BLOCK,LOCS_BLOCK
-            // - update N (number of observations)
-
-            // save position of non-na values
-            std::vector<int> validIndices;
-            for (int i = 0; i < obs.size(); ++i) {
-                if (!std::isnan(obs(i,0))) {
-                    validIndices.push_back(i);
-                }
-            }
-
-            if(validIndices.size() != obs.rows()){
-                // create new y_ with only valid entries
-                DVector<double> y_new(validIndices.size());
-                for (size_t i = 0; i < validIndices.size(); ++i) {
-                    y_new(i) = obs(validIndices[i]);
-                }
-                obs = y_new; 
-
-                // delete rows from W,V,locs
-                DMatrix<double> W_new(validIndices.size(), W.cols());
-                DMatrix<double> V_new(validIndices.size(), V.cols());
-                DMatrix<double> locs_new(validIndices.size(), locs.cols());
-                for (size_t i = 0; i < validIndices.size(); ++i) {
-                    W_new.row(i) = W.row(validIndices[i]);
-                    V_new.row(i) = V.row(validIndices[i]);
-                    locs_new.row(i) = locs.row(validIndices[i]);
-                }
-                W = W_new;
-                V = V_new;
-                locs = locs_new;
-                same_locs = 0;
-            }
-            
-            data[j].insert(W_BLOCK, W);
-            data[j].insert(V_BLOCK, V);
-            data[j].insert(Y_BLOCK, obs);
-            data[j].insert(LOCS_BLOCK, locs);      
-        }
+    output_dir = name_dir + "output/"; 
+    output_dir += std::to_string(n_obs) + "/" ;
     
-        DMatrix<double> f_ = DMatrix<double>::Zero(m*domain.mesh.nodes().rows(),1);
-        for(std::size_t j = 0; j < m; ++j){
-            f_.block(j*domain.mesh.nodes().rows(),0, domain.mesh.nodes().rows(),1) =   f(domain.mesh.nodes(),j);
-        }
+    std::string data_dir = input_dir + std::to_string(n_obs) + "/";
+    if(!std::filesystem::exists(std::filesystem::path(output_dir))) std::filesystem::create_directory(output_dir);
+
+    std::string simul_dir = data_dir + "/"; 
+    std::string result_dir = output_dir + "/";
+    if(!std::filesystem::exists(std::filesystem::path(result_dir))) std::filesystem::create_directory(result_dir);
+
+    std::string output_monolithic = result_dir + "monolithic/";
+    std::string output_richardson = result_dir + "richardson/";
+    if(!std::filesystem::exists(std::filesystem::path(output_monolithic))) std::filesystem::create_directory(output_monolithic);
+    if(!std::filesystem::exists(std::filesystem::path(output_richardson))) std::filesystem::create_directory(output_richardson);
+
+    std::vector<BlockFrame<double, int>> data;
+    data.resize(m);
     
-        // define regularizing PDE
-        auto L = -laplacian<FEM>();
-        DMatrix<double> u = DMatrix<double>::Zero(domain.mesh.n_elements()*3, 1);
-        PDE<decltype(domain.mesh), decltype(L), DMatrix<double>, FEM, fem_order<1>> problem(domain.mesh, L, u);
+    // insert data in blockframes
+    for(std::size_t j = 0; j<m; j++){
+        std::string Wname = simul_dir + "W_" + std::to_string(j) + ".mtx";
+        std::string Vname = simul_dir + "V_" + std::to_string(j) + ".mtx";
+        std::string locsname = simul_dir + "locs_" + std::to_string(j) + ".mtx";
+        std::string yname = simul_dir +  "obs_" + std::to_string(j) + ".mtx";
+        auto W = read_mtx<double>(Wname);
+        auto V = read_mtx<double>(Vname);
+        auto locs = read_mtx<double>(locsname);
+        auto obs = read_mtx<double>(yname);
 
-        // monolithic 
-        fANOVA<monolithic> monolithic_(problem, Sampling::pointwise, same_locs);
-        monolithic_.set_lambda_D(lambda);
-	    monolithic_.set_data(data);
-        
-        auto start = std::chrono::high_resolution_clock::now();
-        monolithic_.init();
-        std::chrono::duration<double> duration = std::chrono::high_resolution_clock::now() - start;
-        results_mono(n, 0) = duration.count();
-
-        start = std::chrono::high_resolution_clock::now();
-        monolithic_.solve();
-        duration = std::chrono::high_resolution_clock::now() - start;
-        results_mono(n, 1) = duration.count();
-        results_mono(n, 2) = results_mono(n, 0) + results_mono(n, 1);
-
-        // iterative
-        fANOVA<iterative> richardson_(problem, Sampling::pointwise, same_locs);
-        richardson_.set_lambda_D(lambda);
-	    richardson_.set_data(data);
-
-        start = std::chrono::high_resolution_clock::now();
-        richardson_.init();
-        duration = std::chrono::high_resolution_clock::now() - start;
-        results_rich(n, 0) = duration.count();
-
-        start = std::chrono::high_resolution_clock::now();
-        richardson_.solve();
-        duration = std::chrono::high_resolution_clock::now() - start;
-        results_rich(n, 1) = duration.count();
-        results_rich(n, 2) = results_rich(n, 0) + results_rich(n, 1);
-        
-        // iterative GMRES
-        fANOVA<iterative> gmres_(problem, Sampling::pointwise, same_locs);
-        gmres_.set_lambda_D(lambda);
-	    gmres_.set_data(data);
-        gmres_.set_GMRES_params(memory);
-
-        start = std::chrono::high_resolution_clock::now();
-        gmres_.init();
-        duration = std::chrono::high_resolution_clock::now() - start;
-        results_gmres(n, 0) = duration.count();
-
-        start = std::chrono::high_resolution_clock::now();
-        gmres_.solve();
-        duration = std::chrono::high_resolution_clock::now() - start;
-        results_gmres(n, 1) = duration.count();
-        results_gmres(n, 2) = results_gmres(n, 0) + results_gmres(n, 1);
-        
-
-        // RMSEs
-        results_mono(n, 3) = (monolithic_.f() - f_).array().square().mean();
-        results_rich(n, 3) = (richardson_.f() - f_).array().square().mean();
-        results_gmres(n, 3) = (gmres_.f() - f_).array().square().mean();
-        
-
-        for(std::size_t j = 0; j < m; ++j){
-            Eigen::saveMarket(monolithic_.f().block(j*domain.mesh.nodes().rows(),0, domain.mesh.nodes().rows(),1),
-                          output_monolithic + "estimate_f_" + std::to_string(j) + ".mtx");
-            eigen2txt<double>(monolithic_.f().block(j*domain.mesh.nodes().rows(),0, domain.mesh.nodes().rows(),1),
-                          output_monolithic + "estimate_f_" + std::to_string(j) + ".txt");
-
-            results_mono(n, 4+j) = (monolithic_.f().block(j*domain.mesh.nodes().rows(),0, domain.mesh.nodes().rows(),1) -
-                                                f_.block(j*domain.mesh.nodes().rows(),0, domain.mesh.nodes().rows(),1)).array().square().mean();
-
-            Eigen::saveMarket(richardson_.f().block(j*domain.mesh.nodes().rows(),0, domain.mesh.nodes().rows(),1),
-                          output_richardson + "estimate_f_" + std::to_string(j) + ".mtx");
-            eigen2txt<double>(richardson_.f().block(j*domain.mesh.nodes().rows(),0, domain.mesh.nodes().rows(),1),
-                          output_richardson + "estimate_f_" + std::to_string(j) + ".txt");
-
-            results_rich(n, 4+j) = (richardson_.f().block(j*domain.mesh.nodes().rows(),0, domain.mesh.nodes().rows(),1) -
-                                                f_.block(j*domain.mesh.nodes().rows(),0, domain.mesh.nodes().rows(),1)).array().square().mean();
-            results_gmres(n, 4+j) = (gmres_.f().block(j*domain.mesh.nodes().rows(),0, domain.mesh.nodes().rows(),1) -
-                                                f_.block(j*domain.mesh.nodes().rows(),0, domain.mesh.nodes().rows(),1)).array().square().mean();
-        }
-
-        Eigen::saveMarket(monolithic_.f(), output_monolithic + "estimate_f.mtx");
-        eigen2txt<double>(monolithic_.f(), output_monolithic + "estimate_f.txt");
-        Eigen::saveMarket(richardson_.f(), output_richardson + "estimate_f.mtx");
-        eigen2txt<double>(richardson_.f(), output_richardson + "estimate_f.txt");
-    
-        Eigen::saveMarket(monolithic_.beta(), output_monolithic + "beta.mtx");
-        eigen2txt<double>(monolithic_.beta(), output_monolithic + "beta.txt");
-        Eigen::saveMarket(richardson_.beta(), output_richardson + "beta.mtx");
-        eigen2txt<double>(richardson_.beta(), output_richardson + "beta.txt");
-    
-        Eigen::saveMarket(monolithic_.alpha(), output_monolithic + "beta.mtx");
-        eigen2txt<double>(monolithic_.alpha(), output_monolithic + "alpha.txt");
-        Eigen::saveMarket(richardson_.alpha(), output_richardson + "beta.mtx");
-        eigen2txt<double>(richardson_.alpha(), output_richardson + "alpha.txt");
-
-        results_mono(n, 7) =  (monolithic_.beta() - beta).array().square().mean();
-        results_mono(n, 8) =  (monolithic_.alpha() - alpha).array().square().mean();
-        
-        results_rich(n, 7) =  (richardson_.beta() - beta).array().square().mean();
-        results_rich(n, 8) =  (richardson_.alpha() - alpha).array().square().mean();
-        
-        results_gmres(n, 7) =  (gmres_.beta() - beta).array().square().mean();
-        results_gmres(n, 8) =  (gmres_.alpha() - alpha).array().square().mean();
-
-        results_mono(n,9) = n_obs(n, 0);
-        results_rich(n,9) = n_obs(n, 0);
-        results_gmres(n,9) = n_obs(n, 0);
-
-        results_mono(n,10) = na_percentage;
-        results_rich(n,10) = na_percentage;
-        results_gmres(n,10) = na_percentage;
-
-        EXPECT_TRUE(  (monolithic_.beta() - beta).array().square().mean() < 1e-2 );
-        EXPECT_TRUE(  (monolithic_.alpha() - alpha).array().square().mean() < 1e-2 );
-
-        EXPECT_TRUE(  (richardson_.beta() - beta).array().square().mean() < 1e-2 );
-        EXPECT_TRUE(  (richardson_.alpha() - alpha).array().square().mean() < 1e-2 );
-
+        data[j].insert(W_BLOCK, W);
+        data[j].insert(V_BLOCK, V);
+        data[j].insert(Y_BLOCK, obs);
+        data[j].insert(LOCS_BLOCK, locs);      
     }
+
+    DMatrix<double> f_ = DMatrix<double>::Zero(m*domain.mesh.nodes().rows(),1);
+    for(std::size_t j = 0; j < m; ++j){
+        f_.block(j*domain.mesh.nodes().rows(),0, domain.mesh.nodes().rows(),1) =   f(domain.mesh.nodes(),j);
+    }
+
+    // define regularizing PDE
+    auto L = -laplacian<FEM>();
+    DMatrix<double> u = DMatrix<double>::Zero(domain.mesh.n_elements()*3, 1);
+    PDE<decltype(domain.mesh), decltype(L), DMatrix<double>, FEM, fem_order<1>> problem(domain.mesh, L, u);
+
+    // monolithic 
+    fANOVA<monolithic> monolithic_(problem, Sampling::pointwise, same_locs);
+    monolithic_.set_lambda_D(lambda);
+    monolithic_.set_data(data);
+    
+    auto start = std::chrono::high_resolution_clock::now();
+    monolithic_.init();
+    std::chrono::duration<double> duration = std::chrono::high_resolution_clock::now() - start;
+    results_mono(n, 0) = duration.count();
+
+    start = std::chrono::high_resolution_clock::now();
+    monolithic_.solve();
+    duration = std::chrono::high_resolution_clock::now() - start;
+    results_mono(n, 1) = duration.count();
+    results_mono(n, 2) = results_mono(n, 0) + results_mono(n, 1);
+
+    // iterative
+    fANOVA<iterative> richardson_(problem, Sampling::pointwise, same_locs);
+    richardson_.set_lambda_D(lambda);
+    richardson_.set_data(data);
+
+    start = std::chrono::high_resolution_clock::now();
+    richardson_.init();
+    duration = std::chrono::high_resolution_clock::now() - start;
+    results_rich(n, 0) = duration.count();
+
+    start = std::chrono::high_resolution_clock::now();
+    richardson_.solve();
+    duration = std::chrono::high_resolution_clock::now() - start;
+    results_rich(n, 1) = duration.count();
+    results_rich(n, 2) = results_rich(n, 0) + results_rich(n, 1);
+
+    // RMSEs
+    results_mono(n, 3) = (monolithic_.f() - f_).array().square().mean();
+    results_rich(n, 3) = (richardson_.f() - f_).array().square().mean();
+    
+
+    for(std::size_t j = 0; j < m; ++j){
+        Eigen::saveMarket(monolithic_.f().block(j*domain.mesh.nodes().rows(),0, domain.mesh.nodes().rows(),1),
+                        output_monolithic + "estimate_f_" + std::to_string(j) + ".mtx");
+        eigen2txt<double>(monolithic_.f().block(j*domain.mesh.nodes().rows(),0, domain.mesh.nodes().rows(),1),
+                        output_monolithic + "estimate_f_" + std::to_string(j) + ".txt");
+
+        results_mono(n, 4+j) = (monolithic_.f().block(j*domain.mesh.nodes().rows(),0, domain.mesh.nodes().rows(),1) -
+                                            f_.block(j*domain.mesh.nodes().rows(),0, domain.mesh.nodes().rows(),1)).array().square().mean();
+
+        Eigen::saveMarket(richardson_.f().block(j*domain.mesh.nodes().rows(),0, domain.mesh.nodes().rows(),1),
+                        output_richardson + "estimate_f_" + std::to_string(j) + ".mtx");
+        eigen2txt<double>(richardson_.f().block(j*domain.mesh.nodes().rows(),0, domain.mesh.nodes().rows(),1),
+                        output_richardson + "estimate_f_" + std::to_string(j) + ".txt");
+
+        results_rich(n, 4+j) = (richardson_.f().block(j*domain.mesh.nodes().rows(),0, domain.mesh.nodes().rows(),1) -
+                                            f_.block(j*domain.mesh.nodes().rows(),0, domain.mesh.nodes().rows(),1)).array().square().mean();
+    }
+
+    Eigen::saveMarket(monolithic_.f(), output_monolithic + "estimate_f.mtx");
+    eigen2txt<double>(monolithic_.f(), output_monolithic + "estimate_f.txt");
+    Eigen::saveMarket(richardson_.f(), output_richardson + "estimate_f.mtx");
+    eigen2txt<double>(richardson_.f(), output_richardson + "estimate_f.txt");
+
+    Eigen::saveMarket(monolithic_.beta(), output_monolithic + "beta.mtx");
+    eigen2txt<double>(monolithic_.beta(), output_monolithic + "beta.txt");
+    Eigen::saveMarket(richardson_.beta(), output_richardson + "beta.mtx");
+    eigen2txt<double>(richardson_.beta(), output_richardson + "beta.txt");
+
+    Eigen::saveMarket(monolithic_.alpha(), output_monolithic + "beta.mtx");
+    eigen2txt<double>(monolithic_.alpha(), output_monolithic + "alpha.txt");
+    Eigen::saveMarket(richardson_.alpha(), output_richardson + "beta.mtx");
+    eigen2txt<double>(richardson_.alpha(), output_richardson + "alpha.txt");
+
+    results_mono(n, 7) = (monolithic_.beta() - beta).array().square().mean();
+    results_mono(n, 8) = (monolithic_.alpha() - alpha).array().square().mean();
+    
+    results_rich(n, 7) = (richardson_.beta() - beta).array().square().mean();
+    results_rich(n, 8) = (richardson_.alpha() - alpha).array().square().mean();
+
+    results_mono(n,9) = n_obs;
+    results_rich(n,9) = n_obs;
+
+    results_mono(n,10) = na_percentage;
+    results_rich(n,10) = na_percentage;
+
+    results_mono(n,11) = meshID;
+    results_rich(n,11) = meshID;
+
+    EXPECT_TRUE(  (monolithic_.beta() - beta).array().square().mean() < 1e-2 );
+    EXPECT_TRUE(  (monolithic_.alpha() - alpha).array().square().mean() < 1e-2 );
+
+    EXPECT_TRUE(  (richardson_.beta() - beta).array().square().mean() < 1e-2 );
+    EXPECT_TRUE(  (richardson_.alpha() - alpha).array().square().mean() < 1e-2 );
 
     write_table(results_mono, header, name_dir + "output/" + solution_policy[0] + ".txt");
     write_table(results_rich, header, name_dir + "output/" + solution_policy[1] + ".txt");
-    write_table(results_gmres, header, name_dir + "output/" + solution_policy[1] + "_gmres.txt");
 	
 	return 0;
 }
