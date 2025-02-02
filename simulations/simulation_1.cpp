@@ -247,7 +247,7 @@ int main(){
     double lambda = 1e-3; 
     bool same_locs = 0;
     std::string meshID = "unit_square_coarse";
-    std::size_t m = 3;
+    std::size_t m = 15;
 	double na_percentage = 0.0;
 	DMatrix<double> beta = DMatrix<double>::Zero(2,1);
     beta(0,0) = -2.; beta(1,0) = 1.;
@@ -503,7 +503,7 @@ int main(){
     double lambda = 1e-3; 
     bool same_locs = 0;
     std::string meshID = "unit_square";
-    std::size_t m = 3;
+    std::size_t m = 15;
 	double na_percentage = 0.0;
 	DMatrix<double> beta = DMatrix<double>::Zero(2,1);
     beta(0,0) = -2.; beta(1,0) = 1.;
