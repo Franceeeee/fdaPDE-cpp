@@ -473,7 +473,7 @@ class fANOVA<iterative> : public fANOVABase<fANOVA<iterative>> {
             b_ = DMatrix<double>::Zero(2*n_basis()*m_, 1);
 
             invA_.resize(data_.size());
-            A_v.resize(data_.size());
+            if(mem_){A_v.resize(data_.size());}
             _U = DMatrix<double>::Zero(n_basis(), m_*q_);   // U_tilde in 2*n_basis x ( (q-p) + p ) * m = 2*n_basis x m q
                                                        
             invG.resize(data_.size());
@@ -487,7 +487,7 @@ class fANOVA<iterative> : public fANOVABase<fANOVA<iterative>> {
                     lambda_D() * pde_.stiff(),             lambda_D() * pde_.mass()                 );
                 }   
 
-                A_v[i] = A_;
+                if(mem_){A_v[i] = A_;}
                 
                 if(same_locs_value && i!=0){
                     invA_[i] = invA_[0];
