@@ -12,11 +12,9 @@ It is built on top of the [fdaPDE Core Library](https://github.com/fdaPDE/fdaPDE
 
 This project was developed by MSc Mathematical Engineering students Francesco Maria Mancinelli (10700393) and Giulia Ortolani(10656961) under the supervision of Professor Laura M. Sangalli, Professor Eleonora Arnone, Doctor Aldo Clemente and Doctor Alessandro Palummo.
 
-Contribution features the whole implemenataion of the fANOVA class, as well as validation tests. The code structure of the library is presented in the image below:
+Contribution features the whole implementation of the fANOVA class, as well as validation tests. The code structure of the library is presented in the image below:
 
-![alt text](http://url/to/img.png)
-oppure
-![alt text](https://github.com/[username]/[reponame]/blob/[branch]/image.jpg?raw=true)
+![image](https://github.com/user-attachments/assets/89d64ca6-00a5-41bc-9b49-df2cbd8785a4)
 
 ## Accessing the Source Code
 
