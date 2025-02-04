@@ -47,7 +47,7 @@ A pre-configured Docker image is provided to ensure that all dependencies are co
 
 ## Compiling the Simulation Executable
 
-After cloning the repository and setting up the environment, compile the simulation executable using the following command:
+After cloning the repository and setting up the environment, navigate to `fdapde-cpp/simulations` directory and compile the simulation executable using the following command:
 
 ```bash
 g++ -o simulation_base simulation_base.cpp -I../ -I../fdaPDE/core/ -I/usr/include/eigen3 -O2 -std=c++20 -g -march=native -DFDAPDE_NO_DEBUG
