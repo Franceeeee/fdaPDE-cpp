@@ -23,7 +23,7 @@ oppure
 To access the source code of the implementation, you can clone the repository from the `develop` branch:
 
 ```bash
-git clone -r https://github.com/Franceeeee/fdaPDE-cpp.git -b develop
+git clone --recursive https://github.com/Franceeeee/fdaPDE-cpp.git -b develop
 cd fdaPDE-cpp/simulations
 ```
 
