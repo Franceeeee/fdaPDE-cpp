@@ -4,7 +4,7 @@ int main(){
 
     // TEST 1: mono&iter 2000 obs - unit square coarse
     // -- test parameters --
-	std::string test_name = "simulation_1/";
+	std::string test_name = "simulation_base/";
 	int seed = 23872; 
     double lambda = 1e-3; 
     bool same_locs = 0;
