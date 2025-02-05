@@ -46,7 +46,7 @@ int main(){
         Eigen::saveMarket(x1_(mesh.nodes()), input_dir + "cov_1.mtx");
         eigen2txt<double>(x1_(mesh.nodes()), input_dir + "cov_1.txt");
         for( std::size_t j=0; j < m; ++j){
-            DMatrix<double> f_ = f(mesh.nodes(), j);
+            DMatrix<double> f_ = f(mesh.nodes(), 0);
             Eigen::saveMarket(f_, input_dir + "f_" + std::to_string(j) + ".mtx");
             eigen2txt<double>(f_, input_dir + "f_" + std::to_string(j) + ".txt");
         }
@@ -69,12 +69,12 @@ int main(){
             DesignMatrix.col(0) = x1_(locs); // va in V
             DesignMatrix.col(1) = noise(n_obs, 1.0, gen);
 
-            DMatrix<double> f_ = f(locs, j);
+            DMatrix<double> f_ = f(locs, 0);
             double sigma = 0.05*std::abs(f_.array().maxCoeff() - f_.array().minCoeff()); 
             auto eps_ = noise(n_obs, sigma, gen);
             eigen2txt<double>(eps_, simul_dir + "noise_" + std::to_string(j) + ".txt");
         
-            DMatrix<double> obs = DesignMatrix * beta + DesignMatrix.col(0)*alpha(j,0)  + f_ + eps_; 
+            DMatrix<double> obs = DesignMatrix * beta + DesignMatrix.col(0)*alpha(0,0)  + f_ + eps_; 
             
             auto na_mask = create_na_mask(n_obs, na_percentage, gen); 
             for (int i = 0; i < n_obs; ++i) { 
