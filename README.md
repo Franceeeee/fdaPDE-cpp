@@ -10,5 +10,63 @@ fdaPDE is a C++ library for the analysis of spatial and functional data observed
 
 It is built on top of the [fdaPDE Core Library](https://github.com/fdaPDE/fdaPDE-core).
 
+This project was developed by MSc Mathematical Engineering students Francesco Maria Mancinelli (10700393) and Giulia Ortolani(10656961) under the supervision of Professor Laura M. Sangalli, Professor Eleonora Arnone, Doctor Aldo Clemente and Doctor Alessandro Palummo.
+
+Contribution features the whole implementation of the fANOVA class, as well as validation tests. The code structure of the library is presented in the image below:
+
+![image](https://github.com/user-attachments/assets/89d64ca6-00a5-41bc-9b49-df2cbd8785a4)
+
+
+## Setting Up the Environment
+
+### Using Docker
+
+A pre-configured Docker image is provided to ensure that all dependencies are correctly set up in a clean environment.
+
+1. **Pull the pre-built Docker image:**
+
+   ```bash
+   docker pull aldoclemente/fdapde-docker
+   ```
+
+2. **Run an interactive Docker container:**
+
+   ```bash
+   docker run --rm -it aldoclemente/fdapde-docker /bin/bash
+   ```
+
+   After running the above command, you will have access to a terminal session inside the Docker container, where all required dependencies are already installed.
+
+## Accessing the Source Code
+
+   To access the source code of the implementation, you can clone the repository from the `develop` branch:
+   
+   ```bash
+   git clone --recursive https://github.com/Franceeeee/fdaPDE-cpp.git -b develop
+   cd fdaPDE-cpp/simulations
+   ```
+
+## Compiling the Simulation Executable
+
+After cloning the repository and setting up the environment, navigate to `fdaPDE-cpp/simulations` directory and compile the simulation executable using the following command:
+
+```bash
+g++ -o simulation_base simulation_base.cpp -I../ -I../fdaPDE/core/ -I/usr/include/eigen3 -O2 -std=c++20 -g -march=native -DFDAPDE_NO_DEBUG
+```
+
+This will compile the `simulation_base.cpp` file and create an executable named `simulation_base`. The command includes the necessary directories and compilation flags for optimization and debugging.
+
+## Running the Simulation
+
+To run the compiled simulation and generate results, execute the following command:
+
+```bash
+./simulation_base
+```
+
+By following the steps outlined, users can successfully verify the correct installation of the library.
+
+
+
 ## Documentation
 Documentation can be found on our [documentation site](https://fdapde.github.io/)

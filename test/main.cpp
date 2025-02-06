@@ -16,7 +16,7 @@
 //#include "src/fpca_test.cpp"
 //#include "src/fpls_test.cpp"
 //#include "src/centering_test.cpp"
-#include "src/mixed_srpde_test.cpp"
+#include "src/fanova_test.cpp"
 
 
 int main(int argc, char **argv){

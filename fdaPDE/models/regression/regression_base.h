@@ -39,6 +39,7 @@ class RegressionBase :
     public select_regularization_base<Model, RegularizationType>::type,
     public SamplingBase<Model> {
    protected:
+    bool same_locs_value;
     DiagMatrix<double> W_ {};   // diagonal matrix of weights (implements possible heteroscedasticity)
     DMatrix<double> XtWX_ {};   // q x q dense matrix X^\top*W*X
     DMatrix<double> T_ {};      // T = \Psi^\top*Q*\Psi + P (required by GCV)
@@ -73,6 +74,8 @@ class RegressionBase :
     // space-only and space-time parabolic constructor (they require only one PDE)
     fdapde_enable_constructor_if(has_single_penalty, Model) RegressionBase(const pde_ptr& pde, Sampling s) :
         Base(pde), SamplingBase<Model>(s) {};
+    fdapde_enable_constructor_if(has_single_penalty, Model) RegressionBase(const pde_ptr& pde, Sampling s, bool same_locs_value) :
+        Base(pde), SamplingBase<Model>(s), same_locs_value(same_locs_value) {};
     // space-time separable constructor
     fdapde_enable_constructor_if(has_double_penalty, Model)
       RegressionBase(const pde_ptr& space_penalty, const pde_ptr& time_penalty, Sampling s) :

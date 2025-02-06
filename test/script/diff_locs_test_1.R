@@ -8,10 +8,6 @@ if(!require(fdaPDEmixed)){
 # }
 # ------------------------------------------------------------------------------
 rm(list=ls())
-# Install dependencies
-install.packages(c("stats", "grDevices", "graphics", "geometry", 
-                   "rgl", "Matrix", "plot3D", "plot3Drgl", "shiny"))
-install.packages("~/Desktop/fdaPDEmixed", repos = NULL, type = "source")
 library(fdaPDEmixed)
 # !!! path/to/graphic-tools ----------------------------------------------------
 path_ = "~/Desktop/graphic-tools/"
@@ -25,13 +21,10 @@ for (i in seq_along(ll)) {
 # ------------------------------------------------------------------------------
 
 mesh_id = "unit_square_coarse"
-test_id = "same_locations_test_1"
+test_id = "diff_locations_test_1"
 solution_policy = c("monolithic", "richardson")
 data_dir = paste0("../data/models/mixed_srpde/", mesh_id,"/", test_id, "/")
 ids = unlist(strsplit(data_dir, split="/"))
-
-#mesh_id = ids[length(ids)-1]
-#test_id = ids[length(ids)]
 
 nodes = read.csv(paste0("../data/mesh/", mesh_id, "/points.csv"))[,2:3]
 triangles = read.csv(paste0("../data/mesh/", mesh_id, "/elements.csv"))[,2:4]
@@ -56,12 +49,6 @@ obs = matrix(nrow=nrow(locs),ncol=0)
 for( i in 0:2){
   obs = cbind(obs, as.matrix(read.table(paste0(input_dir,"obs_", i,".txt"), header = F)))
 }
-
-# {
-# x11()
-# plot(mesh, pch=".")
-# points(locs, pch=16)
-# }
 
 lambda = 1e-3
 # fdaPDE ---------------------------------------------------------------------
