@@ -16,14 +16,6 @@ Contribution features the whole implementation of the fANOVA class, as well as v
 
 ![image](https://github.com/user-attachments/assets/89d64ca6-00a5-41bc-9b49-df2cbd8785a4)
 
-## Accessing the Source Code
-
-To access the source code of the implementation, you can clone the repository from the `develop` branch:
-
-```bash
-git clone --recursive https://github.com/Franceeeee/fdaPDE-cpp.git -b develop
-cd fdaPDE-cpp/simulations
-```
 
 ## Setting Up the Environment
 
@@ -40,10 +32,19 @@ A pre-configured Docker image is provided to ensure that all dependencies are co
 2. **Run an interactive Docker container:**
 
    ```bash
-   docker run -it aldoclemente/fdapde-docker /bin/bash
+   docker run --rm -it aldoclemente/fdapde-docker /bin/bash
    ```
 
-   This will start a terminal session inside the Docker container with the environment ready for use.
+   After running the above command, you will have access to a terminal session inside the Docker container, where all required dependencies are already installed.
+
+## Accessing the Source Code
+
+   To access the source code of the implementation, you can clone the repository from the `develop` branch:
+   
+   ```bash
+   git clone --recursive https://github.com/Franceeeee/fdaPDE-cpp.git -b develop
+   cd fdaPDE-cpp/simulations
+   ```
 
 ## Compiling the Simulation Executable
 
