@@ -607,58 +607,45 @@ class fANOVA<iterative> : public fANOVABase<fANOVA<iterative>> {
 
                     x = x_new_vec[i]; // this line is needed for mem_=0 optimization
 
-                    if(mem_){
-
+                    if (mem_) {
                         int A_rows = A_v[i].rows();
                         double res_norm = zi.norm();
-                        x = x_new_vec[i];       // initial solution x0
-
-                        // Hessenberg matrix and Krylov vector
-                        DMatrix<double> V = DMatrix<double>::Zero(A_rows, mem_ + 1);        // orthonormal basis
-                        DMatrix<double> H = DMatrix<double>::Zero(mem_ + 1, mem_);          // Hessenberg matrix
-
-                        V.col(0) = zi / res_norm;           // first orthonormal vector
-
-                        DVector<double> e1 = DMatrix<double>::Zero(mem_ + 1, 1); 
-                        e1(0) = res_norm;
-
-                        // GMRES iterations
-                        for (int j_col = 0; j_col < mem_; ++j_col) {
-
-                            // new Krylov vector
-                            DVector<double> w = A_v[i] * V.col(j_col); 
-
-                            // Arnoldi orthonormalization
-                            for (int i_row = 0; i_row <= j_col; ++i_row) {
-                                H(i_row, j_col) = V.col(i_row).dot(w);
-                                w -= H(i_row, j_col) * V.col(i_row);
-                            }
-                            H(j_col + 1, j_col) = w.norm();
-
-                            // break if vector is almost zero
-                            if (H(j_col + 1, j_col) < 10e-6) break;
-
-                            V.col(j_col + 1) = w / H(j_col + 1, j_col);
-
-                            DVector<double> partial_sol = H.block(0, 0, j_col + 2, j_col + 1)
-                                                    .colPivHouseholderQr()
-                                                    .solve(e1.head(j_col + 2));
-
-                            double res_norm = (e1.head(j_col + 2) - H.block(0, 0, j_col + 2, j_col + 1) * partial_sol).norm();
-                            
-                            // update
-                            if (res_norm < 10e-2) {
-                                x += V.leftCols(j_col + 1) * partial_sol; 
-                            }
+                        x = x_new_vec[i]; // soluzione iniziale x0
+                    
+                        // Variabili per MINRES
+                        DVector<double> v_old = DVector<double>::Zero(A_rows);
+                        DVector<double> v = zi / res_norm;
+                        DVector<double> w = A_v[i] * v;
+                        
+                        double alpha = v.dot(w);
+                        DVector<double> v_new = w - alpha * v;
+                        double beta = v_new.norm();
+                        
+                        if (beta > 1e-6) v_new /= beta;
+                    
+                        // Iterazioni di MINRES
+                        for (int j = 0; j < mem_; ++j) {
+                            w = A_v[i] * v_new;
+                            double alpha_new = v_new.dot(w);
+                            w -= alpha_new * v_new + beta * v;
+                            double beta_new = w.norm();
+                    
+                            // Controllo di convergenza
+                            if (beta_new < 1e-6) break;
+                    
+                            // Aggiornamento delle variabili
+                            v_old = v;
+                            v = v_new;
+                            v_new = w / beta_new;
+                            beta = beta_new;
+                            alpha = alpha_new;
+                    
+                            // Soluzione iterativa
+                            DVector<double> partial_sol = v * alpha + v_old * beta;
+                            x += partial_sol;
                         }
-
-                        // solution after m iterations
-                        DVector<double> partial_sol = H.block(0, 0, mem_ + 1, mem_)
-                                                .colPivHouseholderQr()
-                                                .solve(e1);
-
-                        x += V.leftCols(mem_) * partial_sol;
                     }
+                    
 
                     x_new.block(n_basis()*i,0, n_basis(),1) = alpha(k) * x.head(n_basis());  
                     x_new.block(n_basis()*(m_+i),0, n_basis(),1) = alpha(k) * x.tail(n_basis());

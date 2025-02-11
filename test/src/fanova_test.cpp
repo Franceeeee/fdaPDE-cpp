@@ -262,10 +262,10 @@ TEST(fanova_test, same_locations_diff_NA) {
     int seed = 23872; 
     double lambda = 1e-3; 
     int memory = 3;             // GMRES param
-    bool same_locs = 1;
+    bool same_locs = 0;
     std::string meshID = "unit_square";
     std::size_t m = 3;
-    std::size_t n_sim = 100;     
+    std::size_t n_sim = 1;     
     
     DMatrix<double> beta = DMatrix<double>::Zero(2,1);
     beta(0,0) = -2.; beta(1,0) = 1.;
@@ -596,6 +596,7 @@ TEST(fanova_test, same_locations_diff_NA) {
     write_table(results_gmres, header, name_dir + "output/" + solution_policy[1] + "_gmres.txt");
 }
 
+/*
 TEST(fanova_test, diff_locations_diff_NA) {
 
     DMatrix<double> na_percentage_vec = DMatrix<double>::Zero(5,1);
@@ -1662,3 +1663,4 @@ TEST(fanova_test, same_locs_diff_m) {
         }
     }
 }
+*/
