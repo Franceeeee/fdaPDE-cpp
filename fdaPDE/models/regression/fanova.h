@@ -612,7 +612,7 @@ class fANOVA<iterative> : public fANOVABase<fANOVA<iterative>> {
                         double res_norm = zi.norm();
                         x = x_new_vec[i]; // soluzione iniziale x0
                     
-                        // Variabili per MINRES
+                        // Variabili di MINRES come da minres.hpp
                         DVector<double> v_old = DVector<double>::Zero(A_rows);
                         DVector<double> v = zi / res_norm;
                         DVector<double> w = A_v[i] * v;
@@ -620,29 +620,55 @@ class fANOVA<iterative> : public fANOVABase<fANOVA<iterative>> {
                         double alpha = v.dot(w);
                         DVector<double> v_new = w - alpha * v;
                         double beta = v_new.norm();
-                        
+                    
                         if (beta > 1e-6) v_new /= beta;
                     
+                        // Variabili per Givens rotation e convergenza
+                        double c_old = 1.0, s_old = 0.0;
+                        double eta = res_norm;
+                        
+                        std::cout << "Iter  | Residuo" << std::endl;
+                        std::cout << "-----------------" << std::endl;
+                        
                         // Iterazioni di MINRES
                         for (int j = 0; j < mem_; ++j) {
                             w = A_v[i] * v_new;
+                    
                             double alpha_new = v_new.dot(w);
                             w -= alpha_new * v_new + beta * v;
                             double beta_new = w.norm();
+                            
+                            if (beta_new > 1e-6) {
+                                v_old = v;
+                                v = v_new;
+                                v_new = w / beta_new;
+                            }
                     
-                            // Controllo di convergenza
-                            if (beta_new < 1e-6) break;
+                            // Rotazione di Givens
+                            double rho = std::sqrt(alpha * alpha + beta * beta);
+                            double c = alpha / rho;
+                            double s = beta / rho;
                     
-                            // Aggiornamento delle variabili
-                            v_old = v;
-                            v = v_new;
-                            v_new = w / beta_new;
-                            beta = beta_new;
+                            // Aggiornamento della soluzione
+                            double eta_new = -s * eta;
+                            eta *= c;
+                    
+                            x += eta / rho * v;
+                    
+                            // Stampa del residuo
+                            std::cout << j + 1 << "  |  " << std::abs(eta_new) << std::endl;
+                    
+                            // Controllo della convergenza
+                            if (std::abs(eta_new) < 1e-3) {
+                                std::cout << "Convergenza raggiunta dopo " << j + 1 << " iterazioni." << std::endl;
+                                break;
+                            }
+                    
+                            // Aggiornamento variabili
                             alpha = alpha_new;
-                    
-                            // Soluzione iterativa
-                            DVector<double> partial_sol = v * alpha + v_old * beta;
-                            x += partial_sol;
+                            beta = beta_new;
+                            c_old = c;
+                            s_old = s;
                         }
                     }
                     
