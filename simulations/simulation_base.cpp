@@ -8,7 +8,7 @@ int main(){
 	int seed = 23872; 
     double lambda = 1e-3; 
     int max_iter = 5;
-    double tol = 1e-2;            // MINRES param
+    double tol = 1e-3;            // MINRES param
     bool same_locs = 0;
     std::string meshID = "../test/data/mesh/unit_square_coarse/";
     std::size_t m = 3;

@@ -777,4 +777,4 @@ class fANOVA<iterative> : public fANOVABase<fANOVA<iterative>> {
 }   // namespace fdapde
 
 
-#endif   // __MIXED_SRPDE_H__
+#endif   
