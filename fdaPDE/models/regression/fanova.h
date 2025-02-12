@@ -612,18 +612,18 @@ class fANOVA<iterative> : public fANOVABase<fANOVA<iterative>> {
                         double res_norm = zi.norm();
                         x = x_new_vec[i]; // soluzione iniziale x0
                     
-                        // Variabili di MINRES come da minres.hpp
+                        // Variabili MINRES 
                         DVector<double> v_old = DVector<double>::Zero(A_rows);
                         DVector<double> v = zi / res_norm;
                         DVector<double> w = A_v[i] * v;
                         
                         double alpha = v.dot(w);
                         DVector<double> v_new = w - alpha * v;
-                        double beta = v_new.norm();
+                        double gamma = v_new.norm();
                     
-                        if (beta > 1e-6) v_new /= beta;
+                        if (gamma > 1e-3) v_new /= gamma;
                     
-                        // Variabili per Givens rotation e convergenza
+                        // Variabili per Givens (coseno, seno, convergenza)
                         double c_old = 1.0, s_old = 0.0;
                         double eta = res_norm;
                         
@@ -635,21 +635,21 @@ class fANOVA<iterative> : public fANOVABase<fANOVA<iterative>> {
                             w = A_v[i] * v_new;
                     
                             double alpha_new = v_new.dot(w);
-                            w -= alpha_new * v_new + beta * v;
-                            double beta_new = w.norm();
+                            w -= alpha_new * v_new + gamma * v;
+                            double gamma_new = w.norm();
                             
-                            if (beta_new > 1e-6) {
+                            if (gamma_new > 1e-3) {
                                 v_old = v;
                                 v = v_new;
-                                v_new = w / beta_new;
+                                v_new = w / gamma_new;
                             }
                     
                             // Rotazione di Givens
-                            double rho = std::sqrt(alpha * alpha + beta * beta);
+                            double rho = std::sqrt(alpha * alpha + gamma * gamma); //rho come alpha1
                             double c = alpha / rho;
-                            double s = beta / rho;
+                            double s = gamma / rho;
                     
-                            // Aggiornamento della soluzione
+                            // Aggiornamento soluzione
                             double eta_new = -s * eta;
                             eta *= c;
                     
@@ -658,15 +658,15 @@ class fANOVA<iterative> : public fANOVABase<fANOVA<iterative>> {
                             // Stampa del residuo
                             std::cout << j + 1 << "  |  " << std::abs(eta_new) << std::endl;
                     
-                            // Controllo della convergenza
+                            // Check convergenza
                             if (std::abs(eta_new) < 1e-3) {
                                 std::cout << "Convergenza raggiunta dopo " << j + 1 << " iterazioni." << std::endl;
                                 break;
                             }
                     
-                            // Aggiornamento variabili
+                            // Aggiornamento 
                             alpha = alpha_new;
-                            beta = beta_new;
+                            gamma = gamma_new;
                             c_old = c;
                             s_old = s;
                         }
