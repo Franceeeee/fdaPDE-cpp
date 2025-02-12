@@ -473,7 +473,7 @@ class fANOVA<iterative> : public fANOVABase<fANOVA<iterative>> {
             b_ = DMatrix<double>::Zero(2*n_basis()*m_, 1);
 
             invA_.resize(data_.size());
-            if(mem_){A_v.resize(data_.size());}
+            if(mr_max_iter){A_v.resize(data_.size());}
             _U = DMatrix<double>::Zero(n_basis(), m_*q_);   // U_tilde in 2*n_basis x ( (q-p) + p ) * m = 2*n_basis x m q
                                                        
             invG.resize(data_.size());
@@ -487,7 +487,7 @@ class fANOVA<iterative> : public fANOVABase<fANOVA<iterative>> {
                     lambda_D() * pde_.stiff(),             lambda_D() * pde_.mass()                 );
                 }   
 
-                if(mem_){A_v[i] = A_;}
+                if(mr_max_iter){A_v[i] = A_;}
                 
                 if(same_locs_value && i!=0){
                     invA_[i] = invA_[0];
@@ -591,7 +591,7 @@ class fANOVA<iterative> : public fANOVABase<fANOVA<iterative>> {
             bool Jcheck =  std::abs((Jnew-Jold)/Jnew) < tol_;       // stop by J
             bool exit_ = Jcheck && rcheck;
 
-            // 'memory' is the GMRES parameter memory, if memory == 0 then we have the base solver
+            // 'mr_max_iter' is the MINRES parameter, if mr_max_iter == 0 then we have the base solver
 
             // iterative scheme for minimization of functional 
             while (k < max_iter_ && !exit_)  {
@@ -605,70 +605,75 @@ class fANOVA<iterative> : public fANOVABase<fANOVA<iterative>> {
                     DMatrix<double> t = invG[i].solve(U_view(_U, i, q_, p_).transpose()*y);
                     zi = y -  invA_[i].solve(U_view(_U, i, q_, p_) * t);
 
-                    x = x_new_vec[i]; // this line is needed for mem_=0 optimization
-
-                    if (mem_) {
+                    x = x_new_vec[i]; // this line is needed for mr_max_iter=0 optimization
+                    
+                    if(mr_max_iter){
                         int A_rows = A_v[i].rows();
-                        double res_norm = zi.norm();
-                        x = x_new_vec[i]; // soluzione iniziale x0
-                    
-                        // Variabili MINRES 
-                        DVector<double> v_old = DVector<double>::Zero(A_rows);
-                        DVector<double> v = zi / res_norm;
-                        DVector<double> w = A_v[i] * v;
-                        
-                        double alpha = v.dot(w);
-                        DVector<double> v_new = w - alpha * v;
-                        double gamma = v_new.norm();
-                    
-                        if (gamma > 1e-3) v_new /= gamma;
-                    
-                        // Variabili per Givens (coseno, seno, convergenza)
-                        double c_old = 1.0, s_old = 0.0;
-                        double eta = res_norm;
-                        
-                        std::cout << "Iter  | Residuo" << std::endl;
-                        std::cout << "-----------------" << std::endl;
-                        
-                        // Iterazioni di MINRES
-                        for (int j = 0; j < mem_; ++j) {
-                            w = A_v[i] * v_new;
-                    
-                            double alpha_new = v_new.dot(w);
-                            w -= alpha_new * v_new + gamma * v;
-                            double gamma_new = w.norm();
-                            
-                            if (gamma_new > 1e-3) {
-                                v_old = v;
-                                v = v_new;
-                                v_new = w / gamma_new;
+                        x = x_new_vec[i]; 
+
+                        // iter vectors
+                        DVector<double> v0 = DVector<double>::Zero(A_rows);
+                        DVector<double> w0 = DVector<double>::Zero(A_rows);
+                        DVector<double> w1 = DVector<double>::Zero(A_rows);
+
+                        // MINRES params
+                        double gamma0 = 1.0;
+                        double s0 = 0.0, s1 = 0.0;
+                        double c0 = 1.0, c1 = 1.0;
+                        double resid = 0.0;
+
+                        DVector<double> v1 = zi;
+
+                        //No preconditionig
+                        DVector<double> z1 = v1;
+                        double dot = z1.dot(v1);
+
+                        double gamma1 = std::sqrt(dot);
+                        double eta = gamma1;
+                        double eta0 = eta;
+
+                        //MINRES iter loop
+                        for(size_t j = 0; j < mr_max_iter; ++j){
+                            z1 /= gamma1;
+                            DVector<double> Az = A_v[i] * z1;
+                            double d1 = z1.dot(Az);
+                            DVector<double> v2 = Az - (d1 / gamma1) * v1;
+                            if (j > 0){
+                                v2 -= (gamma0 / gamma1) * v0;
                             }
-                    
-                            // Rotazione di Givens
-                            double rho = std::sqrt(alpha * alpha + gamma * gamma); //rho come alpha1
-                            double c = alpha / rho;
-                            double s = gamma / rho;
-                    
-                            // Aggiornamento soluzione
-                            double eta_new = -s * eta;
-                            eta *= c;
-                    
-                            x += eta / rho * v;
-                    
-                            // Stampa del residuo
-                            std::cout << j + 1 << "  |  " << std::abs(eta_new) << std::endl;
-                    
-                            // Check convergenza
-                            if (std::abs(eta_new) < 1e-3) {
-                                std::cout << "Convergenza raggiunta dopo " << j + 1 << " iterazioni." << std::endl;
+                            DVector<double> z2 = v2;
+                            dot = z2.dot(v2);
+                            double gamma2 = std::sqrt(dot);
+                            double alpha0 = c1 * d1 - c0 * s1 * gamma1;
+                            double alpha1 = std::sqrt(alpha0 * alpha0 + gamma2 * gamma2);
+                            double alpha2 = s1 * d1 + c0 * c1 * gamma1;
+                            double alpha3 = s0 * gamma1;
+
+                            double inva1 = 1.0 / alpha1;
+                            double c2 = inva1 * alpha0;
+                            double s2 = inva1 * gamma2 ;
+                            DVector<double> w2 = inva1 * (z1 - alpha3 * w0 - alpha2 * w1);
+                            double f = s2 * eta;
+                            x += f * w2;
+                            eta *= -s2;
+
+                            // check convergence
+                            if((resid = std::abs(eta)/eta0) < mr_tol){
                                 break;
                             }
-                    
-                            // Aggiornamento 
-                            alpha = alpha_new;
-                            gamma = gamma_new;
-                            c_old = c;
-                            s_old = s;
+
+                            // updating params
+                            gamma0 = gamma1;
+                            gamma1 = gamma2;
+                            s0 = s1;
+                            s1 = s2;
+                            w0 = w1;
+                            w1 = w2;
+                            z1 = z2;
+                            v0 = v1;
+                            v1 = v2;
+                            c0 = c1;
+                            c1 = c2;
                         }
                     }
                     
@@ -728,7 +733,10 @@ class fANOVA<iterative> : public fANOVABase<fANOVA<iterative>> {
         double alpha(std::size_t k) const { return alpha_; }        // fixed to 1 
 
         //setters
-        void set_GMRES_params(int memory){ mem_ = memory; }
+        void set_MINRES_params(int max_iter, double tol) { 
+            this->mr_max_iter = max_iter; 
+            this->mr_tol = tol;
+        }
         void set_tolerance(double tol) { tol_ = tol; }
         void set_max_iter(std::size_t max_iter) { max_iter_ = max_iter; }
 
@@ -752,8 +760,9 @@ class fANOVA<iterative> : public fANOVABase<fANOVA<iterative>> {
         std::size_t max_iter_ = 10;     // maximum number of iteration
         double alpha_ = 1.;             
 
-        // Anderon's accelerator parameters
-        int mem_ = 0; 
+        // MINRES's parameters
+        int mr_max_iter = 0;
+        double mr_tol = 1e-3;
 
         double J(const DMatrix<double>& f, const DMatrix<double>& g) const{
             DMatrix<double> fhat = mPsi_ * f; 

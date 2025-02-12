@@ -7,6 +7,8 @@ int main(){
 	std::string test_name = "simulation_base/";
 	int seed = 23872; 
     double lambda = 1e-3; 
+    int max_iter = 5;
+    double tol = 1e-2;            // MINRES param
     bool same_locs = 0;
     std::string meshID = "../test/data/mesh/unit_square_coarse/";
     std::size_t m = 3;
@@ -164,6 +166,7 @@ int main(){
     fANOVA<iterative> richardson_(problem, Sampling::pointwise, same_locs);
     richardson_.set_lambda_D(lambda);
     richardson_.set_data(data);
+    richardson_.set_MINRES_params(max_iter, tol);
 
     richardson_.init();
 

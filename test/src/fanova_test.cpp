@@ -261,7 +261,8 @@ TEST(fanova_test, same_locations_diff_NA) {
     std::string test_name = "same_locations_diff_NA/";
     int seed = 23872; 
     double lambda = 1e-3; 
-    int memory = 3;             // GMRES param
+    int max_iter = 5; 
+    double tol = 1e-2;            // GMRES param
     bool same_locs = 0;
     std::string meshID = "unit_square";
     std::size_t m = 3;
@@ -509,7 +510,7 @@ TEST(fanova_test, same_locations_diff_NA) {
         fANOVA<iterative> gmres_(problem, Sampling::pointwise, same_locs);
         gmres_.set_lambda_D(lambda);
 	    gmres_.set_data(data);
-        gmres_.set_GMRES_params(memory);
+        gmres_.set_MINRES_params(max_iter, tol);
 
         start = std::chrono::high_resolution_clock::now();
         gmres_.init();
