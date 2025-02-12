@@ -39,10 +39,10 @@ A pre-configured Docker image is provided to ensure that all dependencies are co
 
 ## Accessing the Source Code
 
-   To access the source code of the implementation, you can clone the repository from the `develop` branch:
+   To access the source code of the implementation, you can clone the repository from the `MINRES` branch:
    
    ```bash
-   git clone --recursive https://github.com/Franceeeee/fdaPDE-cpp.git -b develop
+   git clone --recursive https://github.com/Franceeeee/fdaPDE-cpp.git -b MINRES
    cd fdaPDE-cpp/simulations
    ```
 
